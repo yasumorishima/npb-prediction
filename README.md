@@ -19,7 +19,10 @@ Tom Tangoが考案した成績予測手法。過去3年の成績を **5/4/3** �
 | `marcel_projection.py` | Marcel法による翌年成績予測（年齢調整付き） |
 | `ml_projection.py` | XGBoost/LightGBM による成績予測（年齢+wOBA/wRC+特徴量付き） |
 | `pythagorean.py` | ピタゴラス勝率によるチーム勝率予測（NPB最適指数 k=1.72） |
+| `api.py` | FastAPI 推論API（全予測をREST APIで提供） |
 | `DATA_SOURCES.md` | 全データソースの取得方法・URL・クレジット詳細 |
+| `Dockerfile` | Docker コンテナ定義 |
+| `docker-compose.yml` | Docker Compose 設定 |
 
 ### データ
 
@@ -110,13 +113,58 @@ python ml_projection.py
 python pythagorean.py
 ```
 
+### API起動
+
+```bash
+# ローカル起動
+pip install -r requirements.txt
+uvicorn api:app --reload
+
+# Docker起動
+docker compose up --build
+```
+
+APIが起動したら http://localhost:8000/docs でSwagger UIを確認できます。
+
+### APIエンドポイント
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| GET | `/predict/hitter/{name}` | 打者の2025年予測（Marcel + ML） |
+| GET | `/predict/pitcher/{name}` | 投手の2025年予測（Marcel + ML） |
+| GET | `/predict/team/{name}?year=2024` | チームのピタゴラス勝率 |
+| GET | `/sabermetrics/{name}?year=2024` | wOBA/wRC+/wRAA |
+| GET | `/rankings/hitters?top=10&sort_by=OPS` | 打者ランキング |
+| GET | `/rankings/pitchers?top=10&sort_by=ERA` | 投手ランキング |
+| GET | `/pythagorean?year=2024` | 全チームのピタゴラス勝率 |
+
+### レスポンス例
+
+```bash
+# 牧秀悟の2025年予測
+curl http://localhost:8000/predict/hitter/牧
+```
+
+```json
+{
+  "query": "牧",
+  "count": 1,
+  "predictions": [{
+    "player": "牧 秀悟",
+    "team": "DeNA",
+    "marcel": {"OPS": 0.834, "AVG": 0.295, "HR": 22.9, "RBI": 81.4},
+    "ml": {"pred_OPS": 0.874}
+  }]
+}
+```
+
 ## 今後の予定
 
 - [x] Marcel法（年齢調整付き）
 - [x] ピタゴラス勝率（NPB最適指数 k=1.72）
 - [x] XGBoost / LightGBM（年齢+wOBA/wRC+特徴量付き）
 - [x] セイバー指標追加（wOBA/wRC+/wRAA自前算出）
-- [ ] FastAPI による推論API化
+- [x] FastAPI による推論API化 + Docker対応
 - [ ] Computer Vision（骨格検知）
 
 ## データソース
