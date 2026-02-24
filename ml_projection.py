@@ -2,10 +2,12 @@
 XGBoost/LightGBMによるNPB選手成績予測
 
 Marcel法を上回ることが目標。
-特徴量: 過去3年の成績（加重なし）+ 打席数トレンド + 年数ギャップ
+特徴量: 過去3年の成績（加重なし）+ 打席数トレンド + 年数ギャップ + wOBA/wRC+
 ターゲット: 翌年のOPS（打者）/ ERA（投手）
 
-Data source: プロ野球データFreak (https://baseball-data.com)
+Data sources:
+- プロ野球データFreak (https://baseball-data.com)
+- 日本野球機構 NPB (https://npb.jp) — wOBA/wRC+算出用の詳細打撃成績
 """
 
 import pandas as pd
@@ -33,6 +35,21 @@ DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = DATA_DIR / "projections"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _norm_name(name: str) -> str:
+    """選手名を正規化（全角スペース→半角スペース）"""
+    return str(name).replace("\u3000", " ").strip()
+
+
+def load_sabermetrics() -> pd.DataFrame:
+    """wOBA/wRC+データをロード（npb.jpベース）"""
+    path = OUT_DIR / "npb_sabermetrics_2015_2025.csv"
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(path)
+    df["player_norm"] = df["player"].apply(_norm_name)
+    return df
 
 
 def load_hitters() -> pd.DataFrame:
@@ -71,8 +88,11 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     各選手・各年について、過去3年分の成績から特徴量を生成し、
     翌年のOPSをターゲットとするデータセットを作成。
+    wOBA/wRC+も特徴量に追加（npb.jpのセイバーメトリクスデータと結合）。
     """
     birthdays = load_birthdays()
+    saber = load_sabermetrics()
+    has_saber = len(saber) > 0
     years = sorted(df["year"].unique())
     rows = []
 
@@ -123,6 +143,23 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
 
             if not has_any:
                 continue
+
+            # wOBA/wRC+特徴量（npb.jpセイバーメトリクスデータから）
+            if has_saber:
+                player_norm = _norm_name(player)
+                for offset, yr in enumerate([y1, y2, y3], start=1):
+                    sdata = saber[(saber["player_norm"] == player_norm) & (saber["year"] == yr)]
+                    if len(sdata) > 0:
+                        feat[f"wOBA_{offset}"] = sdata.iloc[0]["wOBA"]
+                        feat[f"wRC+_{offset}"] = sdata.iloc[0]["wRC+"]
+                    else:
+                        feat[f"wOBA_{offset}"] = np.nan
+                        feat[f"wRC+_{offset}"] = np.nan
+                # wOBAトレンド
+                if not np.isnan(feat.get("wOBA_1", np.nan)) and not np.isnan(feat.get("wOBA_2", np.nan)):
+                    feat["wOBA_trend"] = feat["wOBA_1"] - feat["wOBA_2"]
+                else:
+                    feat["wOBA_trend"] = 0
 
             # 追加特徴量
             # 直近年のPA
@@ -464,6 +501,8 @@ def main():
 def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
     """予測用: ターゲット年のデータなしで特徴量を構築"""
     birthdays = load_birthdays()
+    saber = load_sabermetrics()
+    has_saber = len(saber) > 0
     y1, y2, y3 = target_year - 1, target_year - 2, target_year - 3
     rate_cols = ["AVG", "OBP", "SLG", "OPS", "RC27", "XR27"]
     count_cols = ["HR", "RBI", "SB", "BB", "SO", "H"]
@@ -502,6 +541,22 @@ def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> 
 
         if not has_any:
             continue
+
+        # wOBA/wRC+特徴量
+        if has_saber:
+            player_norm = _norm_name(player)
+            for offset, yr in enumerate([y1, y2, y3], start=1):
+                sdata = saber[(saber["player_norm"] == player_norm) & (saber["year"] == yr)]
+                if len(sdata) > 0:
+                    feat[f"wOBA_{offset}"] = sdata.iloc[0]["wOBA"]
+                    feat[f"wRC+_{offset}"] = sdata.iloc[0]["wRC+"]
+                else:
+                    feat[f"wOBA_{offset}"] = np.nan
+                    feat[f"wRC+_{offset}"] = np.nan
+            if not np.isnan(feat.get("wOBA_1", np.nan)) and not np.isnan(feat.get("wOBA_2", np.nan)):
+                feat["wOBA_trend"] = feat["wOBA_1"] - feat["wOBA_2"]
+            else:
+                feat["wOBA_trend"] = 0
 
         feat["PA_total_3yr"] = feat["PA_1"] + feat["PA_2"] + feat["PA_3"]
         feat["PA_trend"] = (feat["PA_1"] - feat["PA_2"]) if feat["PA_1"] > 0 and feat["PA_2"] > 0 else 0
