@@ -12,6 +12,7 @@ Marcel法（Tom Tangoが考案）:
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from datetime import date
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -28,6 +29,35 @@ REGRESSION_IP = 600   # 投手（投球回ベース）
 # 年齢調整: ピーク年齢と1年あたりの変化率
 PEAK_AGE = 29
 AGE_FACTOR = 0.003  # OPS等の割合指標に対する1歳あたりの変化
+
+
+def load_birthdays() -> dict:
+    """生年月日データを読み込み、選手名→生年月日の辞書を返す"""
+    path = RAW_DIR / "npb_player_birthdays.csv"
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path)
+    df["birthday"] = pd.to_datetime(df["birthday"], errors="coerce")
+    df = df.dropna(subset=["birthday"])
+    return dict(zip(df["player"], df["birthday"]))
+
+
+def calc_age(birthday, target_year: int) -> float:
+    """target_year の開幕時点（4/1）での年齢を計算"""
+    if pd.isna(birthday):
+        return np.nan
+    opening_day = date(target_year, 4, 1)
+    age = opening_day.year - birthday.year
+    if (opening_day.month, opening_day.day) < (birthday.month, birthday.day):
+        age -= 1
+    return age
+
+
+def age_adjustment(age: float, peak: int = PEAK_AGE, factor: float = AGE_FACTOR) -> float:
+    """年齢調整係数を返す（ピーク年齢からの距離に応じて）"""
+    if np.isnan(age):
+        return 0.0
+    return (peak - age) * factor
 
 
 def load_hitters() -> pd.DataFrame:
@@ -67,6 +97,9 @@ def marcel_hitter(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
     予測対象の指標（レート系）: AVG, OBP, SLG, OPS
     予測対象の指標（カウント系）: HR, RBI, SB, BB, SO（PA比率で予測→PA掛け算）
     """
+    # 生年月日データの読み込み
+    birthdays = load_birthdays()
+
     # 過去3年のデータ
     years = [target_year - 1, target_year - 2, target_year - 3]
     available_years = sorted(df["year"].unique())
@@ -155,10 +188,18 @@ def marcel_hitter(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
             ) / (weighted_pa + REGRESSION_PA)
             proj[col] = proj_rate * proj_pa  # レート→カウント変換
 
+        # 年齢調整
+        birthday = birthdays.get(player)
+        age = calc_age(birthday, target_year) if birthday is not None else np.nan
+        adj = age_adjustment(age)
+        for col in rate_cols:
+            proj[col] += adj  # ピーク前: +, ピーク後: -
+
         proj["player"] = player
         proj["team"] = player_data.iloc[-1]["team"]  # 最新チーム
         proj["PA"] = round(proj_pa)
         proj["target_year"] = target_year
+        proj["age"] = age
 
         results.append(proj)
 
@@ -181,6 +222,7 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
     予測対象（レート系）: ERA, WHIP, DIPS
     予測対象（カウント系）: W, L, SV, SO（IP比率で予測）
     """
+    birthdays = load_birthdays()
     years = [target_year - 1, target_year - 2, target_year - 3]
     available_years = sorted(df["year"].unique())
 
@@ -266,10 +308,18 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
             ) / (weighted_ip + REGRESSION_IP)
             proj[col] = proj_rate * avg_ip
 
+        # 年齢調整（投手: ERA/WHIPは低い方が良いので符号を逆に）
+        birthday = birthdays.get(player)
+        age = calc_age(birthday, target_year) if birthday is not None else np.nan
+        adj = age_adjustment(age)
+        proj["ERA"] -= adj * (proj["ERA"] / 0.300)  # ERA scale adjustment
+        proj["WHIP"] -= adj * (proj["WHIP"] / 0.300)  # WHIP scale adjustment
+
         proj["player"] = player
         proj["team"] = player_data.iloc[-1]["team"]
         proj["IP"] = round(avg_ip, 1)
         proj["target_year"] = target_year
+        proj["age"] = age
 
         results.append(proj)
 
