@@ -165,7 +165,7 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] XGBoost / LightGBM（年齢+wOBA/wRC+特徴量付き）
 - [x] セイバー指標追加（wOBA/wRC+/wRAA自前算出）
 - [x] FastAPI による推論API化 + Docker対応
-- [ ] Computer Vision（骨格検知）
+- [ ] 精度改善（特徴量追加・アンサンブル等）
 
 ## データソース
 
