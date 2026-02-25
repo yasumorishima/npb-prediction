@@ -27,7 +27,7 @@ app = FastAPI(
         "- [プロ野球データFreak](https://baseball-data.com)\n"
         "- [日本野球機構 NPB](https://npb.jp)\n"
     ),
-    version="0.2.0",
+    version="0.3.0",
 )
 
 
@@ -100,6 +100,7 @@ def root():
             "/rankings/hitters",
             "/rankings/pitchers",
             "/pythagorean",
+            "/simulate/team/{team}",
         ],
     }
 
@@ -317,6 +318,129 @@ def rankings_pitchers(
         })
 
     return {"ソート": sort_by, "件数": len(results), "ランキング": results}
+
+
+# ============================================================
+# チーム編成シミュレーション
+# ============================================================
+
+
+def _pythagorean_wpct(rs: float, ra: float, k: float = 1.72) -> float:
+    """ピタゴラス勝率を計算（NPB最適指数 k=1.72）"""
+    if ra == 0:
+        return 1.0
+    return rs**k / (rs**k + ra**k)
+
+
+def _get_player_wraa(name: str, team: str | None, year: int | None) -> tuple[str, float, str]:
+    """選手のwRAAを取得。返り値: (正式名, wRAA, ソース)"""
+    matched = _search_player(sabermetrics, name)
+    if team:
+        team_match = matched[matched["team"].str.contains(_norm(team), na=False)]
+        if not team_match.empty:
+            matched = team_match
+    if year is not None:
+        year_match = matched[matched["year"] == year]
+        if not year_match.empty:
+            matched = year_match
+    if not matched.empty:
+        row = matched.sort_values("year", ascending=False).iloc[0]
+        return row["player"], float(row["wRAA"]), f"{int(row['year'])}実績"
+    # sabermetricsに無い場合 → marcel予測からwRAA簡易推定
+    marcel_match = _search_player(marcel_hitters, name)
+    if not marcel_match.empty:
+        row = marcel_match.iloc[0]
+        pa = float(row["PA"])
+        ops = float(row["OPS"])
+        # 簡易推定: wRAA ≈ (OPS - リーグ平均OPS) × PA / 補正係数
+        # NPBリーグ平均OPS ≈ .700、係数は経験的に3.2程度
+        league_avg_ops = 0.700
+        wraa_est = (ops - league_avg_ops) * pa / 3.2
+        return row["player"], round(wraa_est, 1), "Marcel予測から推定"
+    return name, 0.0, "データなし"
+
+
+@app.get(
+    "/simulate/team/{team}",
+    summary="チーム編成シミュレーション",
+    description=(
+        "選手を入れ替えて勝数の変化をシミュレーションします。\n\n"
+        "指定チーム・年度の実績データをベースに、除外選手のwRAA分を得点から引き、"
+        "追加選手のwRAA分を得点に足して、ピタゴラス勝率を再計算します。\n\n"
+        "**例**: `/simulate/team/DeNA?year=2025&add=山川,牧&remove=宮﨑,佐野`"
+    ),
+)
+def simulate_team(
+    team: TeamName = PathParam(description="対象チーム"),
+    year: int = Query(default=2025, ge=2015, le=2025, description="ベースとなる年度"),
+    add: str | None = Query(default=None, description="追加する選手名（カンマ区切り、部分一致）", examples=["山川,牧"]),
+    remove: str | None = Query(default=None, description="除外する選手名（カンマ区切り、部分一致）", examples=["宮﨑,佐野"]),
+):
+    """チーム編成シミュレーション（選手入替 → ピタゴラス勝率再計算）"""
+    if pythagorean.empty or sabermetrics.empty:
+        raise HTTPException(503, "必要なデータが読み込まれていません")
+
+    # ベースとなるチームデータ取得
+    q = _norm(team.value)
+    mask = pythagorean["team"].str.contains(q, na=False) & (pythagorean["year"] == year)
+    team_data = pythagorean[mask]
+    if team_data.empty:
+        raise HTTPException(404, f"チームが見つかりません: {team.value} ({year})")
+
+    row = team_data.iloc[0]
+    rs = float(row["RS"])
+    ra = float(row["RA"])
+    games = int(row["G"])
+    orig_wpct = _pythagorean_wpct(rs, ra)
+    orig_wins = orig_wpct * games
+
+    # 除外選手
+    removed = []
+    rs_adj = rs
+    if remove:
+        for name in remove.split(","):
+            name = name.strip()
+            if not name:
+                continue
+            player_name, wraa, source = _get_player_wraa(name, team.value, year)
+            removed.append({"選手名": player_name, "wRAA": round(wraa, 1), "ソース": source})
+            rs_adj -= wraa  # wRAAを得点から引く
+
+    # 追加選手
+    added = []
+    if add:
+        for name in add.split(","):
+            name = name.strip()
+            if not name:
+                continue
+            player_name, wraa, source = _get_player_wraa(name, None, year)
+            added.append({"選手名": player_name, "wRAA": round(wraa, 1), "ソース": source})
+            rs_adj += wraa  # wRAAを得点に足す
+
+    # シミュレーション結果
+    new_wpct = _pythagorean_wpct(rs_adj, ra)
+    new_wins = new_wpct * games
+    win_diff = new_wins - orig_wins
+
+    return {
+        "チーム": row["team"],
+        "ベース年度": year,
+        "現状": {
+            "得点": int(rs),
+            "失点": int(ra),
+            "ピタゴラス勝率": round(orig_wpct, 3),
+            "ピタゴラス期待勝数": round(orig_wins, 1),
+        },
+        "除外選手": removed,
+        "追加選手": added,
+        "シミュレーション結果": {
+            "調整後得点": round(rs_adj, 1),
+            "失点": int(ra),
+            "ピタゴラス勝率": round(new_wpct, 3),
+            "ピタゴラス期待勝数": round(new_wins, 1),
+            "勝数変化": f"{win_diff:+.1f}",
+        },
+    }
 
 
 @app.get(
