@@ -8,16 +8,43 @@ Data sources:
 - 日本野球機構 NPB (https://npb.jp)
 """
 
+from enum import Enum
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Path as PathParam, Query
 
 app = FastAPI(
-    title="NPB Prediction API",
-    description="NPB選手成績予測・チーム勝率予測API（Marcel法 / ML / ピタゴラス勝率 / wOBA・wRC+）",
-    version="0.1.0",
+    title="NPB 成績予測 API",
+    description=(
+        "NPB（日本プロ野球）の選手成績予測・チーム勝率予測を提供するAPIです。\n\n"
+        "## 予測手法\n"
+        "- **Marcel法**: 過去3年の加重平均 + 平均回帰 + 年齢調整（最も精度が高い）\n"
+        "- **機械学習**: LightGBM / XGBoost によるアンサンブル予測\n"
+        "- **ピタゴラス勝率**: 得失点からチーム勝率を推定（NPB最適指数 k=1.72）\n"
+        "- **セイバーメトリクス**: wOBA / wRC+ / wRAA（NPBリーグ環境にスケーリング）\n\n"
+        "## データソース\n"
+        "- [プロ野球データFreak](https://baseball-data.com)\n"
+        "- [日本野球機構 NPB](https://npb.jp)\n"
+    ),
+    version="0.2.0",
 )
+
+
+class TeamName(str, Enum):
+    """NPB 12球団"""
+    DeNA = "DeNA"
+    巨人 = "巨人"
+    阪神 = "阪神"
+    広島 = "広島"
+    中日 = "中日"
+    ヤクルト = "ヤクルト"
+    ソフトバンク = "ソフトバンク"
+    日本ハム = "日本ハム"
+    楽天 = "楽天"
+    ロッテ = "ロッテ"
+    オリックス = "オリックス"
+    西武 = "西武"
 
 PROJ_DIR = Path(__file__).parent / "data" / "projections"
 
@@ -77,8 +104,14 @@ def root():
     }
 
 
-@app.get("/predict/hitter/{name}")
-def predict_hitter(name: str):
+@app.get(
+    "/predict/hitter/{name}",
+    summary="打者の2026年成績予測",
+    description="選手名（部分一致可）を指定して、Marcel法とMLによる2026年シーズン予測を取得します。",
+)
+def predict_hitter(
+    name: str = PathParam(description="選手名（部分一致OK）", examples=["牧", "近藤", "岡本"]),
+):
     """打者の2026年成績予測（Marcel法 + ML）"""
     marcel = _search_player(marcel_hitters, name)
     ml = _search_player(ml_hitters, name)
@@ -89,28 +122,33 @@ def predict_hitter(name: str):
     results = []
     for _, row in marcel.iterrows():
         entry = {
-            "player": row["player"],
-            "team": row["team"],
-            "marcel": {
+            "選手名": row["player"],
+            "チーム": row["team"],
+            "Marcel予測": {
                 "OPS": round(row["OPS"], 3),
-                "AVG": round(row["AVG"], 3),
-                "OBP": round(row["OBP"], 3),
-                "SLG": round(row["SLG"], 3),
-                "HR": round(row["HR"], 1),
-                "RBI": round(row["RBI"], 1),
+                "打率": round(row["AVG"], 3),
+                "出塁率": round(row["OBP"], 3),
+                "長打率": round(row["SLG"], 3),
+                "本塁打": round(row["HR"], 1),
+                "打点": round(row["RBI"], 1),
             },
         }
-        # ML予測をマージ
         ml_match = ml[ml["player"] == row["player"]]
         if not ml_match.empty:
-            entry["ml"] = {"pred_OPS": round(ml_match.iloc[0]["pred_OPS"], 3)}
+            entry["ML予測"] = {"OPS": round(ml_match.iloc[0]["pred_OPS"], 3)}
         results.append(entry)
 
-    return {"query": name, "count": len(results), "predictions": results}
+    return {"検索": name, "件数": len(results), "予測": results}
 
 
-@app.get("/predict/pitcher/{name}")
-def predict_pitcher(name: str):
+@app.get(
+    "/predict/pitcher/{name}",
+    summary="投手の2026年成績予測",
+    description="選手名（部分一致可）を指定して、Marcel法とMLによる2026年シーズン予測を取得します。",
+)
+def predict_pitcher(
+    name: str = PathParam(description="選手名（部分一致OK）", examples=["今永", "山本", "佐々木"]),
+):
     """投手の2026年成績予測（Marcel法 + ML）"""
     marcel = _search_player(marcel_pitchers, name)
     ml = _search_player(ml_pitchers, name)
@@ -121,61 +159,72 @@ def predict_pitcher(name: str):
     results = []
     for _, row in marcel.iterrows():
         entry = {
-            "player": row["player"],
-            "team": row["team"],
-            "marcel": {
-                "ERA": round(row["ERA"], 2),
+            "選手名": row["player"],
+            "チーム": row["team"],
+            "Marcel予測": {
+                "防御率": round(row["ERA"], 2),
                 "WHIP": round(row["WHIP"], 2),
-                "W": round(row["W"], 1),
-                "L": round(row["L"], 1),
-                "SO": round(row["SO"], 1),
-                "IP": round(row["IP"], 1),
+                "勝利": round(row["W"], 1),
+                "敗北": round(row["L"], 1),
+                "奪三振": round(row["SO"], 1),
+                "投球回": round(row["IP"], 1),
             },
         }
         ml_match = ml[ml["player"] == row["player"]]
         if not ml_match.empty:
-            entry["ml"] = {"pred_ERA": round(ml_match.iloc[0]["pred_ERA"], 2)}
+            entry["ML予測"] = {"防御率": round(ml_match.iloc[0]["pred_ERA"], 2)}
         results.append(entry)
 
-    return {"query": name, "count": len(results), "predictions": results}
+    return {"検索": name, "件数": len(results), "予測": results}
 
 
-@app.get("/predict/team/{name}")
-def predict_team(name: str, year: int = Query(default=2025, ge=2015, le=2025)):
+@app.get(
+    "/predict/team/{name}",
+    summary="チームのピタゴラス勝率",
+    description="得点・失点から理論上の勝率を推定します（NPB最適指数 k=1.72）。実際の勝数との差も表示。",
+)
+def predict_team(
+    name: TeamName = PathParam(description="チーム名"),
+    year: int = Query(default=2025, ge=2015, le=2025, description="対象年度（2015〜2025）"),
+):
     """チームのピタゴラス勝率予測"""
     if pythagorean.empty:
         raise HTTPException(503, "ピタゴラス勝率データが読み込まれていません")
 
-    q = _norm(name)
+    q = _norm(name.value)
     mask = pythagorean["team"].str.contains(q, na=False) & (pythagorean["year"] == year)
     matched = pythagorean[mask]
 
     if matched.empty:
-        raise HTTPException(404, f"チームが見つかりません: {name} ({year})")
+        raise HTTPException(404, f"チームが見つかりません: {name.value} ({year})")
 
     results = []
     for _, row in matched.iterrows():
         results.append({
-            "team": row["team"],
-            "year": int(row["year"]),
-            "league": row["league"],
-            "actual_W": int(row["W"]),
-            "actual_L": int(row["L"]),
-            "actual_WPCT": round(row["actual_WPCT"], 3),
-            "pyth_WPCT": round(row["pyth_WPCT_npb"], 3),
-            "pyth_W": round(row["pyth_W_npb"], 1),
-            "diff_W": round(row["diff_W_npb"], 1),
-            "RS": int(row["RS"]),
-            "RA": int(row["RA"]),
+            "チーム": row["team"],
+            "年度": int(row["year"]),
+            "リーグ": row["league"],
+            "実際の勝数": int(row["W"]),
+            "実際の敗数": int(row["L"]),
+            "実際の勝率": round(row["actual_WPCT"], 3),
+            "ピタゴラス勝率": round(row["pyth_WPCT_npb"], 3),
+            "ピタゴラス期待勝数": round(row["pyth_W_npb"], 1),
+            "差（実際-期待）": round(row["diff_W_npb"], 1),
+            "得点": int(row["RS"]),
+            "失点": int(row["RA"]),
         })
 
-    return {"query": name, "year": year, "count": len(results), "teams": results}
+    return {"検索": name.value, "年度": year, "件数": len(results), "チーム": results}
 
 
-@app.get("/sabermetrics/{name}")
+@app.get(
+    "/sabermetrics/{name}",
+    summary="セイバーメトリクス（wOBA / wRC+ / wRAA）",
+    description="NPBリーグ環境にスケーリングしたwOBA・wRC+・wRAAを取得します。wRC+はリーグ平均=100。",
+)
 def get_sabermetrics(
-    name: str,
-    year: int | None = Query(default=None, ge=2015, le=2025),
+    name: str = PathParam(description="選手名（部分一致OK）", examples=["近藤", "牧", "オースティン"]),
+    year: int | None = Query(default=None, ge=2015, le=2025, description="対象年度（省略で全年度）"),
 ):
     """選手のwOBA/wRC+/wRAA"""
     if sabermetrics.empty:
@@ -191,25 +240,29 @@ def get_sabermetrics(
     results = []
     for _, row in matched.iterrows():
         results.append({
-            "player": row["player"],
-            "team": row["team"],
-            "year": int(row["year"]),
-            "PA": int(row["PA"]),
+            "選手名": row["player"],
+            "チーム": row["team"],
+            "年度": int(row["year"]),
+            "打席数": int(row["PA"]),
             "wOBA": round(row["wOBA"], 3),
-            "wRC_plus": round(row["wRC+"], 1),
+            "wRC+": round(row["wRC+"], 1),
             "wRAA": round(row["wRAA"], 1),
-            "AVG": round(row["AVG"], 3),
-            "OBP": round(row["OBP"], 3),
-            "SLG": round(row["SLG"], 3),
+            "打率": round(row["AVG"], 3),
+            "出塁率": round(row["OBP"], 3),
+            "長打率": round(row["SLG"], 3),
         })
 
-    return {"query": name, "count": len(results), "stats": results}
+    return {"検索": name, "件数": len(results), "成績": results}
 
 
-@app.get("/rankings/hitters")
+@app.get(
+    "/rankings/hitters",
+    summary="打者ランキング（Marcel法 2026予測）",
+    description="Marcel法による2026年打者予測のランキング。ソート項目（OPS/打率/本塁打/打点）と表示人数を指定可能。",
+)
 def rankings_hitters(
-    top: int = Query(default=20, ge=1, le=100),
-    sort_by: str = Query(default="OPS", enum=["OPS", "AVG", "HR", "RBI"]),
+    top: int = Query(default=20, ge=1, le=100, description="表示人数（1〜100）", examples=[10, 20, 50]),
+    sort_by: str = Query(default="OPS", enum=["OPS", "AVG", "HR", "RBI"], description="ソート項目"),
 ):
     """打者ランキング（Marcel法 2026予測）"""
     if marcel_hitters.empty:
@@ -219,23 +272,27 @@ def rankings_hitters(
     results = []
     for rank, (_, row) in enumerate(df.iterrows(), 1):
         results.append({
-            "rank": rank,
-            "player": row["player"],
-            "team": row["team"],
+            "順位": rank,
+            "選手名": row["player"],
+            "チーム": row["team"],
             "OPS": round(row["OPS"], 3),
-            "AVG": round(row["AVG"], 3),
-            "HR": round(row["HR"], 1),
-            "RBI": round(row["RBI"], 1),
-            "PA": round(row["PA"], 0),
+            "打率": round(row["AVG"], 3),
+            "本塁打": round(row["HR"], 1),
+            "打点": round(row["RBI"], 1),
+            "打席数": round(row["PA"], 0),
         })
 
-    return {"sort_by": sort_by, "count": len(results), "rankings": results}
+    return {"ソート": sort_by, "件数": len(results), "ランキング": results}
 
 
-@app.get("/rankings/pitchers")
+@app.get(
+    "/rankings/pitchers",
+    summary="投手ランキング（Marcel法 2026予測）",
+    description="Marcel法による2026年投手予測のランキング。規定投球回（50IP以上）の投手が対象。ソート項目（防御率/WHIP/奪三振/勝利）を指定可能。",
+)
 def rankings_pitchers(
-    top: int = Query(default=20, ge=1, le=100),
-    sort_by: str = Query(default="ERA", enum=["ERA", "WHIP", "SO", "W"]),
+    top: int = Query(default=20, ge=1, le=100, description="表示人数（1〜100）", examples=[10, 20, 50]),
+    sort_by: str = Query(default="ERA", enum=["ERA", "WHIP", "SO", "W"], description="ソート項目（ERA/WHIPは昇順）"),
 ):
     """投手ランキング（Marcel法 2026予測）"""
     if marcel_pitchers.empty:
@@ -249,21 +306,27 @@ def rankings_pitchers(
     results = []
     for rank, (_, row) in enumerate(df.iterrows(), 1):
         results.append({
-            "rank": rank,
-            "player": row["player"],
-            "team": row["team"],
-            "ERA": round(row["ERA"], 2),
+            "順位": rank,
+            "選手名": row["player"],
+            "チーム": row["team"],
+            "防御率": round(row["ERA"], 2),
             "WHIP": round(row["WHIP"], 2),
-            "SO": round(row["SO"], 1),
-            "W": round(row["W"], 1),
-            "IP": round(row["IP"], 1),
+            "奪三振": round(row["SO"], 1),
+            "勝利": round(row["W"], 1),
+            "投球回": round(row["IP"], 1),
         })
 
-    return {"sort_by": sort_by, "count": len(results), "rankings": results}
+    return {"ソート": sort_by, "件数": len(results), "ランキング": results}
 
 
-@app.get("/pythagorean")
-def pythagorean_all(year: int = Query(default=2025, ge=2015, le=2025)):
+@app.get(
+    "/pythagorean",
+    summary="全チームのピタゴラス勝率（指定年）",
+    description="得失点から推定した理論上の勝率で全12球団を順位付け。NPB最適指数 k=1.72 を使用。実際の勝数との差（＝運の要素）も表示。",
+)
+def pythagorean_all(
+    year: int = Query(default=2025, ge=2015, le=2025, description="対象年度（2015〜2025）", examples=[2025, 2024, 2023]),
+):
     """全チームのピタゴラス勝率（指定年）"""
     if pythagorean.empty:
         raise HTTPException(503, "ピタゴラス勝率データが読み込まれていません")
@@ -276,14 +339,14 @@ def pythagorean_all(year: int = Query(default=2025, ge=2015, le=2025)):
     results = []
     for rank, (_, row) in enumerate(df.iterrows(), 1):
         results.append({
-            "rank": rank,
-            "team": row["team"],
-            "league": row["league"],
-            "actual_W": int(row["W"]),
-            "actual_L": int(row["L"]),
-            "pyth_WPCT": round(row["pyth_WPCT_npb"], 3),
-            "pyth_W": round(row["pyth_W_npb"], 1),
-            "diff_W": round(row["diff_W_npb"], 1),
+            "順位": rank,
+            "チーム": row["team"],
+            "リーグ": row["league"],
+            "実際の勝数": int(row["W"]),
+            "実際の敗数": int(row["L"]),
+            "ピタゴラス勝率": round(row["pyth_WPCT_npb"], 3),
+            "ピタゴラス期待勝数": round(row["pyth_W_npb"], 1),
+            "差（実際-期待）": round(row["diff_W_npb"], 1),
         })
 
-    return {"year": year, "count": len(results), "standings": results}
+    return {"年度": year, "件数": len(results), "順位表": results}
