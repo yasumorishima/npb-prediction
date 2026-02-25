@@ -277,9 +277,9 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
     # NaNを-1で埋める（不在年のマーカー）
     X = X.fillna(-1)
 
-    # holdout: 2024年を予測（2023以前で学習）
-    mask_test = feat_df["target_year"] == 2024
-    mask_train = feat_df["target_year"] < 2024
+    # holdout: 2025年を予測（2024以前で学習）
+    mask_test = feat_df["target_year"] == 2025
+    mask_train = feat_df["target_year"] < 2025
 
     X_train, y_train = X[mask_train], y[mask_train]
     X_test, y_test = X[mask_test], y[mask_test]
@@ -287,8 +287,8 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
     print(f"\n{'=' * 60}")
     print(f"{label} 予測")
     print(f"{'=' * 60}")
-    print(f"Train: {len(X_train)} samples (2018-2023 target years)")
-    print(f"Test:  {len(X_test)} samples (2024 target year)")
+    print(f"Train: {len(X_train)} samples (2018-2024 target years)")
+    print(f"Test:  {len(X_test)} samples (2025 target year)")
     print(f"Features: {len(feature_cols)}")
 
     results = {}
@@ -401,13 +401,13 @@ def main():
     h_results, X_test_h, y_test_h, feat_test_h = train_and_evaluate(
         feat_h, "target_OPS", "打者 OPS")
 
-    # Marcel法の2024予測を再生成して比較
+    # Marcel法の2025予測を再生成して比較
     from marcel_projection import marcel_hitter, load_hitters as marcel_load_h
     df_h_marcel = marcel_load_h()
-    proj_h_2024 = marcel_hitter(df_h_marcel, 2024)
-    if len(proj_h_2024) > 0:
+    proj_h_2025 = marcel_hitter(df_h_marcel, 2025)
+    if len(proj_h_2025) > 0:
         test_players = feat_test_h[["player", "target_OPS"]].copy()
-        merged = test_players.merge(proj_h_2024[["player", "OPS"]], on="player", how="inner")
+        merged = test_players.merge(proj_h_2025[["player", "OPS"]], on="player", how="inner")
         if len(merged) > 0:
             marcel_mae = mean_absolute_error(merged["target_OPS"], merged["OPS"])
             print(f"\n--- Marcel法との直接比較（共通 {len(merged)} 選手、PA>=100）---")
@@ -433,10 +433,10 @@ def main():
     # Marcel比較（投手）
     from marcel_projection import marcel_pitcher, load_pitchers as marcel_load_p
     df_p_marcel = marcel_load_p()
-    proj_p_2024 = marcel_pitcher(df_p_marcel, 2024)
-    if len(proj_p_2024) > 0:
+    proj_p_2025 = marcel_pitcher(df_p_marcel, 2025)
+    if len(proj_p_2025) > 0:
         test_players_p = feat_test_p[["player", "target_ERA"]].copy()
-        merged_p = test_players_p.merge(proj_p_2024[["player", "ERA"]], on="player", how="inner")
+        merged_p = test_players_p.merge(proj_p_2025[["player", "ERA"]], on="player", how="inner")
         if len(merged_p) > 0:
             marcel_mae_p = mean_absolute_error(merged_p["target_ERA"], merged_p["ERA"])
             print(f"\n--- Marcel法との直接比較（共通 {len(merged_p)} 選手、IP>=30）---")
@@ -451,50 +451,50 @@ def main():
                         mae = mean_absolute_error(actual, pred)
                         print(f"{name:10s} MAE={mae:.4f}  {'✅ BETTER' if mae < marcel_mae_p else '❌ WORSE'}")
 
-    # 2025年予測を出力
+    # 2026年予測を出力
     print(f"\n{'=' * 60}")
-    print("2025年予測出力")
+    print("2026年予測出力")
     print(f"{'=' * 60}")
 
-    # 打者2025予測
-    feat_h_2025 = build_hitter_features_for_prediction(df_h, 2025)
-    if len(feat_h_2025) > 0 and h_results:
+    # 打者2026予測
+    feat_h_2026 = build_hitter_features_for_prediction(df_h, 2026)
+    if len(feat_h_2026) > 0 and h_results:
         # ensembleにはmodelがないのでlgb/xgbから選ぶ
         model_candidates = {k: v for k, v in h_results.items() if "model" in v}
         best_model_name = min(model_candidates, key=lambda k: model_candidates[k].get("mae", 999))
         best = model_candidates[best_model_name]
         if "model" in best:
-            feature_cols = get_feature_cols(feat_h_2025)
-            X_2025 = feat_h_2025[feature_cols].fillna(-1)
-            pred = best["model"].predict(X_2025)
-            feat_h_2025["pred_OPS"] = np.round(pred, 3)
-            out = feat_h_2025[["player", "team", "PA_1", "pred_OPS"]].sort_values("pred_OPS", ascending=False)
+            feature_cols = get_feature_cols(feat_h_2026)
+            X_2026 = feat_h_2026[feature_cols].fillna(-1)
+            pred = best["model"].predict(X_2026)
+            feat_h_2026["pred_OPS"] = np.round(pred, 3)
+            out = feat_h_2026[["player", "team", "PA_1", "pred_OPS"]].sort_values("pred_OPS", ascending=False)
             out = out[out["PA_1"] >= 200].head(20)
             print(f"\n打者 Top 20 by predicted OPS (model: {best_model_name}):")
             print(out.to_string(index=False))
 
-            out_path = OUT_DIR / "ml_hitters_2025.csv"
-            feat_h_2025[["player", "team", "pred_OPS"]].to_csv(out_path, index=False, encoding="utf-8-sig")
+            out_path = OUT_DIR / "ml_hitters_2026.csv"
+            feat_h_2026[["player", "team", "pred_OPS"]].to_csv(out_path, index=False, encoding="utf-8-sig")
             print(f"Saved: {out_path}")
 
-    # 投手2025予測
-    feat_p_2025 = build_pitcher_features_for_prediction(df_p, 2025)
-    if len(feat_p_2025) > 0 and p_results:
+    # 投手2026予測
+    feat_p_2026 = build_pitcher_features_for_prediction(df_p, 2026)
+    if len(feat_p_2026) > 0 and p_results:
         model_candidates_p = {k: v for k, v in p_results.items() if "model" in v}
         best_model_name = min(model_candidates_p, key=lambda k: model_candidates_p[k].get("mae", 999))
         best = model_candidates_p[best_model_name]
         if "model" in best:
-            feature_cols = get_feature_cols(feat_p_2025)
-            X_2025 = feat_p_2025[feature_cols].fillna(-1)
-            pred = best["model"].predict(X_2025)
-            feat_p_2025["pred_ERA"] = np.round(pred, 2)
-            out = feat_p_2025[["player", "team", "IP_1", "pred_ERA"]].sort_values("pred_ERA")
+            feature_cols = get_feature_cols(feat_p_2026)
+            X_2026 = feat_p_2026[feature_cols].fillna(-1)
+            pred = best["model"].predict(X_2026)
+            feat_p_2026["pred_ERA"] = np.round(pred, 2)
+            out = feat_p_2026[["player", "team", "IP_1", "pred_ERA"]].sort_values("pred_ERA")
             out = out[out["IP_1"] >= 50].head(20)
             print(f"\n投手 Top 20 by predicted ERA (model: {best_model_name}):")
             print(out.to_string(index=False))
 
-            out_path = OUT_DIR / "ml_pitchers_2025.csv"
-            feat_p_2025[["player", "team", "pred_ERA"]].to_csv(out_path, index=False, encoding="utf-8-sig")
+            out_path = OUT_DIR / "ml_pitchers_2026.csv"
+            feat_p_2026[["player", "team", "pred_ERA"]].to_csv(out_path, index=False, encoding="utf-8-sig")
             print(f"Saved: {out_path}")
 
 

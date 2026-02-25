@@ -373,8 +373,8 @@ def main():
     df_h = load_hitters()
     df_p = load_pitchers()
 
-    # 2025年の成績を予測（2022-2024のデータから）
-    target = 2025
+    # 2026年の成績を予測（2023-2025のデータから）
+    target = 2026
     print(f"\n--- 打者予測 (target: {target}) ---")
     proj_h = marcel_hitter(df_h, target)
     if len(proj_h) > 0:
@@ -400,35 +400,34 @@ def main():
         proj_p.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
 
-    # 予測精度評価: 2024年を予測（2021-2023から）して、実績と比較
-    eval_target = 2024
-    print(f"\n{'=' * 60}")
-    print(f"予測精度評価: {eval_target}年を予測 vs 実績")
-    print(f"{'=' * 60}")
+    # 予測精度評価: 2024年・2025年を予測して実績と比較
+    for eval_target in [2024, 2025]:
+        print(f"\n{'=' * 60}")
+        print(f"予測精度評価: {eval_target}年を予測 vs 実績")
+        print(f"{'=' * 60}")
 
-    proj_h_eval = marcel_hitter(df_h, eval_target)
-    actual_h = df_h[df_h["year"] == eval_target]
+        proj_h_eval = marcel_hitter(df_h, eval_target)
+        actual_h = df_h[df_h["year"] == eval_target]
 
-    # 規定打席以上（PA >= 443 = 143試合 * 3.1）に絞って評価
-    qualified_pa = 400
-    proj_h_q = proj_h_eval[proj_h_eval["PA"] >= qualified_pa]
-    actual_h_q = actual_h[actual_h["PA"] >= qualified_pa]
+        qualified_pa = 400
+        proj_h_q = proj_h_eval[proj_h_eval["PA"] >= qualified_pa]
+        actual_h_q = actual_h[actual_h["PA"] >= qualified_pa]
 
-    if len(proj_h_q) > 0 and len(actual_h_q) > 0:
-        eval_h = evaluate_marcel(actual_h_q, proj_h_q, ["AVG", "OBP", "SLG", "OPS"])
-        print(f"\n打者（PA >= {qualified_pa}）:")
-        print(eval_h.to_string())
+        if len(proj_h_q) > 0 and len(actual_h_q) > 0:
+            eval_h = evaluate_marcel(actual_h_q, proj_h_q, ["AVG", "OBP", "SLG", "OPS"])
+            print(f"\n打者（PA >= {qualified_pa}）:")
+            print(eval_h.to_string())
 
-    proj_p_eval = marcel_pitcher(df_p, eval_target)
-    actual_p = df_p[df_p["year"] == eval_target]
-    qualified_ip = 100
-    proj_p_q = proj_p_eval[proj_p_eval["IP"] >= qualified_ip]
-    actual_p_q = actual_p[actual_p["IP"] >= qualified_ip]
+        proj_p_eval = marcel_pitcher(df_p, eval_target)
+        actual_p = df_p[df_p["year"] == eval_target]
+        qualified_ip = 100
+        proj_p_q = proj_p_eval[proj_p_eval["IP"] >= qualified_ip]
+        actual_p_q = actual_p[actual_p["IP"] >= qualified_ip]
 
-    if len(proj_p_q) > 0 and len(actual_p_q) > 0:
-        eval_p = evaluate_marcel(actual_p_q, proj_p_q, ["ERA", "WHIP"])
-        print(f"\n投手（IP >= {qualified_ip}）:")
-        print(eval_p.to_string())
+        if len(proj_p_q) > 0 and len(actual_p_q) > 0:
+            eval_p = evaluate_marcel(actual_p_q, proj_p_q, ["ERA", "WHIP"])
+            print(f"\n投手（IP >= {qualified_ip}）:")
+            print(eval_p.to_string())
 
 
 if __name__ == "__main__":

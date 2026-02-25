@@ -212,9 +212,9 @@ def main():
         print(yr_2024[["league", "team", "W", "L", "RS", "RA",
                         "actual_WPCT", "pyth_WPCT_npb", "pyth_W_npb", "diff_W_npb"]].to_string(index=False))
 
-    # 2025年予測（2024年データから）
-    print(f"\n--- 2025年 予測 ---")
-    yr_2025 = result[result["year"] == 2025].sort_values("pyth_W_npb", ascending=False)
+    # 2025年詳細
+    print(f"\n--- 2025年 詳細 ---")
+    yr_2025 = result[result["year"] == 2025].sort_values("W", ascending=False)
     if len(yr_2025) > 0:
         print(yr_2025[["league", "team", "W", "L", "RS", "RA",
                         "actual_WPCT", "pyth_WPCT_npb", "pyth_W_npb", "diff_W_npb"]].to_string(index=False))

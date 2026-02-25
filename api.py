@@ -40,10 +40,10 @@ def _load_csv(filename: str) -> pd.DataFrame:
 
 
 # --- 起動時にCSVをメモリに読み込み ---
-marcel_hitters = _load_csv("marcel_hitters_2025.csv")
-marcel_pitchers = _load_csv("marcel_pitchers_2025.csv")
-ml_hitters = _load_csv("ml_hitters_2025.csv")
-ml_pitchers = _load_csv("ml_pitchers_2025.csv")
+marcel_hitters = _load_csv("marcel_hitters_2026.csv")
+marcel_pitchers = _load_csv("marcel_pitchers_2026.csv")
+ml_hitters = _load_csv("ml_hitters_2026.csv")
+ml_pitchers = _load_csv("ml_pitchers_2026.csv")
 sabermetrics = _load_csv("npb_sabermetrics_2015_2025.csv")
 pythagorean = _load_csv("pythagorean_2015_2025.csv")
 
@@ -79,7 +79,7 @@ def root():
 
 @app.get("/predict/hitter/{name}")
 def predict_hitter(name: str):
-    """打者の2025年成績予測（Marcel法 + ML）"""
+    """打者の2026年成績予測（Marcel法 + ML）"""
     marcel = _search_player(marcel_hitters, name)
     ml = _search_player(ml_hitters, name)
 
@@ -111,7 +111,7 @@ def predict_hitter(name: str):
 
 @app.get("/predict/pitcher/{name}")
 def predict_pitcher(name: str):
-    """投手の2025年成績予測（Marcel法 + ML）"""
+    """投手の2026年成績予測（Marcel法 + ML）"""
     marcel = _search_player(marcel_pitchers, name)
     ml = _search_player(ml_pitchers, name)
 
@@ -211,7 +211,7 @@ def rankings_hitters(
     top: int = Query(default=20, ge=1, le=100),
     sort_by: str = Query(default="OPS", enum=["OPS", "AVG", "HR", "RBI"]),
 ):
-    """打者ランキング（Marcel法 2025予測）"""
+    """打者ランキング（Marcel法 2026予測）"""
     if marcel_hitters.empty:
         raise HTTPException(503, "Marcel打者データが読み込まれていません")
 
@@ -237,7 +237,7 @@ def rankings_pitchers(
     top: int = Query(default=20, ge=1, le=100),
     sort_by: str = Query(default="ERA", enum=["ERA", "WHIP", "SO", "W"]),
 ):
-    """投手ランキング（Marcel法 2025予測）"""
+    """投手ランキング（Marcel法 2026予測）"""
     if marcel_pitchers.empty:
         raise HTTPException(503, "Marcel投手データが読み込まれていません")
 
