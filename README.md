@@ -174,7 +174,7 @@ curl http://localhost:8000/predict/hitter/牧
 - [プロ野球データFreak](https://baseball-data.com) — NPB選手成績・生年月日（2015-2025）
 - [日本野球機構 NPB](https://npb.jp) — 詳細打撃成績（2B/3B/SF、wOBA/wRC+算出用）
 
-詳細は [DATA_SOURCES.md](DATA_SOURCES.md) を参照。データの利用にあたり、提供元への敬意を忘れずに。
+詳細は [DATA_SOURCES.md](DATA_SOURCES.md) を参照。
 
 ## License
 
