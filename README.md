@@ -71,7 +71,7 @@ NPB公式データ（npb.jp）からリーグ環境に合わせた係数でwOBA/
 | オースティン | 2024 | .478 | 248 |
 | サンタナ | 2024 | .441 | 220 |
 
-## 2025年予測 TOP5（Marcel法）
+## 翌年予測 TOP5（Marcel法）
 
 ### 打者（OPS）
 | 選手 | チーム | OPS | HR | RBI |
@@ -130,8 +130,8 @@ APIが起動したら http://localhost:8000/docs でSwagger UIを確認できま
 
 | メソッド | パス | 内容 |
 |---|---|---|
-| GET | `/predict/hitter/{name}` | 打者の2025年予測（Marcel + ML） |
-| GET | `/predict/pitcher/{name}` | 投手の2025年予測（Marcel + ML） |
+| GET | `/predict/hitter/{name}` | 打者の翌年成績予測（Marcel + ML） |
+| GET | `/predict/pitcher/{name}` | 投手の翌年成績予測（Marcel + ML） |
 | GET | `/predict/team/{name}?year=2024` | チームのピタゴラス勝率 |
 | GET | `/sabermetrics/{name}?year=2024` | wOBA/wRC+/wRAA |
 | GET | `/rankings/hitters?top=10&sort_by=OPS` | 打者ランキング |
@@ -141,7 +141,7 @@ APIが起動したら http://localhost:8000/docs でSwagger UIを確認できま
 ### レスポンス例
 
 ```bash
-# 牧秀悟の2025年予測
+# 牧秀悟の翌年予測
 curl http://localhost:8000/predict/hitter/牧
 ```
 
