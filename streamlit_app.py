@@ -119,9 +119,17 @@ def load_all():
     }
 
 
+_VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
+
+
+def _fuzzy(s: str) -> str:
+    """スペース除去 + 異体字を統一"""
+    return s.replace(" ", "").translate(_VARIANT_MAP)
+
+
 def _search(df: pd.DataFrame, name: str) -> pd.DataFrame:
-    q = _norm(name)
-    return df[df["player"].str.contains(q, na=False)]
+    q = _fuzzy(_norm(name))
+    return df[df["player"].apply(lambda p: q in _fuzzy(p))]
 
 
 def _pythagorean_wpct(rs: float, ra: float, k: float = 1.72) -> float:
