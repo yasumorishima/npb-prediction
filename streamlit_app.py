@@ -952,328 +952,6 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
     return df
 
 
-def page_win_probability(data: dict):
-    """Win Probability ページ — 1球単位のリアルタイム勝利確率分析"""
-    from win_probability import (
-        calc_win_expectancy,
-        calc_leverage_index,
-        get_li_label,
-        get_re24,
-        get_re24_table,
-        suggest_tactics,
-        analyze_scenario,
-        PRESET_SCENARIOS,
-    )
-
-    st.markdown("### Win Probability")
-    st.caption("ゲーム状態から勝利確率・場面の重要度・作戦提案をリアルタイム算出")
-
-    # --- プリセットシナリオ（クイック選択） ---
-    st.markdown("**クイックシナリオ**")
-    preset_cols = st.columns(3)
-    preset_names = list(PRESET_SCENARIOS.keys())
-    selected_preset = None
-    for i, name in enumerate(preset_names):
-        with preset_cols[i % 3]:
-            if st.button(name, key=f"preset_{i}", use_container_width=True):
-                selected_preset = name
-
-    st.markdown("---")
-
-    # --- ゲーム状態入力 ---
-    if selected_preset:
-        s = PRESET_SCENARIOS[selected_preset]
-        default_inning = s["inning"]
-        default_tb = 1 if s["top_bottom"] == "bottom" else 0
-        default_sh = s["score_home"]
-        default_sa = s["score_away"]
-        default_outs = s["outs"]
-        default_r1 = s["runner_1b"]
-        default_r2 = s["runner_2b"]
-        default_r3 = s["runner_3b"]
-    else:
-        default_inning = 1
-        default_tb = 0
-        default_sh = 0
-        default_sa = 0
-        default_outs = 0
-        default_r1 = False
-        default_r2 = False
-        default_r3 = False
-
-    col_game, col_runners = st.columns([3, 2])
-
-    with col_game:
-        st.markdown("**ゲーム状態**")
-        gc1, gc2 = st.columns(2)
-        with gc1:
-            inning = st.number_input("イニング", min_value=1, max_value=12,
-                                     value=default_inning, key="wp_inning")
-            top_bottom = st.radio("表裏", ["表（アウェイ攻撃）", "裏（ホーム攻撃）"],
-                                  index=default_tb, key="wp_tb", horizontal=True)
-            tb = "bottom" if "裏" in top_bottom else "top"
-        with gc2:
-            score_home = st.number_input("ホーム得点", min_value=0, max_value=50,
-                                         value=default_sh, key="wp_sh")
-            score_away = st.number_input("アウェイ得点", min_value=0, max_value=50,
-                                         value=default_sa, key="wp_sa")
-            outs = st.radio("アウト", [0, 1, 2], index=default_outs,
-                           key="wp_outs", horizontal=True)
-
-    with col_runners:
-        st.markdown("**ランナー**")
-        r1 = st.checkbox("1塁", value=default_r1, key="wp_r1")
-        r2 = st.checkbox("2塁", value=default_r2, key="wp_r2")
-        r3 = st.checkbox("3塁", value=default_r3, key="wp_r3")
-
-        st.markdown("**品質補正（任意）**")
-        batter_ops = st.slider("打者 OPS", 0.400, 1.200, 0.700, 0.010, key="wp_bops")
-        pitcher_era = st.slider("投手 ERA", 0.50, 8.00, 3.50, 0.10, key="wp_pera")
-
-    # --- 計算 ---
-    wp = calc_win_expectancy(inning, tb, score_home, score_away, outs, r1, r2, r3)
-    li = calc_leverage_index(inning, tb, score_home, score_away, outs, r1, r2, r3)
-    li_label, li_color = get_li_label(li)
-    re24 = get_re24(r1, r2, r3, outs)
-    tactics = suggest_tactics(inning, tb, score_home, score_away, outs, r1, r2, r3,
-                              batter_ops=batter_ops, pitcher_era=pitcher_era)
-
-    st.markdown("---")
-
-    # --- 結果表示 ---
-    res_col1, res_col2, res_col3 = st.columns(3)
-
-    with res_col1:
-        # WP ゲージ
-        wp_pct = wp * 100
-        wp_color = "#00e5ff" if wp >= 0.5 else "#ff4466"
-        fig_wp = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=wp_pct,
-            number=dict(suffix="%", font=dict(size=40, color=wp_color)),
-            gauge=dict(
-                axis=dict(range=[0, 100], tickcolor="#666"),
-                bar=dict(color=wp_color),
-                bgcolor="#1a1a2e",
-                borderwidth=0,
-                steps=[
-                    dict(range=[0, 30], color="#1a0d0d"),
-                    dict(range=[30, 50], color="#1a1a0d"),
-                    dict(range=[50, 70], color="#0d1a0d"),
-                    dict(range=[70, 100], color="#0d1a1a"),
-                ],
-                threshold=dict(line=dict(color="#ffffff", width=2), thickness=0.75, value=50),
-            ),
-            title=dict(text="ホーム勝利確率", font=dict(size=16, color="#e0e0e0")),
-        ))
-        fig_wp.update_layout(
-            height=250,
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e0e0e0"),
-            margin=dict(l=30, r=30, t=60, b=10),
-        )
-        st.plotly_chart(fig_wp, use_container_width=True)
-
-    with res_col2:
-        # ダイヤモンド可視化
-        diamond_html = _render_diamond(r1, r2, r3, outs, inning, tb,
-                                       score_home, score_away)
-        components.html(diamond_html, height=260)
-
-    with res_col3:
-        # LI + RE24 バッジ
-        li_badge_html = f"""
-        <div style="text-align:center;font-family:'Segoe UI',sans-serif;padding:10px;">
-          <div style="font-size:12px;color:#888;margin-bottom:4px;">Leverage Index</div>
-          <div style="font-size:48px;font-weight:bold;color:{li_color};">{li:.2f}</div>
-          <div style="display:inline-block;padding:4px 16px;border-radius:20px;
-                      background:{li_color}22;border:1px solid {li_color};
-                      color:{li_color};font-size:16px;font-weight:bold;margin:8px 0;">
-            {li_label}
-          </div>
-          <div style="margin-top:16px;font-size:12px;color:#888;">期待得点 (RE24)</div>
-          <div style="font-size:36px;font-weight:bold;color:#ffaa44;">{re24:.3f}</div>
-        </div>"""
-        components.html(li_badge_html, height=260)
-
-    # --- 作戦提案カード ---
-    st.markdown("### 作戦提案")
-    if tactics:
-        tactic_cols = st.columns(min(len(tactics), 3))
-        for i, t in enumerate(tactics):
-            cat_icon = {"攻撃": "⚔️", "守備": "🛡️", "投手": "⚾"}.get(t["カテゴリ"], "📋")
-            conf_color = {"高": "#4CAF50", "中": "#ff9900", "低": "#888"}.get(t["確信度"], "#888")
-            re24_val = t["RE24変化"]
-            re24_color = "#4CAF50" if re24_val >= 0 else "#ff4466"
-            card_html = f"""
-            <div style="background:#0d0d24;border:1px solid #333;border-radius:10px;
-                        padding:14px;font-family:'Segoe UI',sans-serif;min-height:120px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:16px;font-weight:bold;color:#e0e0e0;">{cat_icon} {t['作戦']}</span>
-                <span style="font-size:11px;padding:2px 8px;border-radius:10px;
-                             background:{conf_color}22;color:{conf_color};border:1px solid {conf_color};">
-                  確信度: {t['確信度']}
-                </span>
-              </div>
-              <div style="font-size:12px;color:#aaa;margin-bottom:6px;">{t['説明']}</div>
-              <div style="font-size:13px;color:{re24_color};font-weight:bold;">
-                RE24変化: {re24_val:+.3f}
-              </div>
-            </div>"""
-            with tactic_cols[i % len(tactic_cols)]:
-                components.html(card_html, height=160)
-
-    # --- What-If シナリオ ---
-    with st.expander("What-If シナリオ（結果を変えて即時再計算）"):
-        st.markdown("**もしこの打席で…**")
-        whatif_options = {
-            "三振/凡退": _whatif_out,
-            "単打": _whatif_single,
-            "二塁打": _whatif_double,
-            "本塁打": _whatif_homer,
-            "四球": _whatif_walk,
-        }
-        wi_cols = st.columns(len(whatif_options))
-        for i, (label, func) in enumerate(whatif_options.items()):
-            new_state = func(inning, tb, score_home, score_away, outs, r1, r2, r3)
-            new_wp = calc_win_expectancy(*new_state)
-            wpa = new_wp - wp
-            wpa_color = "#4CAF50" if wpa >= 0 else "#ff4466"
-            with wi_cols[i]:
-                components.html(f"""
-                <div style="text-align:center;background:#0d0d24;border-radius:8px;
-                            padding:12px;font-family:'Segoe UI',sans-serif;">
-                  <div style="font-size:13px;color:#aaa;">{label}</div>
-                  <div style="font-size:24px;font-weight:bold;color:#e0e0e0;">{new_wp*100:.1f}%</div>
-                  <div style="font-size:14px;color:{wpa_color};font-weight:bold;">WPA: {wpa*100:+.1f}%</div>
-                </div>""", height=100)
-
-    # --- RE24テーブル ---
-    with st.expander("RE24テーブル（全24状態の期待得点）"):
-        re24_data = get_re24_table()
-        df_re24 = pd.DataFrame(re24_data)
-        st.dataframe(df_re24[["ランナー", "0アウト", "1アウト", "2アウト"]],
-                     use_container_width=True, hide_index=True)
-        st.caption("NPBの得点環境（~4.0点/試合）にスケーリング済み。")
-
-    with st.expander("WPモデルの説明"):
-        st.markdown(
-            "- **Win Probability**: Markov Chain + 正規分布近似で算出\n"
-            "- **RE24**: 24のbase-out状態ごとの期待得点。MLB実績値をNPBの得点環境にスケーリング\n"
-            "- **Leverage Index**: その場面でのWP変動の期待値 ÷ 平均WP変動量。1.0が平均\n"
-            "- **品質補正**: 打者OPSと投手ERAで勝利確率を微調整可能\n"
-            "- **作戦提案**: RE24の変化量を基に、場面に応じた最適行動を提案\n\n"
-            "このモデルはMLBの公開統計データから第一原理で構築しています。\n"
-            "**NPBの実データがあれば、同じフレームワークでNPB専用モデルを即座に構築可能です。**"
-        )
-
-
-def _render_diamond(r1: bool, r2: bool, r3: bool, outs: int,
-                    inning: int, tb: str, score_h: int, score_a: int) -> str:
-    """野球ダイヤモンド + スコアボードのHTML/SVG可視化。"""
-    tb_label = "裏" if tb == "bottom" else "表"
-    out_dots = "".join(
-        f'<span style="display:inline-block;width:14px;height:14px;border-radius:50%;'
-        f'margin:0 3px;background:{"#ff4466" if i < outs else "#333"};">'
-        f'</span>'
-        for i in range(3)
-    )
-
-    # ダイヤモンドSVG
-    base_on = "#ffaa44"
-    base_off = "#333"
-    b1_color = base_on if r1 else base_off
-    b2_color = base_on if r2 else base_off
-    b3_color = base_on if r3 else base_off
-
-    svg = f"""
-    <svg viewBox="0 0 160 140" style="width:160px;height:140px;">
-      <!-- ベースライン -->
-      <line x1="80" y1="20" x2="140" y2="70" stroke="#555" stroke-width="1.5"/>
-      <line x1="140" y1="70" x2="80" y2="120" stroke="#555" stroke-width="1.5"/>
-      <line x1="80" y1="120" x2="20" y2="70" stroke="#555" stroke-width="1.5"/>
-      <line x1="20" y1="70" x2="80" y2="20" stroke="#555" stroke-width="1.5"/>
-      <!-- ベース -->
-      <rect x="73" y="113" width="14" height="14" fill="#fff" transform="rotate(45,80,120)"/>
-      <rect x="133" y="63" width="14" height="14" fill="{b1_color}" transform="rotate(45,140,70)"
-            stroke="{b1_color}" stroke-width="1"/>
-      <rect x="73" y="13" width="14" height="14" fill="{b2_color}" transform="rotate(45,80,20)"
-            stroke="{b2_color}" stroke-width="1"/>
-      <rect x="13" y="63" width="14" height="14" fill="{b3_color}" transform="rotate(45,20,70)"
-            stroke="{b3_color}" stroke-width="1"/>
-    </svg>"""
-
-    return f"""
-    <div style="text-align:center;font-family:'Segoe UI',sans-serif;padding:10px;">
-      <div style="font-size:14px;color:#aaa;margin-bottom:4px;">{inning}回{tb_label}</div>
-      <div style="font-size:20px;font-weight:bold;margin-bottom:6px;">
-        <span style="color:#ff4466;">A {score_a}</span>
-        <span style="color:#666;margin:0 8px;">-</span>
-        <span style="color:#00e5ff;">H {score_h}</span>
-      </div>
-      {svg}
-      <div style="margin-top:4px;">{out_dots}</div>
-      <div style="font-size:11px;color:#666;margin-top:2px;">{outs} OUT</div>
-    </div>"""
-
-
-def _whatif_out(inning, tb, sh, sa, outs, r1, r2, r3):
-    """三振/凡退シナリオ"""
-    if outs + 1 >= 3:
-        if tb == "top":
-            return (inning, "bottom", sh, sa, 0, False, False, False)
-        else:
-            return (inning + 1, "top", sh, sa, 0, False, False, False)
-    return (inning, tb, sh, sa, outs + 1, r1, r2, r3)
-
-
-def _whatif_single(inning, tb, sh, sa, outs, r1, r2, r3):
-    """単打シナリオ"""
-    runs = (1 if r3 else 0) + (1 if r2 else 0)
-    new_r2 = r1
-    if tb == "bottom":
-        return (inning, tb, sh + runs, sa, outs, True, new_r2, False)
-    else:
-        return (inning, tb, sh, sa + runs, outs, True, new_r2, False)
-
-
-def _whatif_double(inning, tb, sh, sa, outs, r1, r2, r3):
-    """二塁打シナリオ"""
-    runs = (1 if r3 else 0) + (1 if r2 else 0) + (1 if r1 else 0)
-    if tb == "bottom":
-        return (inning, tb, sh + runs, sa, outs, False, True, False)
-    else:
-        return (inning, tb, sh, sa + runs, outs, False, True, False)
-
-
-def _whatif_homer(inning, tb, sh, sa, outs, r1, r2, r3):
-    """本塁打シナリオ"""
-    runners = sum([r1, r2, r3])
-    runs = 1 + runners
-    if tb == "bottom":
-        return (inning, tb, sh + runs, sa, outs, False, False, False)
-    else:
-        return (inning, tb, sh, sa + runs, outs, False, False, False)
-
-
-def _whatif_walk(inning, tb, sh, sa, outs, r1, r2, r3):
-    """四球シナリオ"""
-    runs = 0
-    new_r1 = True
-    new_r2 = r2
-    new_r3 = r3
-    if r1:
-        new_r2 = True
-        if r2:
-            new_r3 = True
-            if r3:
-                runs = 1
-    if tb == "bottom":
-        return (inning, tb, sh + runs, sa, outs, new_r1, new_r2, new_r3)
-    else:
-        return (inning, tb, sh, sa + runs, outs, new_r1, new_r2, new_r3)
-
-
 def page_pythagorean_standings(data: dict):
     st.markdown("### 予測順位表")
 
@@ -1422,15 +1100,14 @@ def main():
         "ページ選択",
         [
             "トップ",
-            "予測順位表",
             "打者予測",
             "投手予測",
-            "打者ランキング",
-            "投手ランキング",
             "VS対決",
-            "Win Probability",
             "チーム勝率",
             "選手の実力指標",
+            "打者ランキング",
+            "投手ランキング",
+            "予測順位表",
         ],
     )
 
@@ -1440,11 +1117,7 @@ def main():
             "- **防御率（ERA）** — 9イニングあたりの平均失点。低いほど優秀\n"
             "- **WHIP** — 1イニングあたりに許した走者数。低いほど優秀\n"
             "- **wOBA** — 打席あたりの得点貢献度。四球・単打・本塁打等を重みづけ\n"
-            "- **wRC+** — リーグ平均を100とした打撃力。120なら平均より2割上\n"
-            "- **WP** — Win Probability。ゲーム状態からの勝利確率\n"
-            "- **WPA** — Win Probability Added。1プレーでWPがどれだけ動いたか\n"
-            "- **LI** — Leverage Index。場面の重要度。1.0が平均\n"
-            "- **RE24** — Run Expectancy。塁上/アウト状態からの期待得点"
+            "- **wRC+** — リーグ平均を100とした打撃力。120なら平均より2割上"
         )
 
     st.caption(
@@ -1457,7 +1130,6 @@ def main():
         "打者予測": page_hitter_prediction,
         "投手予測": page_pitcher_prediction,
         "VS対決": page_vs_battle,
-        "Win Probability": page_win_probability,
         "チーム勝率": page_team_wpct,
         "選手の実力指標": page_sabermetrics,
         "打者ランキング": page_hitter_rankings,
