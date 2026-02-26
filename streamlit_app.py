@@ -329,6 +329,10 @@ def render_vs_radar(row1: pd.Series, row2: pd.Series, c1: str = "#ff4466", c2: s
 # --- ページ実装 ---
 
 
+CENTRAL_TEAMS = ["DeNA", "巨人", "阪神", "広島", "中日", "ヤクルト"]
+PACIFIC_TEAMS = ["ソフトバンク", "日本ハム", "楽天", "ロッテ", "オリックス", "西武"]
+
+
 def page_top(data: dict):
     """トップページ — 入力不要・1画面完結"""
     st.markdown("""
@@ -358,44 +362,110 @@ def page_top(data: dict):
         st.error("データが読み込めませんでした")
         return
 
-    # TOP3 打者
-    st.markdown("### 打者 TOP3（総合打撃力予測）")
-    top_hitters = mh[mh["PA"] >= 200].nlargest(3, "OPS")
+    # チーム選択ボタン
+    if st.button("全体TOP3", key="top_reset", type="primary" if not st.session_state.get("selected_team") else "secondary"):
+        st.session_state["selected_team"] = None
 
-    cols = st.columns(3)
-    medals = ["🥇", "🥈", "🥉"]
-    for i, (_, row) in enumerate(top_hitters.iterrows()):
-        with cols[i]:
-            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-            ml_match = ml_h[ml_h["player"] == row["player"]]
-            ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
-            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
-                        unsafe_allow_html=True)
-            components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=260)
-            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
+    st.markdown("<div style='color:#888;font-size:12px;margin-bottom:4px;'>セ・リーグ</div>",
+                unsafe_allow_html=True)
+    cl_cols = st.columns(6)
+    for i, team in enumerate(CENTRAL_TEAMS):
+        glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
+        is_selected = st.session_state.get("selected_team") == team
+        if cl_cols[i].button(team, key=f"team_{team}",
+                             type="primary" if is_selected else "secondary"):
+            st.session_state["selected_team"] = team
+            st.rerun()
 
-    # TOP3 投手
-    st.markdown("### 投手 TOP3（防御率予測）")
-    top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
+    st.markdown("<div style='color:#888;font-size:12px;margin-bottom:4px;'>パ・リーグ</div>",
+                unsafe_allow_html=True)
+    pl_cols = st.columns(6)
+    for i, team in enumerate(PACIFIC_TEAMS):
+        glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
+        is_selected = st.session_state.get("selected_team") == team
+        if pl_cols[i].button(team, key=f"team_{team}",
+                             type="primary" if is_selected else "secondary"):
+            st.session_state["selected_team"] = team
+            st.rerun()
 
-    cols = st.columns(3)
-    ml_p = data["ml_pitchers"]
-    for i, (_, row) in enumerate(top_pitchers.iterrows()):
-        with cols[i]:
-            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-            ml_match = ml_p[ml_p["player"] == row["player"]]
-            ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
-            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
-                        unsafe_allow_html=True)
-            components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=260)
+    selected_team = st.session_state.get("selected_team")
 
-    # 注目対決
-    st.markdown("### 注目対決")
-    top10 = mh[mh["PA"] >= 200].nlargest(10, "OPS")
-    if len(top10) >= 2:
-        pair = top10.sample(2, random_state=random.randint(0, 9999))
-        p1, p2 = pair.iloc[0], pair.iloc[1]
-        _render_vs_section(p1, p2)
+    if selected_team:
+        # チーム選手一覧表示
+        team_glow = NPB_TEAM_GLOW.get(selected_team, "#00e5ff")
+        ml_p = data["ml_pitchers"]
+
+        # 打者一覧
+        team_hitters = mh[(mh["team"] == selected_team) & (mh["PA"] >= 100)].sort_values("OPS", ascending=False)
+        st.markdown(f"### {selected_team} 打者一覧（2026予測）")
+        if team_hitters.empty:
+            st.info(f"{selected_team}の打者データがありません（PA >= 100）")
+        else:
+            for row_start in range(0, len(team_hitters), 3):
+                chunk = team_hitters.iloc[row_start:row_start + 3]
+                cols = st.columns(3)
+                for j, (_, row) in enumerate(chunk.iterrows()):
+                    with cols[j]:
+                        ml_match = ml_h[ml_h["player"] == row["player"]]
+                        ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
+                        components.html(render_hitter_card(row, ml_ops=ml_ops, glow=team_glow), height=260)
+                        st.plotly_chart(render_radar_chart(row, title=row["player"], color=team_glow),
+                                        use_container_width=True)
+
+        # 投手一覧
+        team_pitchers = mp[(mp["team"] == selected_team) & (mp["IP"] >= 30)].sort_values("ERA", ascending=True)
+        st.markdown(f"### {selected_team} 投手一覧（2026予測）")
+        if team_pitchers.empty:
+            st.info(f"{selected_team}の投手データがありません（IP >= 30）")
+        else:
+            for row_start in range(0, len(team_pitchers), 3):
+                chunk = team_pitchers.iloc[row_start:row_start + 3]
+                cols = st.columns(3)
+                for j, (_, row) in enumerate(chunk.iterrows()):
+                    with cols[j]:
+                        ml_match = ml_p[ml_p["player"] == row["player"]]
+                        ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
+                        components.html(render_pitcher_card(row, ml_era=ml_era, glow=team_glow), height=260)
+    else:
+        # デフォルト: TOP3表示
+        # TOP3 打者
+        st.markdown("### 打者 TOP3（総合打撃力予測）")
+        top_hitters = mh[mh["PA"] >= 200].nlargest(3, "OPS")
+
+        cols = st.columns(3)
+        medals = ["🥇", "🥈", "🥉"]
+        for i, (_, row) in enumerate(top_hitters.iterrows()):
+            with cols[i]:
+                glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+                ml_match = ml_h[ml_h["player"] == row["player"]]
+                ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
+                st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                            unsafe_allow_html=True)
+                components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=260)
+                st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
+
+        # TOP3 投手
+        st.markdown("### 投手 TOP3（防御率予測）")
+        top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
+
+        cols = st.columns(3)
+        ml_p = data["ml_pitchers"]
+        for i, (_, row) in enumerate(top_pitchers.iterrows()):
+            with cols[i]:
+                glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+                ml_match = ml_p[ml_p["player"] == row["player"]]
+                ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
+                st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                            unsafe_allow_html=True)
+                components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=260)
+
+        # 注目対決
+        st.markdown("### 注目対決")
+        top10 = mh[mh["PA"] >= 200].nlargest(10, "OPS")
+        if len(top10) >= 2:
+            pair = top10.sample(2, random_state=random.randint(0, 9999))
+            p1, p2 = pair.iloc[0], pair.iloc[1]
+            _render_vs_section(p1, p2)
 
 
 def _render_vs_section(p1: pd.Series, p2: pd.Series):
