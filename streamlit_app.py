@@ -906,8 +906,100 @@ def page_pitcher_rankings(data: dict):
     </div>""", height=min(650, top_n * 50 + 20))
 
 
+def _build_2026_standings(data: dict) -> pd.DataFrame:
+    """2026年の予測順位表を打者RBI合計（得点）と投手ERA×IP/9（失点）から算出"""
+    mh = data["marcel_hitters"]
+    mp = data["marcel_pitchers"]
+    if mh.empty or mp.empty:
+        return pd.DataFrame()
+
+    rows = []
+    for team in TEAMS:
+        # 得点推定: チーム打者のRBI合計
+        h = mh[mh["team"] == team]
+        rs = h["RBI"].sum() if not h.empty else 0
+
+        # 失点推定: チーム投手の ERA × IP / 9 合計
+        p = mp[mp["team"] == team]
+        if not p.empty:
+            ra = (p["ERA"] * p["IP"] / 9.0).sum()
+        else:
+            ra = 0
+
+        # ピタゴラス勝率
+        wpct = _pythagorean_wpct(rs, ra, k=1.72) if ra > 0 else 0.5
+        pred_w = wpct * 143
+        pred_l = 143 - pred_w
+
+        league = "CL" if team in CENTRAL_TEAMS else "PL"
+        rows.append({
+            "league": league, "team": team,
+            "pred_RS": rs, "pred_RA": ra,
+            "pred_WPCT": wpct, "pred_W": pred_w, "pred_L": pred_l,
+        })
+    return pd.DataFrame(rows)
+
+
 def page_pythagorean_standings(data: dict):
     st.markdown("### 予測順位表")
+
+    # --- 2026年予測 ---
+    standings_2026 = _build_2026_standings(data)
+    if not standings_2026.empty:
+        st.markdown("## 2026年 順位予測")
+        st.caption("各チームの打者成績予測（得点）と投手成績予測（失点）からピタゴラス勝率で算出")
+
+        for league, label in [("CL", "セ・リーグ"), ("PL", "パ・リーグ")]:
+            lg = standings_2026[standings_2026["league"] == league].sort_values(
+                "pred_WPCT", ascending=False).reset_index(drop=True)
+            if lg.empty:
+                continue
+
+            st.markdown(f"**{label}**")
+            cards = ""
+            for i, (_, row) in enumerate(lg.iterrows()):
+                glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+                rank = i + 1
+                medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
+                cards += f"""
+                <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin:4px 0;
+                            background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
+                            font-family:'Segoe UI',sans-serif;">
+                  <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
+                  <span style="min-width:100px;color:{glow};font-weight:bold;font-size:16px;">{row['team']}</span>
+                  <span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row['pred_W']:.0f}勝</span>
+                  <span style="color:#888;font-size:14px;min-width:50px;">{row['pred_L']:.0f}敗</span>
+                  <span style="color:#aaa;font-size:12px;min-width:60px;">勝率 {row['pred_WPCT']:.3f}</span>
+                  <span style="color:#666;font-size:11px;">得点{row['pred_RS']:.0f} / 失点{row['pred_RA']:.0f}</span>
+                </div>"""
+
+            components.html(f"<div>{cards}</div>", height=len(lg) * 55 + 10)
+
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                name="予測勝数", x=lg["team"], y=lg["pred_W"],
+                marker_color=[NPB_TEAM_COLORS.get(t, "#333") for t in lg["team"]],
+            ))
+            fig.update_layout(
+                height=300, yaxis_title="予測勝数",
+                yaxis_range=[0, max(lg["pred_W"]) * 1.15],
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e0e0e0"),
+                xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with st.expander("予測方法の説明"):
+            st.markdown(
+                "- **得点の推定**: チーム所属打者の予測打点（RBI）を合計\n"
+                "- **失点の推定**: チーム所属投手の予測防御率（ERA）× 予測投球回 ÷ 9 を合計\n"
+                "- **勝率の計算**: ピタゴラス勝率（得点^1.72 ÷ (得点^1.72 + 失点^1.72)）\n"
+                "- **試合数**: 143試合（NPBレギュラーシーズン）\n"
+                "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく"
+            )
+
+    st.markdown("---")
+    st.markdown("### 過去の順位表（実績 vs ピタゴラス期待値）")
     pyth = data["pythagorean"]
     if pyth.empty:
         st.error("データが読み込めませんでした")
