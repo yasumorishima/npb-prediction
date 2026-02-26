@@ -360,18 +360,13 @@ def page_top(data: dict):
     </div>
     """, unsafe_allow_html=True)
 
-    components.html("""
-    <div style="background:#1a1a2e;border:1px solid #ff446644;border-radius:8px;padding:12px 16px;
-                margin:0 0 16px 0;font-family:'Segoe UI',sans-serif;">
-      <span style="color:#ff4466;font-weight:bold;">&#9888; ご注意</span>
-      <span style="color:#ccc;font-size:13px;margin-left:8px;">
-        このサイトの予測は<strong style="color:#fff;">個人の見解・応援・願望ではなく</strong>、
-        Marcel法（統計モデル）が過去3年の成績データを計算した結果です。
-        好きなチームや選手が低く出ても、それはモデルの数値であり作者の意図ではありません。
-        2025-2026オフの移籍・退団は反映済みです。予測値は実際の成績を保証するものではありません。
-      </span>
-    </div>
-    """, height=80)
+    st.warning(
+        "⚠️ **ご注意** — "
+        "このサイトの予測は **個人の見解・応援・願望ではありません**。"
+        "Marcel法（統計モデル）が過去3年の成績データを計算した結果です。"
+        "好きなチームや選手が低く出ても、それはモデルの数値であり作者の意図ではありません。\n\n"
+        "2025–2026オフの移籍・退団は反映済みです。予測値は実際の成績を保証するものではありません。"
+    )
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
