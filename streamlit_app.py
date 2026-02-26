@@ -907,7 +907,8 @@ def page_pitcher_rankings(data: dict):
 
 
 def _build_2026_standings(data: dict) -> pd.DataFrame:
-    """2026年の予測順位表を打者RBI合計（得点）と投手ERA×IP/9（失点）から算出"""
+    """2026年の予測順位表を打者RBI合計（得点）と投手ERA×IP/9（失点）から算出。
+    リーグ内の平均勝率が0.500になるよう正規化する（ゼロサム制約）。"""
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
     if mh.empty or mp.empty:
@@ -926,18 +927,29 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
         else:
             ra = 0
 
-        # ピタゴラス勝率
+        # ピタゴラス勝率（生値）
         wpct = _pythagorean_wpct(rs, ra, k=1.72) if ra > 0 else 0.5
-        pred_w = wpct * 143
-        pred_l = 143 - pred_w
 
         league = "CL" if team in CENTRAL_TEAMS else "PL"
         rows.append({
             "league": league, "team": team,
             "pred_RS": rs, "pred_RA": ra,
-            "pred_WPCT": wpct, "pred_W": pred_w, "pred_L": pred_l,
+            "pred_WPCT": wpct,
         })
-    return pd.DataFrame(rows)
+
+    df = pd.DataFrame(rows)
+
+    # リーグ内でゼロサム正規化: 平均勝率が0.500になるようシフト
+    # RBI/ERA×IPのスケール差によるバイアスを除去し、現実的な順位表にする
+    for league in ["CL", "PL"]:
+        mask = df["league"] == league
+        bias = df.loc[mask, "pred_WPCT"].mean() - 0.500
+        df.loc[mask, "pred_WPCT"] = df.loc[mask, "pred_WPCT"] - bias
+
+    df["pred_W"] = df["pred_WPCT"] * 143
+    df["pred_L"] = 143 - df["pred_W"]
+
+    return df
 
 
 def page_pythagorean_standings(data: dict):
