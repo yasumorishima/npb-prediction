@@ -109,7 +109,7 @@ def load_csv(path: str) -> pd.DataFrame:
 
 
 def load_all():
-    return {
+    result = {
         "marcel_hitters": load_csv("data/projections/marcel_hitters_2026.csv"),
         "marcel_pitchers": load_csv("data/projections/marcel_pitchers_2026.csv"),
         "ml_hitters": load_csv("data/projections/ml_hitters_2026.csv"),
@@ -117,6 +117,73 @@ def load_all():
         "sabermetrics": load_csv("data/projections/npb_sabermetrics_2015_2025.csv"),
         "pythagorean": load_csv("data/projections/pythagorean_2015_2025.csv"),
     }
+    # 2026ロースター変更を反映（退団除外 + チーム変更）
+    for key in ("marcel_hitters", "marcel_pitchers", "ml_hitters", "ml_pitchers"):
+        result[key] = _apply_roster_changes(result[key])
+    return result
+
+
+# 2025-2026オフシーズン 移籍・退団情報
+# MLB移籍・引退・退団 → 予測一覧から除外
+REMOVED_PLAYERS = {
+    "オースティン",       # DeNA → カブス(MLB)
+    "村上 宗隆",         # ヤクルト → ホワイトソックス(MLB)
+    "岡本 和真",         # 巨人 → ブルージェイズ(MLB)
+    "今井 達也",         # 西武 → アストロズ(MLB)
+    "坂本 勇人",         # 巨人（戦力外）
+    "長野 久義",         # 巨人（引退）
+    "川端 慎吾",         # ヤクルト（引退）
+    "中田 翔",           # 中日（引退）
+    "祖父江 大輔",       # 中日（引退）
+    "岡田 俊哉",         # 中日（引退）
+    "原口 文仁",         # 阪神（引退）
+    "上本 崇司",         # 広島（引退）
+    "田中 広輔",         # 広島（引退）
+    "磯村 嘉孝",         # 広島（引退）
+    "森 唯斗",           # DeNA（引退）
+    "三嶋 一輝",         # DeNA（引退）
+    "美馬 学",           # ロッテ（引退）
+    "澤村 拓一",         # ロッテ（引退）
+    "二木 康太",         # ロッテ（引退）
+    "岡島 豪郎",         # 楽天（引退）
+}
+
+# チーム変更（FA・トレード・現役ドラフト）
+TEAM_CHANGES = {
+    "則本 昂大": "巨人",       # 楽天 → 巨人(FA)
+    "松本 剛": "巨人",         # 日本ハム → 巨人(FA)
+    "桑原 将志": "西武",       # DeNA → 西武(FA)
+    "伊藤 光": "楽天",         # DeNA → 楽天(FA)
+    "石井 一成": "西武",       # 日本ハム → 西武(FA)
+    "西川 遥輝": "日本ハム",   # ヤクルト(戦力外) → 日本ハム
+    "有原 航平": "日本ハム",   # ソフトバンク(自由契約) → 日本ハム
+    "知野 直人": "中日",       # DeNA → 中日(現役ドラフト)
+    "濱田 太貴": "阪神",       # ヤクルト → 阪神(現役ドラフト)
+    "大道 温貴": "ヤクルト",   # 広島 → ヤクルト(現役ドラフト)
+    "松浦 慶斗": "巨人",       # 日本ハム → 巨人(現役ドラフト)
+    "菊地 大稀": "日本ハム",   # 巨人 → 日本ハム(現役ドラフト)
+    "井上 広大": "ロッテ",     # 阪神 → ロッテ(現役ドラフト)
+    "平沼 翔太": "オリックス", # 西武 → オリックス(現役ドラフト)
+    "茶野 篤政": "西武",       # オリックス → 西武(現役ドラフト)
+    "佐藤 直樹": "楽天",       # ソフトバンク → 楽天(現役ドラフト)
+    "中村 稔弥": "ソフトバンク", # ロッテ → ソフトバンク(現役ドラフト)
+    "田中 千晴": "楽天",       # 巨人 → 楽天(人的補償)
+    "古市 尊": "DeNA",         # 西武 → DeNA(人的補償)
+    "濱 将乃介": "DeNA",       # 中日 → DeNA(現役ドラフト)
+}
+
+
+def _apply_roster_changes(df: pd.DataFrame) -> pd.DataFrame:
+    """移籍・退団情報を反映してDataFrameを返す"""
+    if df.empty or "player" not in df.columns:
+        return df
+    # 退団・引退・MLB移籍の選手を除外
+    df = df[~df["player"].apply(_fuzzy).isin({_fuzzy(p) for p in REMOVED_PLAYERS})].copy()
+    # チーム変更を反映
+    for player_name, new_team in TEAM_CHANGES.items():
+        mask = df["player"].apply(lambda p: _fuzzy(p) == _fuzzy(player_name))
+        df.loc[mask, "team"] = new_team
+    return df
 
 
 _VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
@@ -160,11 +227,11 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     stars = "★" * min(5, max(1, lv // 20))
 
     bars = ""
-    bars += _bar_html("パワー", row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
-    bars += _bar_html("ミート", row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88")
-    bars += _bar_html("選球眼", row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff")
-    bars += _bar_html("長打力", row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
-    bars += _bar_html("総合力", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff")
+    bars += _bar_html("本塁打", row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
+    bars += _bar_html("打率", row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88")
+    bars += _bar_html("出塁率", row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff")
+    bars += _bar_html("長打率", row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
+    bars += _bar_html("OPS", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff")
 
     compare = ""
     if ml_ops is not None:
@@ -197,14 +264,14 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
     stars = "★" * min(5, max(1, lv // 20))
 
     bars = ""
-    bars += _bar_html("制球力", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff")
+    bars += _bar_html("WHIP", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff")
     bars += _bar_html("奪三振", row["SO"], 250, f"{row['SO']:.0f}", "#ff4466")
-    bars += _bar_html("勝利数", row["W"], 20, f"{row['W']:.0f}", "#44ff88")
+    bars += _bar_html("勝利", row["W"], 20, f"{row['W']:.0f}", "#44ff88")
     bars += _bar_html("投球回", row["IP"], 200, f"{row['IP']:.0f}", "#ffaa44")
     era_pct = max(0, min(100, (6.0 - row["ERA"]) / 5.0 * 100))
     bars += f"""
     <div style="display:flex;align-items:center;margin:4px 0;gap:8px;">
-      <span style="width:60px;font-size:13px;color:#aaa;">防御力</span>
+      <span style="width:60px;font-size:13px;color:#aaa;">防御率</span>
       <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;">
         <div style="width:{era_pct:.0f}%;height:100%;background:linear-gradient(90deg,#00e5ff,#00e5ff88);border-radius:8px;"></div>
       </div>
@@ -245,7 +312,7 @@ def _safe_float(val, default: float = 0.0) -> float:
 
 def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
     """打者レーダーチャート（5軸）"""
-    categories = ["パワー", "ミート", "選球眼", "長打力", "総合力"]
+    categories = ["本塁打", "打率", "出塁率", "長打率", "OPS"]
     values = [
         _norm_hr(_safe_float(row["HR"])),
         _norm_avg(_safe_float(row["AVG"])),
@@ -286,7 +353,7 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
 
 def render_vs_radar(row1: pd.Series, row2: pd.Series, c1: str = "#ff4466", c2: str = "#44aaff") -> go.Figure:
     """2選手の重ねレーダーチャート"""
-    categories = ["パワー", "ミート", "選球眼", "長打力", "総合力"]
+    categories = ["本塁打", "打率", "出塁率", "長打率", "OPS"]
     v1 = [_norm_hr(_safe_float(row1["HR"])), _norm_avg(_safe_float(row1["AVG"])),
           _norm_obp(_safe_float(row1["OBP"])), _norm_slg(_safe_float(row1["SLG"])),
           _norm_ops(_safe_float(row1["OPS"]))]
@@ -348,8 +415,8 @@ def page_top(data: dict):
       <span style="color:#ff4466;font-weight:bold;">&#9888; ご注意</span>
       <span style="color:#ccc;font-size:13px;margin-left:8px;">
         本予測は2025年までのNPB実績データに基づいています。
-        2026年にMLBへ移籍した選手（村上宗隆・岡本和真など）も予測一覧に含まれますが、
-        NPBでの出場を前提とした数値です。
+        2025-2026オフの移籍・退団（MLB移籍・FA・引退等）は反映済みです。
+        予測値は過去3年の成績をもとに計算しており、実際の成績を保証するものではありません。
       </span>
     </div>
     """, height=70)
@@ -397,35 +464,63 @@ def page_top(data: dict):
 
         # 打者一覧
         team_hitters = mh[(mh["team"] == selected_team) & (mh["PA"] >= 100)].sort_values("OPS", ascending=False)
-        st.markdown(f"### {selected_team} 打者一覧（2026予測）")
+        st.markdown(f"### {selected_team} 打者一覧（2026年予測）")
+        st.caption("過去3年の成績から予測した2026年の成績です。小数が出るのは統計的な予測値のためです。")
         if team_hitters.empty:
             st.info(f"{selected_team}の打者データがありません（PA >= 100）")
         else:
-            for row_start in range(0, len(team_hitters), 3):
-                chunk = team_hitters.iloc[row_start:row_start + 3]
-                cols = st.columns(3)
-                for j, (_, row) in enumerate(chunk.iterrows()):
-                    with cols[j]:
-                        ml_match = ml_h[ml_h["player"] == row["player"]]
-                        ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
-                        components.html(render_hitter_card(row, ml_ops=ml_ops, glow=team_glow), height=260)
-                        st.plotly_chart(render_radar_chart(row, title=row["player"], color=team_glow),
-                                        use_container_width=True)
+            display_h = team_hitters[["player", "AVG", "HR", "RBI", "H", "BB", "SB", "OBP", "SLG", "OPS"]].copy()
+            display_h.columns = ["選手名", "打率", "本塁打", "打点", "安打", "四球", "盗塁", "出塁率", "長打率", "OPS"]
+            display_h["打率"] = display_h["打率"].apply(lambda x: f".{int(x*1000):03d}")
+            display_h["本塁打"] = display_h["本塁打"].apply(lambda x: f"{x:.0f}")
+            display_h["打点"] = display_h["打点"].apply(lambda x: f"{x:.0f}")
+            display_h["安打"] = display_h["安打"].apply(lambda x: f"{x:.0f}")
+            display_h["四球"] = display_h["四球"].apply(lambda x: f"{x:.0f}")
+            display_h["盗塁"] = display_h["盗塁"].apply(lambda x: f"{x:.0f}")
+            display_h["出塁率"] = display_h["出塁率"].apply(lambda x: f"{x:.3f}")
+            display_h["長打率"] = display_h["長打率"].apply(lambda x: f"{x:.3f}")
+            display_h["OPS"] = display_h["OPS"].apply(lambda x: f"{x:.3f}")
+            display_h = display_h.reset_index(drop=True)
+            display_h.index = display_h.index + 1
+            st.dataframe(display_h, use_container_width=True, height=min(400, len(display_h) * 40 + 60))
+            with st.expander("指標の見方"):
+                st.markdown(
+                    "- **打率** — ヒットを打つ確率。.300以上なら一流\n"
+                    "- **本塁打** — ホームラン数\n"
+                    "- **打点** — 自分の打撃でホームに返した走者の数\n"
+                    "- **安打** — ヒット数\n"
+                    "- **四球** — フォアボールの数。多いほど選球眼が良い\n"
+                    "- **盗塁** — 走力の指標\n"
+                    "- **出塁率** — 打席でアウトにならずに塁に出る確率。.380以上なら一流\n"
+                    "- **長打率** — 1打数あたりの塁打数。二塁打・本塁打が多いほど高い\n"
+                    "- **OPS** — 出塁率＋長打率。打者の総合打撃力。.800以上なら主力級、.900超はスター"
+                )
 
         # 投手一覧
         team_pitchers = mp[(mp["team"] == selected_team) & (mp["IP"] >= 30)].sort_values("ERA", ascending=True)
-        st.markdown(f"### {selected_team} 投手一覧（2026予測）")
+        st.markdown(f"### {selected_team} 投手一覧（2026年予測）")
+        st.caption("過去3年の成績から予測した2026年の成績です。")
         if team_pitchers.empty:
             st.info(f"{selected_team}の投手データがありません（IP >= 30）")
         else:
-            for row_start in range(0, len(team_pitchers), 3):
-                chunk = team_pitchers.iloc[row_start:row_start + 3]
-                cols = st.columns(3)
-                for j, (_, row) in enumerate(chunk.iterrows()):
-                    with cols[j]:
-                        ml_match = ml_p[ml_p["player"] == row["player"]]
-                        ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
-                        components.html(render_pitcher_card(row, ml_era=ml_era, glow=team_glow), height=260)
+            display_p = team_pitchers[["player", "ERA", "W", "SO", "IP", "WHIP"]].copy()
+            display_p.columns = ["選手名", "防御率", "勝利", "奪三振", "投球回", "WHIP"]
+            display_p["防御率"] = display_p["防御率"].apply(lambda x: f"{x:.2f}")
+            display_p["勝利"] = display_p["勝利"].apply(lambda x: f"{x:.0f}")
+            display_p["奪三振"] = display_p["奪三振"].apply(lambda x: f"{x:.0f}")
+            display_p["投球回"] = display_p["投球回"].apply(lambda x: f"{x:.0f}")
+            display_p["WHIP"] = display_p["WHIP"].apply(lambda x: f"{x:.2f}")
+            display_p = display_p.reset_index(drop=True)
+            display_p.index = display_p.index + 1
+            st.dataframe(display_p, use_container_width=True, height=min(400, len(display_p) * 40 + 60))
+            with st.expander("指標の見方"):
+                st.markdown(
+                    "- **防御率** — 9イニング投げたら何点取られるか。2点台なら一流\n"
+                    "- **勝利** — 勝ち投手になった回数\n"
+                    "- **奪三振** — 三振を奪った数。多いほど支配力が高い\n"
+                    "- **投球回** — 投げたイニング数。多いほどスタミナがある\n"
+                    "- **WHIP** — 1イニングに許した走者数。1.00以下ならエース級"
+                )
     else:
         # デフォルト: TOP3表示
         # TOP3 打者
@@ -489,8 +584,8 @@ def _render_vs_section(p1: pd.Series, p2: pd.Series):
     components.html(vs_html, height=100)
 
     col1, col2 = st.columns(2)
-    stats = [("パワー", "HR", ".0f"), ("ミート", "AVG", ".3f"), ("選球眼", "OBP", ".3f"),
-             ("長打力", "SLG", ".3f"), ("総合力", "OPS", ".3f")]
+    stats = [("本塁打", "HR", ".0f"), ("打率", "AVG", ".3f"), ("出塁率", "OBP", ".3f"),
+             ("長打率", "SLG", ".3f"), ("OPS", "OPS", ".3f")]
 
     rows_html = ""
     for label, key, fmt in stats:
