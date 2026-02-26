@@ -367,13 +367,13 @@ def _get_player_wraa(name: str, team: str | None, year: int | None) -> tuple[str
         "選手を入れ替えて勝数の変化をシミュレーションします。\n\n"
         "指定チーム・年度の実績データをベースに、除外選手のwRAA分を得点から引き、"
         "追加選手のwRAA分を得点に足して、ピタゴラス勝率を再計算します。\n\n"
-        "**例**: `/simulate/team/DeNA?year=2025&add=山川,牧&remove=宮﨑,佐野`"
+        "**例**: `/simulate/team/DeNA?year=2025&add=近藤,牧&remove=宮﨑,佐野`"
     ),
 )
 def simulate_team(
     team: TeamName = PathParam(description="対象チーム"),
     year: int = Query(default=2025, ge=2015, le=2025, description="ベースとなる年度"),
-    add: str | None = Query(default=None, description="追加する選手名（カンマ区切り、部分一致）", examples=["山川,牧"]),
+    add: str | None = Query(default=None, description="追加する選手名（カンマ区切り、部分一致）", examples=["近藤,牧"]),
     remove: str | None = Query(default=None, description="除外する選手名（カンマ区切り、部分一致）", examples=["宮﨑,佐野"]),
 ):
     """チーム編成シミュレーション（選手入替 → ピタゴラス勝率再計算）"""

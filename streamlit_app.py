@@ -1,5 +1,5 @@
 """
-NPB成績予測 Streamlitダッシュボード
+NPB成績予測 Streamlitダッシュボード — RPG風UI
 
 Marcel法・LightGBM/XGBoost・ピタゴラス勝率・wOBA/wRC+の予測結果をブラウザで閲覧。
 
@@ -8,10 +8,12 @@ Data sources:
 - 日本野球機構 NPB (https://npb.jp)
 """
 
+import random
+
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/master/"
 
@@ -30,7 +32,62 @@ NPB_TEAM_COLORS = {
     "西武": "#102A6F",
 }
 
+NPB_TEAM_GLOW = {
+    "DeNA": "#00aaff",
+    "巨人": "#ff9933",
+    "阪神": "#ffe44d",
+    "広島": "#ff4444",
+    "中日": "#4488ff",
+    "ヤクルト": "#44aaff",
+    "ソフトバンク": "#ffdd33",
+    "日本ハム": "#4488ff",
+    "楽天": "#cc3366",
+    "ロッテ": "#888888",
+    "オリックス": "#ddcc33",
+    "西武": "#4466cc",
+}
+
 TEAMS = list(NPB_TEAM_COLORS.keys())
+
+# --- RPG変換ロジック ---
+
+
+def wrc_plus_to_level(wrc_plus: float) -> int:
+    """wRC+ → RPG Lv変換。100(平均)=Lv.50, 200=Lv.99, 50=Lv.25"""
+    return max(1, min(99, int(wrc_plus * 0.495)))
+
+
+def ops_to_level(ops: float) -> int:
+    """OPS → RPG Lv変換。.700(平均)=Lv.50, 1.100=Lv.99"""
+    return max(1, min(99, int((ops - 0.3) * 123.75)))
+
+
+def era_to_level(era: float) -> int:
+    """ERA → RPG Lv変換。低いほど高レベル。1.0=Lv.99, 4.0=Lv.50"""
+    return max(1, min(99, int(100 - era * 16.5)))
+
+
+def _norm_hr(hr: float) -> float:
+    return max(0.0, min(100.0, hr / 50.0 * 100.0))
+
+
+def _norm_avg(avg: float) -> float:
+    return max(0.0, min(100.0, (avg - 0.200) / 0.150 * 100.0))
+
+
+def _norm_obp(obp: float) -> float:
+    return max(0.0, min(100.0, (obp - 0.250) / 0.200 * 100.0))
+
+
+def _norm_slg(slg: float) -> float:
+    return max(0.0, min(100.0, (slg - 0.300) / 0.350 * 100.0))
+
+
+def _norm_ops(ops: float) -> float:
+    return max(0.0, min(100.0, (ops - 0.500) / 0.600 * 100.0))
+
+
+# --- データ読み込み ---
 
 
 def _norm(name: str) -> str:
@@ -73,14 +130,304 @@ def _pythagorean_wpct(rs: float, ra: float, k: float = 1.72) -> float:
     return rs**k / (rs**k + ra**k)
 
 
+# --- HTML/CSSカード描画 ---
+
+
+def _bar_html(label: str, value: float, max_val: float, display: str, color: str = "#00e5ff") -> str:
+    pct = max(0, min(100, value / max_val * 100))
+    return f"""
+    <div style="display:flex;align-items:center;margin:4px 0;gap:8px;">
+      <span style="width:60px;font-size:13px;color:#aaa;">{label}</span>
+      <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;">
+        <div style="width:{pct:.0f}%;height:100%;background:linear-gradient(90deg,{color},{color}88);border-radius:8px;transition:width 0.5s;"></div>
+      </div>
+      <span style="width:50px;text-align:right;font-size:13px;font-weight:bold;color:#e0e0e0;">{display}</span>
+    </div>"""
+
+
+def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = "#00e5ff") -> str:
+    """RPGステータスカード（打者）をHTMLで生成"""
+    lv = ops_to_level(row["OPS"])
+    team = row.get("team", "")
+    stars = "★" * min(5, max(1, lv // 20))
+
+    bars = ""
+    bars += _bar_html("パワー", row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
+    bars += _bar_html("ミート", row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88")
+    bars += _bar_html("選球眼", row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff")
+    bars += _bar_html("長打力", row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
+    bars += _bar_html("総合力", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff")
+
+    compare = ""
+    if ml_ops is not None:
+        compare = f"""
+        <div style="margin-top:8px;padding:6px 10px;background:#1a1a2e;border-radius:6px;font-size:12px;color:#aaa;">
+          Marcel: <span style="color:#4CAF50;font-weight:bold;">{row['OPS']:.3f}</span>
+          &nbsp;|&nbsp; ML: <span style="color:#2196F3;font-weight:bold;">{ml_ops:.3f}</span>
+        </div>"""
+
+    return f"""
+    <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
+                font-family:'Segoe UI',sans-serif;max-width:400px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <span style="color:{glow};font-size:14px;font-weight:bold;">{stars} Lv.{lv}</span>
+          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;margin-left:10px;">{row['player']}</span>
+        </div>
+        <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
+      </div>
+      {bars}
+      {compare}
+    </div>"""
+
+
+def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str = "#00e5ff") -> str:
+    """RPGステータスカード（投手）をHTMLで生成"""
+    lv = era_to_level(row["ERA"])
+    team = row.get("team", "")
+    stars = "★" * min(5, max(1, lv // 20))
+
+    bars = ""
+    bars += _bar_html("制球力", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff")
+    bars += _bar_html("奪三振", row["SO"], 250, f"{row['SO']:.0f}", "#ff4466")
+    bars += _bar_html("勝利数", row["W"], 20, f"{row['W']:.0f}", "#44ff88")
+    bars += _bar_html("投球回", row["IP"], 200, f"{row['IP']:.0f}", "#ffaa44")
+    era_pct = max(0, min(100, (6.0 - row["ERA"]) / 5.0 * 100))
+    bars += f"""
+    <div style="display:flex;align-items:center;margin:4px 0;gap:8px;">
+      <span style="width:60px;font-size:13px;color:#aaa;">防御力</span>
+      <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;">
+        <div style="width:{era_pct:.0f}%;height:100%;background:linear-gradient(90deg,#00e5ff,#00e5ff88);border-radius:8px;"></div>
+      </div>
+      <span style="width:50px;text-align:right;font-size:13px;font-weight:bold;color:#e0e0e0;">{row['ERA']:.2f}</span>
+    </div>"""
+
+    compare = ""
+    if ml_era is not None:
+        compare = f"""
+        <div style="margin-top:8px;padding:6px 10px;background:#1a1a2e;border-radius:6px;font-size:12px;color:#aaa;">
+          Marcel: <span style="color:#4CAF50;font-weight:bold;">{row['ERA']:.2f}</span>
+          &nbsp;|&nbsp; ML: <span style="color:#2196F3;font-weight:bold;">{ml_era:.2f}</span>
+        </div>"""
+
+    return f"""
+    <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
+                font-family:'Segoe UI',sans-serif;max-width:400px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <span style="color:{glow};font-size:14px;font-weight:bold;">{stars} Lv.{lv}</span>
+          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;margin-left:10px;">{row['player']}</span>
+        </div>
+        <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
+      </div>
+      {bars}
+      {compare}
+    </div>"""
+
+
+def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
+    """打者レーダーチャート（5軸）"""
+    categories = ["パワー", "ミート", "選球眼", "長打力", "総合力"]
+    values = [
+        _norm_hr(row["HR"]),
+        _norm_avg(row["AVG"]),
+        _norm_obp(row["OBP"]),
+        _norm_slg(row["SLG"]),
+        _norm_ops(row["OPS"]),
+    ]
+    values.append(values[0])
+    categories.append(categories[0])
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=values, theta=categories, fill="toself",
+        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.15)",
+        line=dict(color=color, width=2),
+        name=title or row["player"],
+    ))
+    fig.update_layout(
+        polar=dict(
+            bgcolor="#0d0d24",
+            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
+            angularaxis=dict(gridcolor="#333", linecolor="#444"),
+        ),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e0e0e0"),
+        height=300,
+        margin=dict(l=50, r=50, t=30, b=30),
+        title=dict(text=title, font=dict(size=14, color="#e0e0e0")) if title else None,
+    )
+    return fig
+
+
+def render_vs_radar(row1: pd.Series, row2: pd.Series, c1: str = "#ff4466", c2: str = "#44aaff") -> go.Figure:
+    """2選手の重ねレーダーチャート"""
+    categories = ["パワー", "ミート", "選球眼", "長打力", "総合力"]
+    v1 = [_norm_hr(row1["HR"]), _norm_avg(row1["AVG"]), _norm_obp(row1["OBP"]),
+          _norm_slg(row1["SLG"]), _norm_ops(row1["OPS"])]
+    v2 = [_norm_hr(row2["HR"]), _norm_avg(row2["AVG"]), _norm_obp(row2["OBP"]),
+          _norm_slg(row2["SLG"]), _norm_ops(row2["OPS"])]
+    v1.append(v1[0])
+    v2.append(v2[0])
+    cats = categories + [categories[0]]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=v1, theta=cats, fill="toself",
+        fillcolor=f"rgba({int(c1[1:3],16)},{int(c1[3:5],16)},{int(c1[5:7],16)},0.15)",
+        line=dict(color=c1, width=2), name=row1["player"],
+    ))
+    fig.add_trace(go.Scatterpolar(
+        r=v2, theta=cats, fill="toself",
+        fillcolor=f"rgba({int(c2[1:3],16)},{int(c2[3:5],16)},{int(c2[5:7],16)},0.15)",
+        line=dict(color=c2, width=2), name=row2["player"],
+    ))
+    fig.update_layout(
+        polar=dict(
+            bgcolor="#0d0d24",
+            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
+            angularaxis=dict(gridcolor="#333", linecolor="#444"),
+        ),
+        showlegend=True,
+        legend=dict(font=dict(color="#e0e0e0"), bgcolor="rgba(0,0,0,0)"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e0e0e0"),
+        height=350,
+        margin=dict(l=50, r=50, t=30, b=30),
+    )
+    return fig
+
+
 # --- ページ実装 ---
 
 
+def page_top(data: dict):
+    """トップページ — 入力不要・1画面完結"""
+    st.markdown("""
+    <div style="text-align:center;padding:10px 0;">
+      <h2 style="color:#00e5ff;margin:0;">NPB 2026 予測</h2>
+      <p style="color:#888;font-size:14px;margin:4px 0;">Marcel法 × 機械学習 × セイバーメトリクス</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    mh = data["marcel_hitters"]
+    mp = data["marcel_pitchers"]
+    ml_h = data["ml_hitters"]
+
+    if mh.empty or mp.empty:
+        st.error("データが読み込めませんでした")
+        return
+
+    # TOP3 打者
+    st.markdown("### 打者 TOP3（OPS予測）")
+    top_hitters = mh[mh["PA"] >= 200].nlargest(3, "OPS")
+
+    cols = st.columns(3)
+    medals = ["🥇", "🥈", "🥉"]
+    for i, (_, row) in enumerate(top_hitters.iterrows()):
+        with cols[i]:
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            ml_match = ml_h[ml_h["player"] == row["player"]]
+            ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
+            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                        unsafe_allow_html=True)
+            components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=260)
+            st.plotly_chart(render_radar_chart(row, color=glow), use_container_width=True)
+
+    # TOP3 投手
+    st.markdown("### 投手 TOP3（防御率予測）")
+    top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
+
+    cols = st.columns(3)
+    ml_p = data["ml_pitchers"]
+    for i, (_, row) in enumerate(top_pitchers.iterrows()):
+        with cols[i]:
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            ml_match = ml_p[ml_p["player"] == row["player"]]
+            ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
+            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                        unsafe_allow_html=True)
+            components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=260)
+
+    # 注目対決
+    st.markdown("### 注目対決")
+    top10 = mh[mh["PA"] >= 200].nlargest(10, "OPS")
+    if len(top10) >= 2:
+        pair = top10.sample(2, random_state=random.randint(0, 9999))
+        p1, p2 = pair.iloc[0], pair.iloc[1]
+        _render_vs_section(p1, p2)
+
+
+def _render_vs_section(p1: pd.Series, p2: pd.Series):
+    """VS演出（2選手比較）"""
+    g1 = NPB_TEAM_GLOW.get(p1["team"], "#ff4466")
+    g2 = NPB_TEAM_GLOW.get(p2["team"], "#44aaff")
+
+    vs_html = f"""
+    <div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:20px 0;">
+      <div style="text-align:center;">
+        <div style="color:{g1};font-size:20px;font-weight:bold;">{p1['player']}</div>
+        <div style="color:#888;font-size:12px;">{p1['team']} / Lv.{ops_to_level(p1['OPS'])}</div>
+      </div>
+      <div style="font-size:36px;font-weight:bold;color:#ff4466;
+                  text-shadow:0 0 20px #ff446688;">VS</div>
+      <div style="text-align:center;">
+        <div style="color:{g2};font-size:20px;font-weight:bold;">{p2['player']}</div>
+        <div style="color:#888;font-size:12px;">{p2['team']} / Lv.{ops_to_level(p2['OPS'])}</div>
+      </div>
+    </div>"""
+    components.html(vs_html, height=100)
+
+    col1, col2 = st.columns(2)
+    stats = [("パワー", "HR", ".0f"), ("ミート", "AVG", ".3f"), ("選球眼", "OBP", ".3f"),
+             ("長打力", "SLG", ".3f"), ("総合力", "OPS", ".3f")]
+
+    rows_html = ""
+    for label, key, fmt in stats:
+        v1 = p1[key]
+        v2 = p2[key]
+        c1 = g1 if v1 >= v2 else "#666"
+        c2 = g2 if v2 >= v1 else "#666"
+        rows_html += f"""
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0;font-size:14px;">
+          <span style="width:70px;text-align:right;color:{c1};font-weight:{'bold' if v1>=v2 else 'normal'};">{v1:{fmt}}</span>
+          <span style="width:60px;text-align:center;color:#888;">{label}</span>
+          <span style="width:70px;text-align:left;color:{c2};font-weight:{'bold' if v2>=v1 else 'normal'};">{v2:{fmt}}</span>
+        </div>"""
+
+    components.html(f"""
+    <div style="background:#0d0d24;border-radius:10px;padding:12px;border:1px solid #333;">
+      {rows_html}
+    </div>""", height=180)
+
+    st.plotly_chart(render_vs_radar(p1, p2, c1=g1, c2=g2), use_container_width=True)
+
+
+QUICK_HITTERS = ["牧", "近藤", "村上", "宮崎", "佐藤輝", "岡本", "坂倉", "万波"]
+QUICK_PITCHERS = ["才木", "モイネロ", "宮城", "戸郷", "東", "高橋宏", "伊藤大", "山下"]
+
+
 def page_hitter_prediction(data: dict):
-    st.header("打者予測（2026年）")
-    name = st.text_input("選手名で検索（部分一致）", key="hitter_search", placeholder="例: 牧、近藤、岡本")
+    st.markdown("### 打者予測（2026年）")
+
+    # クイックボタン
+    st.markdown('<div style="margin-bottom:10px;">', unsafe_allow_html=True)
+    btn_cols = st.columns(len(QUICK_HITTERS))
+    selected = None
+    for i, name in enumerate(QUICK_HITTERS):
+        if btn_cols[i].button(name, key=f"qh_{name}"):
+            selected = name
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    name = st.text_input("選手名で検索（部分一致）", value=selected or "", key="hitter_search",
+                         placeholder="例: 牧、近藤、岡本")
     if not name:
-        st.info("選手名を入力してください")
+        st.info("選手名を入力するか、上のボタンをタップしてください")
         return
 
     marcel = _search(data["marcel_hitters"], name)
@@ -90,34 +437,46 @@ def page_hitter_prediction(data: dict):
         return
 
     for _, row in marcel.iterrows():
-        st.subheader(f"{row['player']}（{row['team']}）")
-        cols = st.columns(6)
-        cols[0].metric("OPS", f"{row['OPS']:.3f}")
-        cols[1].metric("打率", f"{row['AVG']:.3f}")
-        cols[2].metric("出塁率", f"{row['OBP']:.3f}")
-        cols[3].metric("長打率", f"{row['SLG']:.3f}")
-        cols[4].metric("本塁打", f"{row['HR']:.1f}")
-        cols[5].metric("打点", f"{row['RBI']:.1f}")
-
+        glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
         ml_match = ml[ml["player"] == row["player"]]
-        if not ml_match.empty:
-            ml_ops = ml_match.iloc[0]["pred_OPS"]
-            st.markdown("**Marcel vs ML 比較**")
+        ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=280)
+        with col2:
+            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
+                            use_container_width=True)
+
+        if ml_ops is not None:
             fig = go.Figure(data=[
                 go.Bar(name="Marcel", x=["OPS"], y=[row["OPS"]], marker_color="#4CAF50"),
                 go.Bar(name="ML", x=["OPS"], y=[ml_ops], marker_color="#2196F3"),
             ])
-            fig.update_layout(barmode="group", template="plotly_white", height=300,
-                              yaxis_title="OPS", yaxis_range=[0, max(row["OPS"], ml_ops) * 1.2])
+            fig.update_layout(
+                barmode="group", height=250, yaxis_title="OPS",
+                yaxis_range=[0, max(row["OPS"], ml_ops) * 1.2],
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e0e0e0"),
+                xaxis=dict(gridcolor="#333"), yaxis=dict(gridcolor="#333"),
+            )
             st.plotly_chart(fig, use_container_width=True)
-        st.divider()
+        st.markdown("---")
 
 
 def page_pitcher_prediction(data: dict):
-    st.header("投手予測（2026年）")
-    name = st.text_input("選手名で検索（部分一致）", key="pitcher_search", placeholder="例: 今永、山本、佐々木")
+    st.markdown("### 投手予測（2026年）")
+
+    btn_cols = st.columns(len(QUICK_PITCHERS))
+    selected = None
+    for i, name in enumerate(QUICK_PITCHERS):
+        if btn_cols[i].button(name, key=f"qp_{name}"):
+            selected = name
+
+    name = st.text_input("選手名で検索（部分一致）", value=selected or "", key="pitcher_search",
+                         placeholder="例: 才木、モイネロ、宮城")
     if not name:
-        st.info("選手名を入力してください")
+        st.info("選手名を入力するか、上のボタンをタップしてください")
         return
 
     marcel = _search(data["marcel_pitchers"], name)
@@ -127,31 +486,53 @@ def page_pitcher_prediction(data: dict):
         return
 
     for _, row in marcel.iterrows():
-        st.subheader(f"{row['player']}（{row['team']}）")
-        cols = st.columns(6)
-        cols[0].metric("防御率", f"{row['ERA']:.2f}")
-        cols[1].metric("WHIP", f"{row['WHIP']:.2f}")
-        cols[2].metric("勝利", f"{row['W']:.1f}")
-        cols[3].metric("敗北", f"{row['L']:.1f}")
-        cols[4].metric("奪三振", f"{row['SO']:.1f}")
-        cols[5].metric("投球回", f"{row['IP']:.1f}")
-
+        glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
         ml_match = ml[ml["player"] == row["player"]]
-        if not ml_match.empty:
-            ml_era = ml_match.iloc[0]["pred_ERA"]
-            st.markdown("**Marcel vs ML 比較**")
+        ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
+
+        components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=280)
+
+        if ml_era is not None:
             fig = go.Figure(data=[
                 go.Bar(name="Marcel", x=["ERA"], y=[row["ERA"]], marker_color="#4CAF50"),
                 go.Bar(name="ML", x=["ERA"], y=[ml_era], marker_color="#2196F3"),
             ])
-            fig.update_layout(barmode="group", template="plotly_white", height=300,
-                              yaxis_title="ERA", yaxis_range=[0, max(row["ERA"], ml_era) * 1.3])
+            fig.update_layout(
+                barmode="group", height=250, yaxis_title="ERA",
+                yaxis_range=[0, max(row["ERA"], ml_era) * 1.3],
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e0e0e0"),
+                xaxis=dict(gridcolor="#333"), yaxis=dict(gridcolor="#333"),
+            )
             st.plotly_chart(fig, use_container_width=True)
-        st.divider()
+        st.markdown("---")
+
+
+def page_vs_battle(data: dict):
+    """VS対決画面"""
+    st.markdown("### VS 対決")
+
+    mh = data["marcel_hitters"]
+    if mh.empty:
+        st.error("データが読み込めませんでした")
+        return
+
+    eligible = mh[mh["PA"] >= 200].sort_values("OPS", ascending=False)
+    players = eligible["player"].tolist()
+
+    col1, col2 = st.columns(2)
+    p1_name = col1.selectbox("プレイヤー1", players, index=0, key="vs_p1")
+    p2_idx = min(1, len(players) - 1)
+    p2_name = col2.selectbox("プレイヤー2", players, index=p2_idx, key="vs_p2")
+
+    p1 = eligible[eligible["player"] == p1_name].iloc[0]
+    p2 = eligible[eligible["player"] == p2_name].iloc[0]
+
+    _render_vs_section(p1, p2)
 
 
 def page_team_wpct(data: dict):
-    st.header("チーム勝率（ピタゴラス勝率）")
+    st.markdown("### チーム勝率（ピタゴラス勝率）")
     pyth = data["pythagorean"]
     if pyth.empty:
         st.error("データが読み込めませんでした")
@@ -168,30 +549,54 @@ def page_team_wpct(data: dict):
         return
 
     row = matched.iloc[0]
-    cols = st.columns(4)
-    cols[0].metric("実際の勝率", f"{row['actual_WPCT']:.3f}")
-    cols[1].metric("ピタゴラス勝率", f"{row['pyth_WPCT_npb']:.3f}")
-    cols[2].metric("実際の勝数", f"{int(row['W'])}勝{int(row['L'])}敗")
-    cols[3].metric("期待勝数", f"{row['pyth_W_npb']:.1f}", delta=f"{row['diff_W_npb']:+.1f}")
+    glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
 
-    st.markdown("**得失点**")
+    card_html = f"""
+    <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
+                font-family:'Segoe UI',sans-serif;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="color:{glow};font-size:20px;font-weight:bold;">{team}</span>
+        <span style="color:#888;font-size:14px;">{year}年</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
+          <div style="color:#888;font-size:11px;">実際の勝率</div>
+          <div style="color:#e0e0e0;font-size:22px;font-weight:bold;">{row['actual_WPCT']:.3f}</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
+          <div style="color:#888;font-size:11px;">ピタゴラス勝率</div>
+          <div style="color:#00e5ff;font-size:22px;font-weight:bold;">{row['pyth_WPCT_npb']:.3f}</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
+          <div style="color:#888;font-size:11px;">実際の成績</div>
+          <div style="color:#e0e0e0;font-size:18px;font-weight:bold;">{int(row['W'])}勝{int(row['L'])}敗</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
+          <div style="color:#888;font-size:11px;">期待勝数</div>
+          <div style="color:#ffaa44;font-size:18px;font-weight:bold;">{row['pyth_W_npb']:.1f}
+            <span style="font-size:12px;color:{'#4CAF50' if row['diff_W_npb']>=0 else '#ff4466'};">({row['diff_W_npb']:+.1f})</span>
+          </div>
+        </div>
+      </div>
+    </div>"""
+    components.html(card_html, height=220)
+
     fig = go.Figure(data=[
         go.Bar(name="得点", x=["得失点"], y=[row["RS"]], marker_color="#4CAF50"),
         go.Bar(name="失点", x=["得失点"], y=[row["RA"]], marker_color="#F44336"),
     ])
-    fig.update_layout(barmode="group", template="plotly_white", height=300)
+    fig.update_layout(
+        barmode="group", height=300,
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e0e0e0"),
+        xaxis=dict(gridcolor="#333"), yaxis=dict(gridcolor="#333"),
+    )
     st.plotly_chart(fig, use_container_width=True)
-
-    fig2 = go.Figure(data=[
-        go.Bar(name="実際の勝数", x=["勝数"], y=[row["W"]], marker_color=NPB_TEAM_COLORS.get(team, "#333")),
-        go.Bar(name="期待勝数", x=["勝数"], y=[row["pyth_W_npb"]], marker_color="#9E9E9E"),
-    ])
-    fig2.update_layout(barmode="group", template="plotly_white", height=300, yaxis_title="勝数")
-    st.plotly_chart(fig2, use_container_width=True)
 
 
 def page_sabermetrics(data: dict):
-    st.header("セイバーメトリクス（wOBA / wRC+ / wRAA）")
+    st.markdown("### セイバーメトリクス（wOBA / wRC+ / wRAA）")
     saber = data["sabermetrics"]
     if saber.empty:
         st.error("データが読み込めませんでした")
@@ -214,28 +619,75 @@ def page_sabermetrics(data: dict):
         st.warning(f"「{name}」に該当するデータがありません")
         return
 
-    display_cols = ["player", "team", "year", "PA", "wOBA", "wRC+", "wRAA", "AVG", "OBP", "SLG"]
-    available = [c for c in display_cols if c in matched.columns]
-    st.dataframe(
-        matched[available].sort_values("year", ascending=False).reset_index(drop=True),
-        use_container_width=True,
-        hide_index=True,
-    )
+    # wRC+をLv表示
+    for _, row in matched.iterrows():
+        lv = wrc_plus_to_level(row["wRC+"])
+        glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+        card = f"""
+        <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                    border-radius:10px;padding:12px;margin:6px 0;box-shadow:0 0 10px {glow}22;
+                    display:flex;align-items:center;gap:12px;font-family:'Segoe UI',sans-serif;">
+          <div style="min-width:60px;text-align:center;">
+            <div style="color:{glow};font-size:11px;">Lv.</div>
+            <div style="color:{glow};font-size:24px;font-weight:bold;">{lv}</div>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#e0e0e0;font-weight:bold;">{row['player']}
+              <span style="color:#888;font-size:12px;margin-left:8px;">{row['team']} / {int(row['year'])}</span>
+            </div>
+            <div style="color:#aaa;font-size:12px;margin-top:4px;">
+              wOBA: <span style="color:#44ff88;">{row['wOBA']:.3f}</span> &nbsp;
+              wRC+: <span style="color:#00e5ff;">{row['wRC+']:.0f}</span> &nbsp;
+              wRAA: <span style="color:#ffaa44;">{row['wRAA']:.1f}</span> &nbsp;
+              OPS: <span style="color:#ff4466;">{row.get('OPS', row['SLG']+row['OBP']):.3f}</span>
+            </div>
+          </div>
+        </div>"""
+        components.html(card, height=80)
 
     if len(matched) > 1:
         player_name = matched.iloc[0]["player"]
         player_data = matched[matched["player"] == player_name].sort_values("year")
         if len(player_data) > 1:
             st.markdown(f"**{player_name} wRC+ 推移**")
-            fig = px.line(player_data, x="year", y="wRC+", markers=True, template="plotly_white")
-            fig.add_hline(y=100, line_dash="dash", line_color="gray",
-                          annotation_text="リーグ平均 (100)")
-            fig.update_layout(height=350, xaxis_title="年度", yaxis_title="wRC+")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=player_data["year"], y=player_data["wRC+"],
+                mode="lines+markers", line=dict(color="#00e5ff", width=2),
+                marker=dict(size=8, color="#00e5ff"),
+            ))
+            fig.add_hline(y=100, line_dash="dash", line_color="#666",
+                          annotation_text="リーグ平均", annotation_font_color="#888")
+            fig.update_layout(
+                height=350, xaxis_title="年度", yaxis_title="wRC+",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e0e0e0"),
+                xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
+            )
             st.plotly_chart(fig, use_container_width=True)
 
 
+def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: str) -> str:
+    """ランキングカード1行"""
+    medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
+    border_color = {1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32"}.get(rank, "#333")
+    val = row[stat_key]
+    lv = ops_to_level(val) if stat_key == "OPS" else max(1, min(99, int(val)))
+
+    return f"""
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:4px 0;
+                background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
+                font-family:'Segoe UI',sans-serif;">
+      <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
+      <span style="min-width:30px;color:{glow};font-size:13px;font-weight:bold;">Lv.{lv}</span>
+      <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
+      <span style="color:#888;font-size:12px;">{row['team']}</span>
+      <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
+    </div>"""
+
+
 def page_hitter_rankings(data: dict):
-    st.header("打者ランキング（Marcel法 2026予測）")
+    st.markdown("### 打者ランキング（Marcel法 2026予測）")
     mh = data["marcel_hitters"]
     if mh.empty:
         st.error("データが読み込めませんでした")
@@ -246,29 +698,23 @@ def page_hitter_rankings(data: dict):
     sort_by = col2.selectbox("ソート", ["OPS", "AVG", "HR", "RBI"], key="hitter_rank_sort")
 
     df = mh[mh["PA"] >= 200].sort_values(sort_by, ascending=False).head(top_n).reset_index(drop=True)
-    df.index = df.index + 1
-    df.index.name = "順位"
 
-    display_cols = ["player", "team", "OPS", "AVG", "HR", "RBI", "PA"]
-    available = [c for c in display_cols if c in df.columns]
-    st.dataframe(df[available], use_container_width=True)
+    fmt_map = {"OPS": ".3f", "AVG": ".3f", "HR": ".0f", "RBI": ".0f"}
+    fmt = fmt_map.get(sort_by, ".3f")
 
-    fig = px.bar(
-        df.head(top_n),
-        y="player",
-        x=sort_by,
-        color="team",
-        color_discrete_map=NPB_TEAM_COLORS,
-        orientation="h",
-        template="plotly_white",
-    )
-    fig.update_layout(height=max(400, top_n * 25), yaxis={"categoryorder": "total ascending"},
-                      yaxis_title="", xaxis_title=sort_by)
-    st.plotly_chart(fig, use_container_width=True)
+    cards = ""
+    for i, (_, row) in enumerate(df.iterrows()):
+        glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+        cards += _leaderboard_card(i + 1, row, sort_by, fmt, glow)
+
+    components.html(f"""
+    <div style="max-height:600px;overflow-y:auto;padding:4px;">
+      {cards}
+    </div>""", height=min(650, top_n * 50 + 20))
 
 
 def page_pitcher_rankings(data: dict):
-    st.header("投手ランキング（Marcel法 2026予測）")
+    st.markdown("### 投手ランキング（Marcel法 2026予測）")
     mp = data["marcel_pitchers"]
     if mp.empty:
         st.error("データが読み込めませんでした")
@@ -280,30 +726,36 @@ def page_pitcher_rankings(data: dict):
 
     ascending = sort_by in ("ERA", "WHIP")
     df = mp[mp["IP"] >= 50].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
-    df.index = df.index + 1
-    df.index.name = "順位"
 
-    display_cols = ["player", "team", "ERA", "WHIP", "SO", "W", "IP"]
-    available = [c for c in display_cols if c in df.columns]
-    st.dataframe(df[available], use_container_width=True)
+    fmt_map = {"ERA": ".2f", "WHIP": ".2f", "SO": ".0f", "W": ".0f"}
+    fmt = fmt_map.get(sort_by, ".2f")
 
-    fig = px.bar(
-        df.head(top_n),
-        y="player",
-        x=sort_by,
-        color="team",
-        color_discrete_map=NPB_TEAM_COLORS,
-        orientation="h",
-        template="plotly_white",
-    )
-    order = "total descending" if ascending else "total ascending"
-    fig.update_layout(height=max(400, top_n * 25), yaxis={"categoryorder": order},
-                      yaxis_title="", xaxis_title=sort_by)
-    st.plotly_chart(fig, use_container_width=True)
+    cards = ""
+    for i, (_, row) in enumerate(df.iterrows()):
+        glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+        lv = era_to_level(row["ERA"]) if sort_by in ("ERA", "WHIP") else max(1, min(99, int(row[sort_by])))
+        medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(i + 1, "")
+        border_color = {1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32"}.get(i + 1, "#333")
+        val = row[sort_by]
+        cards += f"""
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:4px 0;
+                    background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
+                    font-family:'Segoe UI',sans-serif;">
+          <span style="min-width:30px;font-size:16px;text-align:center;">{medal or i+1}</span>
+          <span style="min-width:30px;color:{glow};font-size:13px;font-weight:bold;">Lv.{lv}</span>
+          <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
+          <span style="color:#888;font-size:12px;">{row['team']}</span>
+          <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
+        </div>"""
+
+    components.html(f"""
+    <div style="max-height:600px;overflow-y:auto;padding:4px;">
+      {cards}
+    </div>""", height=min(650, top_n * 50 + 20))
 
 
 def page_pythagorean_standings(data: dict):
-    st.header("ピタゴラス順位表")
+    st.markdown("### ピタゴラス順位表")
     pyth = data["pythagorean"]
     if pyth.empty:
         st.error("データが読み込めませんでした")
@@ -317,19 +769,28 @@ def page_pythagorean_standings(data: dict):
         lg = df[df["league"] == league].sort_values("pyth_WPCT_npb", ascending=False).reset_index(drop=True)
         if lg.empty:
             continue
-        lg.index = lg.index + 1
-        lg.index.name = "順位"
-        st.subheader(label)
-        st.dataframe(
-            lg[["team", "W", "L", "actual_WPCT", "pyth_WPCT_npb", "pyth_W_npb", "diff_W_npb", "RS", "RA"]].rename(
-                columns={
-                    "team": "チーム", "W": "勝", "L": "敗", "actual_WPCT": "実勝率",
-                    "pyth_WPCT_npb": "ピタ勝率", "pyth_W_npb": "期待勝数",
-                    "diff_W_npb": "差", "RS": "得点", "RA": "失点",
-                }
-            ),
-            use_container_width=True,
-        )
+
+        st.markdown(f"**{label}**")
+        cards = ""
+        for i, (_, row) in enumerate(lg.iterrows()):
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            rank = i + 1
+            medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
+            diff = row["diff_W_npb"]
+            diff_color = "#4CAF50" if diff >= 0 else "#ff4466"
+            cards += f"""
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 0;
+                        background:#0d0d24;border-left:3px solid {glow};border-radius:6px;
+                        font-family:'Segoe UI',sans-serif;">
+              <span style="min-width:25px;font-size:14px;text-align:center;">{medal or rank}</span>
+              <span style="min-width:90px;color:{glow};font-weight:bold;">{row['team']}</span>
+              <span style="color:#e0e0e0;min-width:70px;">{int(row['W'])}勝{int(row['L'])}敗</span>
+              <span style="color:#888;font-size:12px;min-width:50px;">{row['actual_WPCT']:.3f}</span>
+              <span style="color:#00e5ff;font-size:12px;min-width:50px;">期待{row['pyth_W_npb']:.1f}勝</span>
+              <span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>
+            </div>"""
+
+        components.html(f"<div>{cards}</div>", height=len(lg) * 50 + 10)
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
@@ -338,21 +799,20 @@ def page_pythagorean_standings(data: dict):
         ))
         fig.add_trace(go.Bar(
             name="期待勝数", x=lg["team"], y=lg["pyth_W_npb"],
-            marker_color="#9E9E9E",
+            marker_color="#555",
         ))
-        for _, r in lg.iterrows():
-            diff = r["diff_W_npb"]
-            fig.add_annotation(
-                x=r["team"], y=max(r["W"], r["pyth_W_npb"]) + 2,
-                text=f"{diff:+.1f}", showarrow=False, font=dict(size=11),
-            )
-        fig.update_layout(barmode="group", template="plotly_white", height=350,
-                          yaxis_title="勝数", legend=dict(orientation="h", y=1.12))
+        fig.update_layout(
+            barmode="group", height=300, yaxis_title="勝数",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e0e0e0"),
+            xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
+            legend=dict(orientation="h", y=1.12, font=dict(color="#e0e0e0")),
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 
 def page_team_simulation(data: dict):
-    st.header("チーム編成シミュレーション")
+    st.markdown("### パーティ編成シミュレーション")
     pyth = data["pythagorean"]
     saber = data["sabermetrics"]
     marcel_h = data["marcel_hitters"]
@@ -375,20 +835,18 @@ def page_team_simulation(data: dict):
     rs = float(row["RS"])
     ra = float(row["RA"])
     games = int(row["G"])
+    glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
 
-    # チームの選手リスト取得
     team_saber = saber[(saber["team"].str.contains(_norm(team), na=False)) & (saber["year"] == year)]
     team_players = sorted(team_saber["player"].unique().tolist()) if not team_saber.empty else []
 
-    st.markdown("**選手の入れ替え**")
+    st.markdown("**メンバー入れ替え**")
     col_rm, col_add = st.columns(2)
-    remove_players = col_rm.multiselect("除外する選手", team_players, key="sim_remove")
+    remove_players = col_rm.multiselect("パーティから外す", team_players, key="sim_remove")
 
-    # 追加選手候補: 全選手（チーム外含む）
     all_players = sorted(saber["player"].unique().tolist())
-    add_players = col_add.multiselect("追加する選手（他チーム可）", all_players, key="sim_add")
+    add_players = col_add.multiselect("仲間に加える（他チーム可）", all_players, key="sim_add")
 
-    # wRAA取得ロジック（api.pyと同じ）
     def get_wraa(name: str, team_name: str | None, yr: int | None) -> tuple[str, float, str]:
         matched = _search(saber, name)
         if team_name:
@@ -411,18 +869,12 @@ def page_team_simulation(data: dict):
             return r["player"], round(wraa_est, 1), "Marcel推定"
         return name, 0.0, "データなし"
 
-    # 計算
     rs_adj = rs
-    removed_info = []
     for p in remove_players:
-        pname, wraa, src = get_wraa(p, team, year)
-        removed_info.append({"選手": pname, "wRAA": round(wraa, 1), "ソース": src})
+        _, wraa, _ = get_wraa(p, team, year)
         rs_adj -= wraa
-
-    added_info = []
     for p in add_players:
-        pname, wraa, src = get_wraa(p, None, year)
-        added_info.append({"選手": pname, "wRAA": round(wraa, 1), "ソース": src})
+        _, wraa, _ = get_wraa(p, None, year)
         rs_adj += wraa
 
     orig_wpct = _pythagorean_wpct(rs, ra)
@@ -431,66 +883,124 @@ def page_team_simulation(data: dict):
     new_wins = new_wpct * games
     win_diff = new_wins - orig_wins
 
-    if removed_info:
-        st.markdown("**除外選手**")
-        st.dataframe(pd.DataFrame(removed_info), use_container_width=True, hide_index=True)
-    if added_info:
-        st.markdown("**追加選手**")
-        st.dataframe(pd.DataFrame(added_info), use_container_width=True, hide_index=True)
+    # RPG風メッセージ
+    if remove_players:
+        for p in remove_players:
+            pname, wraa, src = get_wraa(p, team, year)
+            msg_color = "#ff4466"
+            st.markdown(f'<div style="color:{msg_color};font-size:14px;padding:4px 0;">'
+                        f'{pname} がパーティを離れた... (wRAA: {wraa:+.1f} / {src})</div>',
+                        unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.subheader("シミュレーション結果")
-    cols = st.columns(3)
-    cols[0].metric("ピタゴラス勝率", f"{new_wpct:.3f}", delta=f"{new_wpct - orig_wpct:+.3f}")
-    cols[1].metric("期待勝数", f"{new_wins:.1f}", delta=f"{win_diff:+.1f}")
-    cols[2].metric("調整後得点", f"{rs_adj:.0f}", delta=f"{rs_adj - rs:+.0f}")
+    if add_players:
+        for p in add_players:
+            pname, wraa, src = get_wraa(p, None, year)
+            msg_color = "#44ff88"
+            st.markdown(f'<div style="color:{msg_color};font-size:14px;padding:4px 0;">'
+                        f'{pname} が仲間になった！ (wRAA: {wraa:+.1f} / {src})</div>',
+                        unsafe_allow_html=True)
 
-    fig = go.Figure(data=[
-        go.Bar(name="現状", x=["期待勝数"], y=[orig_wins],
-               marker_color=NPB_TEAM_COLORS.get(team, "#333")),
-        go.Bar(name="シミュレーション", x=["期待勝数"], y=[new_wins],
-               marker_color="#FF9800"),
-    ])
-    fig.update_layout(barmode="group", template="plotly_white", height=300, yaxis_title="勝数")
-    st.plotly_chart(fig, use_container_width=True)
+    # 結果カード
+    orig_lv = max(1, min(99, int(orig_wins)))
+    new_lv = max(1, min(99, int(new_wins)))
+    lv_diff = new_lv - orig_lv
+    lv_diff_str = f"+{lv_diff}" if lv_diff >= 0 else str(lv_diff)
+    lv_color = "#44ff88" if lv_diff >= 0 else "#ff4466"
+
+    result_html = f"""
+    <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                border-radius:12px;padding:20px;margin:12px 0;box-shadow:0 0 15px {glow}22;
+                font-family:'Segoe UI',sans-serif;text-align:center;">
+      <div style="color:{glow};font-size:14px;margin-bottom:4px;">チームの総合力</div>
+      <div style="font-size:28px;font-weight:bold;color:#e0e0e0;">
+        Lv.{orig_lv} → Lv.{new_lv}
+        <span style="color:{lv_color};font-size:18px;">({lv_diff_str})</span>
+      </div>
+      <div style="display:flex;justify-content:center;gap:30px;margin-top:12px;">
+        <div>
+          <div style="color:#888;font-size:11px;">ピタゴラス勝率</div>
+          <div style="color:#00e5ff;font-size:18px;font-weight:bold;">{new_wpct:.3f}
+            <span style="font-size:12px;color:{lv_color};">({new_wpct - orig_wpct:+.3f})</span>
+          </div>
+        </div>
+        <div>
+          <div style="color:#888;font-size:11px;">期待勝数</div>
+          <div style="color:#ffaa44;font-size:18px;font-weight:bold;">{new_wins:.1f}
+            <span style="font-size:12px;color:{lv_color};">({win_diff:+.1f})</span>
+          </div>
+        </div>
+        <div>
+          <div style="color:#888;font-size:11px;">調整後得点</div>
+          <div style="color:#e0e0e0;font-size:18px;font-weight:bold;">{rs_adj:.0f}
+            <span style="font-size:12px;color:{lv_color};">({rs_adj - rs:+.0f})</span>
+          </div>
+        </div>
+      </div>
+    </div>"""
+    components.html(result_html, height=170)
 
 
 # --- メイン ---
 
 
 def main():
-    st.set_page_config(page_title="NPB成績予測", page_icon="&#9918;", layout="wide")
-    st.title("NPB成績予測ダッシュボード")
-    st.caption(
-        "データソース: [プロ野球データFreak](https://baseball-data.com) / "
-        "[日本野球機構 NPB](https://npb.jp)"
-    )
+    st.set_page_config(page_title="NPB成績予測", page_icon="⚾", layout="wide")
+
+    # グローバルCSS
+    st.markdown("""
+    <style>
+    .stApp { font-family: 'Segoe UI', sans-serif; }
+    .stRadio > div { gap: 2px; }
+    .stRadio label { color: #aaa !important; font-size: 14px !important; }
+    div[data-testid="stSidebar"] { background: #0d0d1f; }
+    div[data-testid="stSidebar"] .stRadio label:hover { color: #00e5ff !important; }
+    h1, h2, h3 { color: #e0e0e0 !important; }
+    .stMarkdown a { color: #00e5ff !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.sidebar.markdown("""
+    <div style="text-align:center;padding:10px 0;">
+      <div style="font-size:28px;">⚾</div>
+      <div style="color:#00e5ff;font-size:16px;font-weight:bold;">NPB予測</div>
+      <div style="color:#666;font-size:11px;">2026 Season</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     data = load_all()
 
     page = st.sidebar.radio(
         "ページ選択",
         [
+            "トップ",
             "打者予測",
             "投手予測",
+            "VS対決",
             "チーム勝率",
             "セイバーメトリクス",
             "打者ランキング",
             "投手ランキング",
             "ピタゴラス順位表",
-            "チームシミュレーション",
+            "パーティ編成",
         ],
     )
 
+    st.caption(
+        "データソース: [プロ野球データFreak](https://baseball-data.com) / "
+        "[日本野球機構 NPB](https://npb.jp)"
+    )
+
     pages = {
+        "トップ": page_top,
         "打者予測": page_hitter_prediction,
         "投手予測": page_pitcher_prediction,
+        "VS対決": page_vs_battle,
         "チーム勝率": page_team_wpct,
         "セイバーメトリクス": page_sabermetrics,
         "打者ランキング": page_hitter_rankings,
         "投手ランキング": page_pitcher_rankings,
         "ピタゴラス順位表": page_pythagorean_standings,
-        "チームシミュレーション": page_team_simulation,
+        "パーティ編成": page_team_simulation,
     }
 
     pages[page](data)
