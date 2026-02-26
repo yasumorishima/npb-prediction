@@ -364,7 +364,7 @@ def page_top(data: dict):
             st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                         unsafe_allow_html=True)
             components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=260)
-            st.plotly_chart(render_radar_chart(row, color=glow), use_container_width=True)
+            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
     # TOP3 投手
     st.markdown("### 投手 TOP3（防御率予測）")
