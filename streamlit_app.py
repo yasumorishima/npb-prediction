@@ -255,9 +255,9 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
         fill="toself",
         fillcolor=f"rgba({r},{g},{b},0.15)",
         line=dict(color=color, width=2),
-        name=title or str(row.get("player", "")),
+        name=title if title else str(row["player"]),
     ))
-    fig.update_layout(
+    layout_kwargs = dict(
         polar=dict(
             bgcolor="#0d0d24",
             radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
@@ -269,8 +269,10 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
         font=dict(color="#e0e0e0"),
         height=300,
         margin=dict(l=50, r=50, t=30, b=30),
-        title=dict(text=title, font=dict(size=14, color="#e0e0e0")) if title else None,
     )
+    if title:
+        layout_kwargs["title"] = dict(text=title, font=dict(size=14, color="#e0e0e0"))
+    fig.update_layout(**layout_kwargs)
     return fig
 
 
