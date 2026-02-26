@@ -227,25 +227,35 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
     </div>"""
 
 
+def _safe_float(val, default: float = 0.0) -> float:
+    try:
+        v = float(val)
+        return default if pd.isna(v) else v
+    except (TypeError, ValueError):
+        return default
+
+
 def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
     """打者レーダーチャート（5軸）"""
     categories = ["パワー", "ミート", "選球眼", "長打力", "総合力"]
     values = [
-        _norm_hr(row["HR"]),
-        _norm_avg(row["AVG"]),
-        _norm_obp(row["OBP"]),
-        _norm_slg(row["SLG"]),
-        _norm_ops(row["OPS"]),
+        _norm_hr(_safe_float(row["HR"])),
+        _norm_avg(_safe_float(row["AVG"])),
+        _norm_obp(_safe_float(row["OBP"])),
+        _norm_slg(_safe_float(row["SLG"])),
+        _norm_ops(_safe_float(row["OPS"])),
     ]
-    values.append(values[0])
-    categories.append(categories[0])
+
+    r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
 
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
-        r=values, theta=categories, fill="toself",
-        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.15)",
+        r=values + [values[0]],
+        theta=categories + [categories[0]],
+        fill="toself",
+        fillcolor=f"rgba({r},{g},{b},0.15)",
         line=dict(color=color, width=2),
-        name=title or row["player"],
+        name=title or str(row.get("player", "")),
     ))
     fig.update_layout(
         polar=dict(
@@ -267,24 +277,27 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
 def render_vs_radar(row1: pd.Series, row2: pd.Series, c1: str = "#ff4466", c2: str = "#44aaff") -> go.Figure:
     """2選手の重ねレーダーチャート"""
     categories = ["パワー", "ミート", "選球眼", "長打力", "総合力"]
-    v1 = [_norm_hr(row1["HR"]), _norm_avg(row1["AVG"]), _norm_obp(row1["OBP"]),
-          _norm_slg(row1["SLG"]), _norm_ops(row1["OPS"])]
-    v2 = [_norm_hr(row2["HR"]), _norm_avg(row2["AVG"]), _norm_obp(row2["OBP"]),
-          _norm_slg(row2["SLG"]), _norm_ops(row2["OPS"])]
-    v1.append(v1[0])
-    v2.append(v2[0])
+    v1 = [_norm_hr(_safe_float(row1["HR"])), _norm_avg(_safe_float(row1["AVG"])),
+          _norm_obp(_safe_float(row1["OBP"])), _norm_slg(_safe_float(row1["SLG"])),
+          _norm_ops(_safe_float(row1["OPS"]))]
+    v2 = [_norm_hr(_safe_float(row2["HR"])), _norm_avg(_safe_float(row2["AVG"])),
+          _norm_obp(_safe_float(row2["OBP"])), _norm_slg(_safe_float(row2["SLG"])),
+          _norm_ops(_safe_float(row2["OPS"]))]
     cats = categories + [categories[0]]
+
+    r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
+    r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
 
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
-        r=v1, theta=cats, fill="toself",
-        fillcolor=f"rgba({int(c1[1:3],16)},{int(c1[3:5],16)},{int(c1[5:7],16)},0.15)",
-        line=dict(color=c1, width=2), name=row1["player"],
+        r=v1 + [v1[0]], theta=cats, fill="toself",
+        fillcolor=f"rgba({r1},{g1},{b1},0.15)",
+        line=dict(color=c1, width=2), name=str(row1.get("player", "")),
     ))
     fig.add_trace(go.Scatterpolar(
-        r=v2, theta=cats, fill="toself",
-        fillcolor=f"rgba({int(c2[1:3],16)},{int(c2[3:5],16)},{int(c2[5:7],16)},0.15)",
-        line=dict(color=c2, width=2), name=row2["player"],
+        r=v2 + [v2[0]], theta=cats, fill="toself",
+        fillcolor=f"rgba({r2},{g2},{b2},0.15)",
+        line=dict(color=c2, width=2), name=str(row2.get("player", "")),
     ))
     fig.update_layout(
         polar=dict(
@@ -314,6 +327,18 @@ def page_top(data: dict):
       <p style="color:#888;font-size:14px;margin:4px 0;">Marcel法 × 機械学習 × セイバーメトリクス</p>
     </div>
     """, unsafe_allow_html=True)
+
+    components.html("""
+    <div style="background:#1a1a2e;border:1px solid #ff446644;border-radius:8px;padding:12px 16px;
+                margin:0 0 16px 0;font-family:'Segoe UI',sans-serif;">
+      <span style="color:#ff4466;font-weight:bold;">&#9888; ご注意</span>
+      <span style="color:#ccc;font-size:13px;margin-left:8px;">
+        本予測は2025年までのNPB実績データに基づいています。
+        2026年にMLBへ移籍した選手（村上宗隆・岡本和真など）も予測一覧に含まれますが、
+        NPBでの出場を前提とした数値です。
+      </span>
+    </div>
+    """, height=70)
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
