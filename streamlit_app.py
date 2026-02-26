@@ -365,12 +365,13 @@ def page_top(data: dict):
                 margin:0 0 16px 0;font-family:'Segoe UI',sans-serif;">
       <span style="color:#ff4466;font-weight:bold;">&#9888; ご注意</span>
       <span style="color:#ccc;font-size:13px;margin-left:8px;">
-        本予測は2025年までのNPB実績データに基づいています。
-        2025-2026オフの移籍・退団（MLB移籍・FA・引退等）は反映済みです。
-        予測値は過去3年の成績をもとに計算しており、実際の成績を保証するものではありません。
+        このサイトの予測は<strong style="color:#fff;">個人の見解・応援・願望ではなく</strong>、
+        Marcel法（統計モデル）が過去3年の成績データを計算した結果です。
+        好きなチームや選手が低く出ても、それはモデルの数値であり作者の意図ではありません。
+        2025-2026オフの移籍・退団は反映済みです。予測値は実際の成績を保証するものではありません。
       </span>
     </div>
-    """, height=70)
+    """, height=80)
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
@@ -977,6 +978,13 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
 
 def page_pythagorean_standings(data: dict):
     st.markdown("### 予測順位表")
+    st.info(
+        "⚠️ **これは作者の予想・応援ではありません。**\n\n"
+        "Marcel法（過去3年の成績を統計処理する数式）が自動計算した結果です。"
+        "好きなチームが低く出ても、モデルが過去データからそう計算しただけです。"
+        "新外国人・新人など過去データのない選手の貢献は含まれていません。",
+        icon=None,
+    )
 
     # --- 2026年予測 ---
     standings_2026 = _build_2026_standings(data)
