@@ -445,13 +445,12 @@ def page_hitter_prediction(data: dict):
     # クイックボタン
     st.markdown('<div style="margin-bottom:10px;">', unsafe_allow_html=True)
     btn_cols = st.columns(len(QUICK_HITTERS))
-    selected = None
-    for i, name in enumerate(QUICK_HITTERS):
-        if btn_cols[i].button(name, key=f"qh_{name}"):
-            selected = name
+    for i, qname in enumerate(QUICK_HITTERS):
+        if btn_cols[i].button(qname, key=f"qh_{qname}"):
+            st.session_state["hitter_search"] = qname
     st.markdown('</div>', unsafe_allow_html=True)
 
-    name = st.text_input("選手名で検索（部分一致）", value=selected or "", key="hitter_search",
+    name = st.text_input("選手名で検索（部分一致）", key="hitter_search",
                          placeholder="例: 牧、近藤、岡本")
     if not name:
         st.info("選手名を入力するか、上のボタンをタップしてください")
@@ -495,12 +494,11 @@ def page_pitcher_prediction(data: dict):
     st.markdown("### 投手予測（2026年）")
 
     btn_cols = st.columns(len(QUICK_PITCHERS))
-    selected = None
-    for i, name in enumerate(QUICK_PITCHERS):
-        if btn_cols[i].button(name, key=f"qp_{name}"):
-            selected = name
+    for i, qname in enumerate(QUICK_PITCHERS):
+        if btn_cols[i].button(qname, key=f"qp_{qname}"):
+            st.session_state["pitcher_search"] = qname
 
-    name = st.text_input("選手名で検索（部分一致）", value=selected or "", key="pitcher_search",
+    name = st.text_input("選手名で検索（部分一致）", key="pitcher_search",
                          placeholder="例: 才木、モイネロ、宮城")
     if not name:
         st.info("選手名を入力するか、上のボタンをタップしてください")
