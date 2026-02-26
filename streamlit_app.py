@@ -838,135 +838,6 @@ def page_pythagorean_standings(data: dict):
         st.plotly_chart(fig, use_container_width=True)
 
 
-def page_team_simulation(data: dict):
-    st.markdown("### パーティ編成シミュレーション")
-    pyth = data["pythagorean"]
-    saber = data["sabermetrics"]
-    marcel_h = data["marcel_hitters"]
-
-    if pyth.empty or saber.empty:
-        st.error("データが読み込めませんでした")
-        return
-
-    col1, col2 = st.columns(2)
-    team = col1.selectbox("チーム", TEAMS, key="sim_team")
-    year = col2.slider("ベース年度", 2015, 2025, 2025, key="sim_year")
-
-    mask = pyth["team"].str.contains(_norm(team), na=False) & (pyth["year"] == year)
-    team_data = pyth[mask]
-    if team_data.empty:
-        st.warning(f"{team} ({year}) のデータがありません")
-        return
-
-    row = team_data.iloc[0]
-    rs = float(row["RS"])
-    ra = float(row["RA"])
-    games = int(row["G"])
-    glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
-
-    team_saber = saber[(saber["team"].str.contains(_norm(team), na=False)) & (saber["year"] == year)]
-    team_players = sorted(team_saber["player"].unique().tolist()) if not team_saber.empty else []
-
-    st.markdown("**メンバー入れ替え**")
-    col_rm, col_add = st.columns(2)
-    remove_players = col_rm.multiselect("パーティから外す", team_players, key="sim_remove")
-
-    all_players = sorted(saber["player"].unique().tolist())
-    add_players = col_add.multiselect("仲間に加える（他チーム可）", all_players, key="sim_add")
-
-    def get_wraa(name: str, team_name: str | None, yr: int | None) -> tuple[str, float, str]:
-        matched = _search(saber, name)
-        if team_name:
-            tm = matched[matched["team"].str.contains(_norm(team_name), na=False)]
-            if not tm.empty:
-                matched = tm
-        if yr is not None:
-            ym = matched[matched["year"] == yr]
-            if not ym.empty:
-                matched = ym
-        if not matched.empty:
-            r = matched.sort_values("year", ascending=False).iloc[0]
-            return r["player"], float(r["wRAA"]), f"{int(r['year'])}実績"
-        marcel_match = _search(marcel_h, name)
-        if not marcel_match.empty:
-            r = marcel_match.iloc[0]
-            pa = float(r["PA"])
-            ops = float(r["OPS"])
-            wraa_est = (ops - 0.700) * pa / 3.2
-            return r["player"], round(wraa_est, 1), "Marcel推定"
-        return name, 0.0, "データなし"
-
-    rs_adj = rs
-    for p in remove_players:
-        _, wraa, _ = get_wraa(p, team, year)
-        rs_adj -= wraa
-    for p in add_players:
-        _, wraa, _ = get_wraa(p, None, year)
-        rs_adj += wraa
-
-    orig_wpct = _pythagorean_wpct(rs, ra)
-    orig_wins = orig_wpct * games
-    new_wpct = _pythagorean_wpct(rs_adj, ra)
-    new_wins = new_wpct * games
-    win_diff = new_wins - orig_wins
-
-    # RPG風メッセージ
-    if remove_players:
-        for p in remove_players:
-            pname, wraa, src = get_wraa(p, team, year)
-            msg_color = "#ff4466"
-            st.markdown(f'<div style="color:{msg_color};font-size:14px;padding:4px 0;">'
-                        f'{pname} がパーティを離れた... (wRAA: {wraa:+.1f} / {src})</div>',
-                        unsafe_allow_html=True)
-
-    if add_players:
-        for p in add_players:
-            pname, wraa, src = get_wraa(p, None, year)
-            msg_color = "#44ff88"
-            st.markdown(f'<div style="color:{msg_color};font-size:14px;padding:4px 0;">'
-                        f'{pname} が仲間になった！ (wRAA: {wraa:+.1f} / {src})</div>',
-                        unsafe_allow_html=True)
-
-    # 結果カード
-    orig_lv = max(1, min(99, int(orig_wins)))
-    new_lv = max(1, min(99, int(new_wins)))
-    lv_diff = new_lv - orig_lv
-    lv_diff_str = f"+{lv_diff}" if lv_diff >= 0 else str(lv_diff)
-    lv_color = "#44ff88" if lv_diff >= 0 else "#ff4466"
-
-    result_html = f"""
-    <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
-                border-radius:12px;padding:20px;margin:12px 0;box-shadow:0 0 15px {glow}22;
-                font-family:'Segoe UI',sans-serif;text-align:center;">
-      <div style="color:{glow};font-size:14px;margin-bottom:4px;">チームの総合力</div>
-      <div style="font-size:28px;font-weight:bold;color:#e0e0e0;">
-        Lv.{orig_lv} → Lv.{new_lv}
-        <span style="color:{lv_color};font-size:18px;">({lv_diff_str})</span>
-      </div>
-      <div style="display:flex;justify-content:center;gap:30px;margin-top:12px;">
-        <div>
-          <div style="color:#888;font-size:11px;">ピタゴラス勝率</div>
-          <div style="color:#00e5ff;font-size:18px;font-weight:bold;">{new_wpct:.3f}
-            <span style="font-size:12px;color:{lv_color};">({new_wpct - orig_wpct:+.3f})</span>
-          </div>
-        </div>
-        <div>
-          <div style="color:#888;font-size:11px;">期待勝数</div>
-          <div style="color:#ffaa44;font-size:18px;font-weight:bold;">{new_wins:.1f}
-            <span style="font-size:12px;color:{lv_color};">({win_diff:+.1f})</span>
-          </div>
-        </div>
-        <div>
-          <div style="color:#888;font-size:11px;">調整後得点</div>
-          <div style="color:#e0e0e0;font-size:18px;font-weight:bold;">{rs_adj:.0f}
-            <span style="font-size:12px;color:{lv_color};">({rs_adj - rs:+.0f})</span>
-          </div>
-        </div>
-      </div>
-    </div>"""
-    components.html(result_html, height=170)
-
-
 # --- メイン ---
 
 
@@ -1008,7 +879,6 @@ def main():
             "打者ランキング",
             "投手ランキング",
             "ピタゴラス順位表",
-            "パーティ編成",
         ],
     )
 
@@ -1027,7 +897,6 @@ def main():
         "打者ランキング": page_hitter_rankings,
         "投手ランキング": page_pitcher_rankings,
         "ピタゴラス順位表": page_pythagorean_standings,
-        "パーティ編成": page_team_simulation,
     }
 
     pages[page](data)
