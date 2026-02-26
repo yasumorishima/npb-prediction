@@ -141,8 +141,8 @@ _VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢�
 
 
 def _fuzzy(s: str) -> str:
-    """スペース除去 + 異体字を統一"""
-    return s.replace(" ", "").translate(_VARIANT_MAP)
+    """スペース除去（全角・半角両方） + 異体字を統一"""
+    return s.replace(" ", "").replace("\u3000", "").translate(_VARIANT_MAP)
 
 
 def _search(df: pd.DataFrame, name: str) -> pd.DataFrame:
