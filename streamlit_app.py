@@ -109,6 +109,8 @@ def load_csv(path: str) -> pd.DataFrame:
 
 
 def load_all():
+    from roster_2026 import get_all_roster_names, get_team_for_player
+
     result = {
         "marcel_hitters": load_csv("data/projections/marcel_hitters_2026.csv"),
         "marcel_pitchers": load_csv("data/projections/marcel_pitchers_2026.csv"),
@@ -117,72 +119,21 @@ def load_all():
         "sabermetrics": load_csv("data/projections/npb_sabermetrics_2015_2025.csv"),
         "pythagorean": load_csv("data/projections/pythagorean_2015_2025.csv"),
     }
-    # 2026ロースター変更を反映（退団除外 + チーム変更）
+    # NPB公式2026ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
+    roster_names = get_all_roster_names()
     for key in ("marcel_hitters", "marcel_pitchers", "ml_hitters", "ml_pitchers"):
-        result[key] = _apply_roster_changes(result[key])
+        df = result[key]
+        if df.empty or "player" not in df.columns:
+            continue
+        # ロースターにいる選手だけ残す
+        df = df[df["player"].apply(_fuzzy).isin(roster_names)].copy()
+        # チーム名を公式ロースターに合わせる（移籍反映）
+        for idx, row in df.iterrows():
+            new_team = get_team_for_player(row["player"])
+            if new_team:
+                df.at[idx, "team"] = new_team
+        result[key] = df
     return result
-
-
-# 2025-2026オフシーズン 移籍・退団情報
-# MLB移籍・引退・退団 → 予測一覧から除外
-REMOVED_PLAYERS = {
-    "オースティン",       # DeNA → カブス(MLB)
-    "村上 宗隆",         # ヤクルト → ホワイトソックス(MLB)
-    "岡本 和真",         # 巨人 → ブルージェイズ(MLB)
-    "今井 達也",         # 西武 → アストロズ(MLB)
-    "長野 久義",         # 巨人（引退）
-    "川端 慎吾",         # ヤクルト（引退）
-    "中田 翔",           # 中日（引退）
-    "祖父江 大輔",       # 中日（引退）
-    "岡田 俊哉",         # 中日（引退）
-    "原口 文仁",         # 阪神（引退）
-    "上本 崇司",         # 広島（引退）
-    "田中 広輔",         # 広島（引退）
-    "磯村 嘉孝",         # 広島（引退）
-    "森 唯斗",           # DeNA（引退）
-    "三嶋 一輝",         # DeNA（引退）
-    "美馬 学",           # ロッテ（引退）
-    "澤村 拓一",         # ロッテ（引退）
-    "二木 康太",         # ロッテ（引退）
-    "岡島 豪郎",         # 楽天（引退）
-}
-
-# チーム変更（FA・トレード・現役ドラフト）
-TEAM_CHANGES = {
-    "則本 昂大": "巨人",       # 楽天 → 巨人(FA)
-    "松本 剛": "巨人",         # 日本ハム → 巨人(FA)
-    "桑原 将志": "西武",       # DeNA → 西武(FA)
-    "伊藤 光": "楽天",         # DeNA → 楽天(FA)
-    "石井 一成": "西武",       # 日本ハム → 西武(FA)
-    "西川 遥輝": "日本ハム",   # ヤクルト(戦力外) → 日本ハム
-    "有原 航平": "日本ハム",   # ソフトバンク(自由契約) → 日本ハム
-    "知野 直人": "中日",       # DeNA → 中日(現役ドラフト)
-    "濱田 太貴": "阪神",       # ヤクルト → 阪神(現役ドラフト)
-    "大道 温貴": "ヤクルト",   # 広島 → ヤクルト(現役ドラフト)
-    "松浦 慶斗": "巨人",       # 日本ハム → 巨人(現役ドラフト)
-    "菊地 大稀": "日本ハム",   # 巨人 → 日本ハム(現役ドラフト)
-    "井上 広大": "ロッテ",     # 阪神 → ロッテ(現役ドラフト)
-    "平沼 翔太": "オリックス", # 西武 → オリックス(現役ドラフト)
-    "茶野 篤政": "西武",       # オリックス → 西武(現役ドラフト)
-    "佐藤 直樹": "楽天",       # ソフトバンク → 楽天(現役ドラフト)
-    "中村 稔弥": "ソフトバンク", # ロッテ → ソフトバンク(現役ドラフト)
-    "田中 千晴": "楽天",       # 巨人 → 楽天(人的補償)
-    "古市 尊": "DeNA",         # 西武 → DeNA(人的補償)
-    "濱 将乃介": "DeNA",       # 中日 → DeNA(現役ドラフト)
-}
-
-
-def _apply_roster_changes(df: pd.DataFrame) -> pd.DataFrame:
-    """移籍・退団情報を反映してDataFrameを返す"""
-    if df.empty or "player" not in df.columns:
-        return df
-    # 退団・引退・MLB移籍の選手を除外
-    df = df[~df["player"].apply(_fuzzy).isin({_fuzzy(p) for p in REMOVED_PLAYERS})].copy()
-    # チーム変更を反映
-    for player_name, new_team in TEAM_CHANGES.items():
-        mask = df["player"].apply(lambda p: _fuzzy(p) == _fuzzy(player_name))
-        df.loc[mask, "team"] = new_team
-    return df
 
 
 _VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
