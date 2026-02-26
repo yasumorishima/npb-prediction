@@ -10,6 +10,7 @@ Data sources:
 
 import random
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -907,49 +908,71 @@ def page_pitcher_rankings(data: dict):
 
 
 def _build_2026_standings(data: dict) -> pd.DataFrame:
-    """2026年の予測順位表を打者RBI合計（得点）と投手ERA×IP/9（失点）から算出。
-    リーグ内の平均勝率が0.500になるよう正規化する（ゼロサム制約）。"""
+    """2026年の予測順位表。
+
+    RS推定: wOBA = a×OBP + b×SLG の回帰 → wRAA → リーグ平均+wRAA合計
+    RA推定: (ERA - lgERA) × IP/9 → リーグ平均+超過失点合計
+    両方を歴史的リーグ平均にスケーリングして絶対水準を揃える。
+    """
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
-    if mh.empty or mp.empty:
+    saber = data["sabermetrics"]
+    pyth = data["pythagorean"]
+    if mh.empty or mp.empty or saber.empty or pyth.empty:
         return pd.DataFrame()
 
+    # --- wOBA回帰係数（2015-2025実績から算出）---
+    df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
+    X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
+    coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
+    a_obp, b_slg, intercept_w = coeffs
+
+    # リーグ環境値（2022-2025）
+    recent_s = saber[saber["year"] >= 2022]
+    lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+    woba_scale = 1.15  # NPB典型的wOBAスケール
+
+    # 歴史的リーグ平均得点・失点（1チームあたり）
+    recent_p = pyth[pyth["year"] >= 2022]
+    lg_avg_rs = recent_p.groupby("year")["RS"].mean().mean()
+    lg_avg_ra = recent_p.groupby("year")["RA"].mean().mean()
+
+    # Marcel投手全体の加重平均ERA（リーグ基準ERA）
+    lg_era = (mp["ERA"] * mp["IP"]).sum() / mp["IP"].sum() if mp["IP"].sum() > 0 else 3.5
+
+    # --- 選手ごとのwOBA・wRAA推定 ---
+    mh = mh.copy()
+    mh["wOBA_est"] = a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w
+    mh["wRAA_est"] = (mh["wOBA_est"] - lg_woba) / woba_scale * mh["PA"]
+
+    mp = mp.copy()
+    mp["era_above_avg"] = mp["ERA"] - lg_era  # 正=平均より悪い（失点多い）
+
+    # --- チームごとにRS/RA算出 ---
     rows = []
     for team in TEAMS:
-        # 得点推定: チーム打者のRBI合計
         h = mh[mh["team"] == team]
-        rs = h["RBI"].sum() if not h.empty else 0
-
-        # 失点推定: チーム投手の ERA × IP / 9 合計
         p = mp[mp["team"] == team]
-        if not p.empty:
-            ra = (p["ERA"] * p["IP"] / 9.0).sum()
-        else:
-            ra = 0
-
-        # ピタゴラス勝率（生値）
-        wpct = _pythagorean_wpct(rs, ra, k=1.72) if ra > 0 else 0.5
-
+        rs_raw = lg_avg_rs + (h["wRAA_est"].sum() if not h.empty else 0)
+        ra_raw = lg_avg_ra + ((p["era_above_avg"] * p["IP"] / 9.0).sum() if not p.empty else 0)
         league = "CL" if team in CENTRAL_TEAMS else "PL"
-        rows.append({
-            "league": league, "team": team,
-            "pred_RS": rs, "pred_RA": ra,
-            "pred_WPCT": wpct,
-        })
+        rows.append({"league": league, "team": team, "rs_raw": rs_raw, "ra_raw": ra_raw})
 
     df = pd.DataFrame(rows)
 
-    # リーグ内でゼロサム正規化: 平均勝率が0.500になるようシフト
-    # RBI/ERA×IPのスケール差によるバイアスを除去し、現実的な順位表にする
-    for league in ["CL", "PL"]:
-        mask = df["league"] == league
-        bias = df.loc[mask, "pred_WPCT"].mean() - 0.500
-        df.loc[mask, "pred_WPCT"] = df.loc[mask, "pred_WPCT"] - bias
+    # スケーリング: 全12チーム平均をリーグ平均RS/RAに合わせる（選択バイアス除去）
+    rs_scale = lg_avg_rs / df["rs_raw"].mean()
+    ra_scale = lg_avg_ra / df["ra_raw"].mean()
+    df["pred_RS"] = df["rs_raw"] * rs_scale
+    df["pred_RA"] = df["ra_raw"] * ra_scale
 
+    df["pred_WPCT"] = df.apply(
+        lambda r: _pythagorean_wpct(r["pred_RS"], r["pred_RA"], k=1.72), axis=1
+    )
     df["pred_W"] = df["pred_WPCT"] * 143
     df["pred_L"] = 143 - df["pred_W"]
 
-    return df
+    return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT", "pred_W", "pred_L"]]
 
 
 def page_pythagorean_standings(data: dict):
