@@ -8,8 +8,6 @@ Data sources:
 - 日本野球機構 NPB (https://npb.jp)
 """
 
-import random
-
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -59,29 +57,6 @@ NPB_TEAM_GLOW = {
 }
 
 TEAMS = list(NPB_TEAM_COLORS.keys())
-
-# --- RPG変換ロジック ---
-
-
-def wrc_plus_to_level(wrc_plus: float) -> int:
-    """wRC+ → RPG Lv変換。100(平均)=Lv.50, 200=Lv.99, 50=Lv.25"""
-    return max(1, min(99, int(wrc_plus * 0.495)))
-
-
-def ops_to_level(ops: float) -> int:
-    """OPS → RPG Lv変換。.700(平均)=Lv.50, 1.100=Lv.99"""
-    return max(1, min(99, int((ops - 0.3) * 123.75)))
-
-
-def era_to_level(era: float) -> int:
-    """ERA → RPG Lv変換。低いほど高レベル。1.0=Lv.99, 4.0=Lv.50"""
-    return max(1, min(99, int(100 - era * 16.5)))
-
-
-def lv_to_stars(lv: int) -> str:
-    """Lv 1–99 → 星5段階表示 (例: ★★★★☆)。平均(Lv.50)=3星"""
-    n = max(1, min(5, (lv - 1) // 20 + 1))
-    return "★" * n + "☆" * (5 - n)
 
 
 def _norm_hr(hr: float) -> float:
@@ -156,14 +131,12 @@ def load_all():
     result = {
         "marcel_hitters": load_csv("data/projections/marcel_hitters_2026.csv"),
         "marcel_pitchers": load_csv("data/projections/marcel_pitchers_2026.csv"),
-        "ml_hitters": load_csv("data/projections/ml_hitters_2026.csv"),
-        "ml_pitchers": load_csv("data/projections/ml_pitchers_2026.csv"),
         "sabermetrics": load_csv("data/projections/npb_sabermetrics_2015_2025.csv"),
         "pythagorean": load_csv("data/projections/pythagorean_2015_2025.csv"),
     }
     # NPB公式2026ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
     roster_names = get_all_roster_names()
-    for key in ("marcel_hitters", "marcel_pitchers", "ml_hitters", "ml_pitchers"):
+    for key in ("marcel_hitters", "marcel_pitchers"):
         df = result[key]
         if df.empty or "player" not in df.columns:
             continue
@@ -248,8 +221,7 @@ def _bar_html(label: str, value: float, max_val: float, display: str, color: str
 
 
 def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = "#00e5ff") -> str:
-    """RPGステータスカード（打者）をHTMLで生成"""
-    lv = ops_to_level(row["OPS"])
+    """打者ステータスカードをHTMLで生成"""
     team = row.get("team", "")
 
     bars = ""
@@ -259,33 +231,22 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     bars += _bar_html(t("bar_slg"), row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
     bars += _bar_html("OPS", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff")
 
-    compare = ""
-    if ml_ops is not None:
-        compare = f"""
-        <div style="margin-top:8px;padding:6px 10px;background:#1a1a2e;border-radius:6px;font-size:12px;color:#aaa;">
-          {t("stat_pred")}: <span style="color:#4CAF50;font-weight:bold;">{row['OPS']:.3f}</span>
-          &nbsp;|&nbsp; {t("ai_pred")}: <span style="color:#2196F3;font-weight:bold;">{ml_ops:.3f}</span>
-        </div>"""
-
     return f"""
     <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                 border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
                 font-family:'Segoe UI',sans-serif;max-width:400px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <span style="color:{glow};font-size:16px;font-weight:bold;">{lv_to_stars(lv)}</span>
-          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;margin-left:10px;">{row['player']}</span>
+          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
         </div>
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
       </div>
       {bars}
-      {compare}
     </div>"""
 
 
 def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str = "#00e5ff") -> str:
-    """RPGステータスカード（投手）をHTMLで生成"""
-    lv = era_to_level(row["ERA"])
+    """投手ステータスカードをHTMLで生成"""
     team = row.get("team", "")
 
     bars = ""
@@ -303,27 +264,17 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
       <span style="width:50px;text-align:right;font-size:13px;font-weight:bold;color:#e0e0e0;">{row['ERA']:.2f}</span>
     </div>"""
 
-    compare = ""
-    if ml_era is not None:
-        compare = f"""
-        <div style="margin-top:8px;padding:6px 10px;background:#1a1a2e;border-radius:6px;font-size:12px;color:#aaa;">
-          {t("stat_pred")}: <span style="color:#4CAF50;font-weight:bold;">{row['ERA']:.2f}</span>
-          &nbsp;|&nbsp; {t("ai_pred")}: <span style="color:#2196F3;font-weight:bold;">{ml_era:.2f}</span>
-        </div>"""
-
     return f"""
     <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                 border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
                 font-family:'Segoe UI',sans-serif;max-width:400px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <span style="color:{glow};font-size:16px;font-weight:bold;">{lv_to_stars(lv)}</span>
-          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;margin-left:10px;">{row['player']}</span>
+          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
         </div>
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
       </div>
       {bars}
-      {compare}
     </div>"""
 
 
@@ -417,47 +368,6 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
     return fig
 
 
-def render_vs_radar(row1: pd.Series, row2: pd.Series, c1: str = "#ff4466", c2: str = "#44aaff") -> go.Figure:
-    """2選手の重ねレーダーチャート"""
-    categories = [t("radar_hr"), t("radar_avg"), t("radar_obp"), t("radar_slg"), "OPS"]
-    v1 = [_norm_hr(_safe_float(row1["HR"])), _norm_avg(_safe_float(row1["AVG"])),
-          _norm_obp(_safe_float(row1["OBP"])), _norm_slg(_safe_float(row1["SLG"])),
-          _norm_ops(_safe_float(row1["OPS"]))]
-    v2 = [_norm_hr(_safe_float(row2["HR"])), _norm_avg(_safe_float(row2["AVG"])),
-          _norm_obp(_safe_float(row2["OBP"])), _norm_slg(_safe_float(row2["SLG"])),
-          _norm_ops(_safe_float(row2["OPS"]))]
-    cats = categories + [categories[0]]
-
-    r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
-    r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(
-        r=v1 + [v1[0]], theta=cats, fill="toself",
-        fillcolor=f"rgba({r1},{g1},{b1},0.15)",
-        line=dict(color=c1, width=2), name=str(row1.get("player", "")),
-    ))
-    fig.add_trace(go.Scatterpolar(
-        r=v2 + [v2[0]], theta=cats, fill="toself",
-        fillcolor=f"rgba({r2},{g2},{b2},0.15)",
-        line=dict(color=c2, width=2), name=str(row2.get("player", "")),
-    ))
-    fig.update_layout(
-        polar=dict(
-            bgcolor="#0d0d24",
-            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
-            angularaxis=dict(gridcolor="#333", linecolor="#444"),
-        ),
-        showlegend=True,
-        legend=dict(font=dict(color="#e0e0e0"), bgcolor="rgba(0,0,0,0)"),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e0e0e0"),
-        height=350,
-        margin=dict(l=50, r=50, t=30, b=30),
-    )
-    return fig
-
 
 # --- ページ実装 ---
 
@@ -479,7 +389,6 @@ def page_top(data: dict):
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
-    ml_h = data["ml_hitters"]
 
     if mh.empty or mp.empty:
         st.error(t("no_data"))
@@ -516,7 +425,6 @@ def page_top(data: dict):
     if selected_team:
         # チーム選手一覧表示
         team_glow = NPB_TEAM_GLOW.get(selected_team, "#00e5ff")
-        ml_p = data["ml_pitchers"]
 
         # 打者一覧
         team_hitters = mh[(mh["team"] == selected_team) & (mh["PA"] >= 100)].sort_values("OPS", ascending=False)
@@ -584,11 +492,9 @@ def page_top(data: dict):
         for i, (_, row) in enumerate(top_hitters.iterrows()):
             with cols[i]:
                 glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-                ml_match = ml_h[ml_h["player"] == row["player"]]
-                ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
                 st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                             unsafe_allow_html=True)
-                components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=260)
+                components.html(render_hitter_card(row, glow=glow), height=260)
                 st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
         # TOP3 投手
@@ -596,71 +502,13 @@ def page_top(data: dict):
         top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
 
         cols = st.columns(3)
-        ml_p = data["ml_pitchers"]
         for i, (_, row) in enumerate(top_pitchers.iterrows()):
             with cols[i]:
                 glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-                ml_match = ml_p[ml_p["player"] == row["player"]]
-                ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
                 st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                             unsafe_allow_html=True)
-                components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=260)
+                components.html(render_pitcher_card(row, glow=glow), height=260)
                 st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
-
-        # 注目対決
-        st.markdown(f"### {t('featured_matchup')}")
-        top10 = mh[mh["PA"] >= 200].nlargest(10, "OPS")
-        if len(top10) >= 2:
-            pair = top10.sample(2, random_state=random.randint(0, 9999))
-            p1, p2 = pair.iloc[0], pair.iloc[1]
-            _render_vs_section(p1, p2)
-
-
-def _render_vs_section(p1: pd.Series, p2: pd.Series):
-    """VS演出（2選手比較）"""
-    g1 = NPB_TEAM_GLOW.get(p1["team"], "#ff4466")
-    g2 = NPB_TEAM_GLOW.get(p2["team"], "#44aaff")
-
-    vs_html = f"""
-    <div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:20px 0;">
-      <div style="text-align:center;">
-        <div style="color:{g1};font-size:20px;font-weight:bold;">{p1['player']}</div>
-        <div style="color:#888;font-size:12px;">{p1['team']} / {lv_to_stars(ops_to_level(p1['OPS']))}</div>
-      </div>
-      <div style="font-size:36px;font-weight:bold;color:#ff4466;
-                  text-shadow:0 0 20px #ff446688;">VS</div>
-      <div style="text-align:center;">
-        <div style="color:{g2};font-size:20px;font-weight:bold;">{p2['player']}</div>
-        <div style="color:#888;font-size:12px;">{p2['team']} / {lv_to_stars(ops_to_level(p2['OPS']))}</div>
-      </div>
-    </div>"""
-    components.html(vs_html, height=100)
-
-    col1, col2 = st.columns(2)
-    stats = [
-        (t("radar_hr"), "HR", ".0f"), (t("radar_avg"), "AVG", ".3f"), (t("radar_obp"), "OBP", ".3f"),
-        (t("radar_slg"), "SLG", ".3f"), ("OPS", "OPS", ".3f"),
-    ]
-
-    rows_html = ""
-    for label, key, fmt in stats:
-        v1 = p1[key]
-        v2 = p2[key]
-        c1 = g1 if v1 >= v2 else "#666"
-        c2 = g2 if v2 >= v1 else "#666"
-        rows_html += f"""
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0;font-size:14px;">
-          <span style="width:70px;text-align:right;color:{c1};font-weight:{'bold' if v1>=v2 else 'normal'};">{v1:{fmt}}</span>
-          <span style="width:60px;text-align:center;color:#888;">{label}</span>
-          <span style="width:70px;text-align:left;color:{c2};font-weight:{'bold' if v2>=v1 else 'normal'};">{v2:{fmt}}</span>
-        </div>"""
-
-    components.html(f"""
-    <div style="background:#0d0d24;border-radius:10px;padding:12px;border:1px solid #333;">
-      {rows_html}
-    </div>""", height=180)
-
-    st.plotly_chart(render_vs_radar(p1, p2, c1=g1, c2=g2), use_container_width=True)
 
 
 QUICK_HITTERS = ["牧", "近藤", "サンタナ", "宮崎", "佐藤輝", "細川", "坂倉", "万波"]
@@ -685,36 +533,19 @@ def page_hitter_prediction(data: dict):
         return
 
     marcel = _search(data["marcel_hitters"], name)
-    ml = _search(data["ml_hitters"], name)
-    if marcel.empty and ml.empty:
+    if marcel.empty:
         st.warning(t("no_player_found").format(name=name))
         return
 
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-        ml_match = ml[ml["player"] == row["player"]]
-        ml_ops = ml_match.iloc[0]["pred_OPS"] if not ml_match.empty else None
 
         col1, col2 = st.columns([1, 1])
         with col1:
-            components.html(render_hitter_card(row, ml_ops=ml_ops, glow=glow), height=280)
+            components.html(render_hitter_card(row, glow=glow), height=280)
         with col2:
             st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
                             use_container_width=True)
-
-        if ml_ops is not None:
-            fig = go.Figure(data=[
-                go.Bar(name=t("stat_pred"), x=[t("ops_chart_label")], y=[row["OPS"]], marker_color="#4CAF50"),
-                go.Bar(name=t("ai_pred"), x=[t("ops_chart_label")], y=[ml_ops], marker_color="#2196F3"),
-            ])
-            fig.update_layout(
-                barmode="group", height=250, yaxis_title=t("ops_chart_label"),
-                yaxis_range=[0, max(row["OPS"], ml_ops) * 1.2],
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e0e0e0"),
-                xaxis=dict(gridcolor="#333"), yaxis=dict(gridcolor="#333"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
         st.markdown("---")
 
 
@@ -733,55 +564,15 @@ def page_pitcher_prediction(data: dict):
         return
 
     marcel = _search(data["marcel_pitchers"], name)
-    ml = _search(data["ml_pitchers"], name)
-    if marcel.empty and ml.empty:
+    if marcel.empty:
         st.warning(t("no_player_found").format(name=name))
         return
 
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-        ml_match = ml[ml["player"] == row["player"]]
-        ml_era = ml_match.iloc[0]["pred_ERA"] if not ml_match.empty else None
-
-        components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=280)
-
-        if ml_era is not None:
-            fig = go.Figure(data=[
-                go.Bar(name=t("stat_pred"), x=[t("era_chart_label")], y=[row["ERA"]], marker_color="#4CAF50"),
-                go.Bar(name=t("ai_pred"), x=[t("era_chart_label")], y=[ml_era], marker_color="#2196F3"),
-            ])
-            fig.update_layout(
-                barmode="group", height=250, yaxis_title=t("era_chart_label"),
-                yaxis_range=[0, max(row["ERA"], ml_era) * 1.3],
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e0e0e0"),
-                xaxis=dict(gridcolor="#333"), yaxis=dict(gridcolor="#333"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        components.html(render_pitcher_card(row, glow=glow), height=280)
         st.markdown("---")
 
-
-def page_vs_battle(data: dict):
-    """VS対決画面"""
-    st.markdown(f"### {t('vs_title')}")
-
-    mh = data["marcel_hitters"]
-    if mh.empty:
-        st.error(t("no_data"))
-        return
-
-    eligible = mh[mh["PA"] >= 200].sort_values("OPS", ascending=False)
-    players = eligible["player"].tolist()
-
-    col1, col2 = st.columns(2)
-    p1_name = col1.selectbox(t("player1_label"), players, index=0, key="vs_p1")
-    p2_idx = min(1, len(players) - 1)
-    p2_name = col2.selectbox(t("player2_label"), players, index=p2_idx, key="vs_p2")
-
-    p1 = eligible[eligible["player"] == p1_name].iloc[0]
-    p2 = eligible[eligible["player"] == p2_name].iloc[0]
-
-    _render_vs_section(p1, p2)
 
 
 def page_team_wpct(data: dict):
@@ -872,17 +663,12 @@ def page_sabermetrics(data: dict):
         st.warning(t("no_match").format(name=name))
         return
 
-    # wRC+をLv表示
     for _, row in matched.iterrows():
-        lv = wrc_plus_to_level(row["wRC+"])
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
         card = f"""
         <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                     border-radius:10px;padding:12px;margin:6px 0;box-shadow:0 0 10px {glow}22;
                     display:flex;align-items:center;gap:12px;font-family:'Segoe UI',sans-serif;">
-          <div style="min-width:60px;text-align:center;">
-            <div style="color:{glow};font-size:18px;font-weight:bold;">{lv_to_stars(lv)}</div>
-          </div>
           <div style="flex:1;">
             <div style="color:#e0e0e0;font-weight:bold;">{row['player']}
               <span style="color:#888;font-size:12px;margin-left:8px;">{row['team']} / {int(row['year'])}</span>
@@ -924,14 +710,12 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
     medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
     border_color = {1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32"}.get(rank, "#333")
     val = row[stat_key]
-    lv = ops_to_level(val) if stat_key == "OPS" else max(1, min(99, int(val)))
 
     return f"""
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:4px 0;
                 background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
                 font-family:'Segoe UI',sans-serif;">
       <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
-      <span style="min-width:55px;color:{glow};font-size:13px;font-weight:bold;">{lv_to_stars(lv)}</span>
       <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
       <span style="color:#888;font-size:12px;">{row['team']}</span>
       <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
@@ -995,7 +779,6 @@ def page_pitcher_rankings(data: dict):
     cards = ""
     for i, (_, row) in enumerate(df.iterrows()):
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-        lv = era_to_level(row["ERA"]) if sort_by in ("ERA", "WHIP") else max(1, min(99, int(row[sort_by])))
         medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(i + 1, "")
         border_color = {1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32"}.get(i + 1, "#333")
         val = row[sort_by]
@@ -1004,7 +787,6 @@ def page_pitcher_rankings(data: dict):
                     background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
                     font-family:'Segoe UI',sans-serif;">
           <span style="min-width:30px;font-size:16px;text-align:center;">{medal or i+1}</span>
-          <span style="min-width:55px;color:{glow};font-size:13px;font-weight:bold;">{lv_to_stars(lv)}</span>
           <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
           <span style="color:#888;font-size:12px;">{row['team']}</span>
           <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
@@ -1266,7 +1048,7 @@ def page_pythagorean_standings(data: dict):
 
 PAGE_KEYS = [
     "page_top", "page_standings", "page_hitter", "page_pitcher",
-    "page_hitter_rank", "page_pitcher_rank", "page_vs", "page_team_wpct", "page_saber",
+    "page_hitter_rank", "page_pitcher_rank", "page_team_wpct", "page_saber",
 ]
 
 PAGE_FUNCS = {
@@ -1276,7 +1058,6 @@ PAGE_FUNCS = {
     "page_pitcher": page_pitcher_prediction,
     "page_hitter_rank": page_hitter_rankings,
     "page_pitcher_rank": page_pitcher_rankings,
-    "page_vs": page_vs_battle,
     "page_team_wpct": page_team_wpct,
     "page_saber": page_sabermetrics,
 }
