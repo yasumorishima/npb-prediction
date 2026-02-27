@@ -1081,6 +1081,10 @@ def page_pythagorean_standings(data: dict):
             )
             st.plotly_chart(fig, use_container_width=True)
 
+        st.info(t("pred_range_brief"))
+        with st.expander(t("pred_range_explain_title")):
+            st.markdown(t("pred_range_explain"))
+
         missing_all = _get_missing_players(data)
         with st.expander(t("missing_expander_all")):
             st.markdown(t("missing_expander_content"))

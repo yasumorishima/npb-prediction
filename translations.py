@@ -276,6 +276,17 @@ TEXTS: dict[str, dict[str, str]] = {
         "wpct_prefix": "勝率 ",
         "pred_wins_label": "予測勝数",
         "chart_annotation": "オレンジの縦線 = 計算外選手による予測幅（±1.5勝/人）",
+        "pred_range_brief": "オレンジの縦線 = 予測幅。新外国人・新人など予測できない選手が多いチームほど幅が広くなります（1人あたり±1.5勝）",
+        "pred_range_explain_title": "予測幅（オレンジの縦線）の詳しい説明",
+        "pred_range_explain": (
+            "新外国人・新人などNPBデータが3年未満の選手は、Marcel法では予測できません。"
+            "これらの選手は「リーグ平均の貢献（wRAA=0）」として計算していますが、"
+            "実際の成績は大きくばらつきます。\n\n"
+            "- 歴史的にNPB外国人選手の初年度wRAAは **-15点〜+25点** のばらつき\n"
+            "- 野球統計の経験則: **10点の得失点差 ≈ 1勝**\n"
+            "- → 計算外選手 **1人あたり ±1.5勝** の不確実性\n\n"
+            "例: 計算外3名のチーム → 予測70勝なら「67〜74勝」の範囲になります"
+        ),
         "missing_expander_all": "⚠️ チームごとの計算対象外選手（新人・新外国人等）— wRAA=0で計算中",
         "missing_expander_content": (
             "**以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。**\n\n"
@@ -587,6 +598,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "wpct_prefix": "Win% ",
         "pred_wins_label": "Projected Wins",
         "chart_annotation": "Orange bars = uncertainty from untracked players (±1.5W/player)",
+        "pred_range_brief": "Orange bars = prediction range. Teams with more untracked players (new imports/rookies) have wider ranges (±1.5W per player)",
+        "pred_range_explain_title": "How prediction ranges (orange bars) work",
+        "pred_range_explain": (
+            "New foreign players, rookies, and others with less than 3 years of NPB data cannot be projected by Marcel. "
+            "These players are treated as \"league-average contributors (wRAA=0)\", but their actual performance varies widely.\n\n"
+            "- Historically, first-year NPB foreign players show wRAA ranging from roughly **-15 to +25 runs**\n"
+            "- Baseball rule of thumb: **10 runs ≈ 1 win**\n"
+            "- → Each untracked player adds **±1.5 wins** of uncertainty\n\n"
+            "Example: 3 untracked players, 70 projected wins → displayed as a range of 67–74 wins"
+        ),
         "missing_expander_all": "⚠️ Players Not Projected by Team (rookies/new imports) — treated as wRAA=0",
         "missing_expander_content": (
             "**These players lack 3 years of NPB data and are excluded from Marcel projections.**\n\n"
