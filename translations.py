@@ -179,7 +179,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "sort_hr": "本塁打(HR)",
         "sort_rbi": "打点(RBI)",
         "sort_era": "防御率(ERA)",
-        "sort_whip": "走者許容率(WHIP)",
+        "sort_whip": "WHIP（被走者率）",
         "sort_so": "奪三振(SO)",
         "sort_w": "勝利数(W)",
 
