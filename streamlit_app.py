@@ -284,7 +284,7 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     return f"""
     <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                 border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
-                font-family:'Segoe UI',sans-serif;max-width:400px;">
+                font-family:'Segoe UI',sans-serif;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
           <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
@@ -317,7 +317,7 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
     return f"""
     <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                 border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
-                font-family:'Segoe UI',sans-serif;max-width:400px;">
+                font-family:'Segoe UI',sans-serif;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
           <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
@@ -369,7 +369,7 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e0e0e0"),
         height=300,
-        margin=dict(l=50, r=50, t=30, b=30),
+        margin=dict(l=30, r=30, t=30, b=30),
     )
     if title:
         layout_kwargs["title"] = dict(text=title, font=dict(size=14, color="#e0e0e0"))
@@ -410,7 +410,7 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e0e0e0"),
         height=300,
-        margin=dict(l=50, r=50, t=30, b=30),
+        margin=dict(l=30, r=30, t=30, b=30),
     )
     if title:
         layout_kwargs["title"] = dict(text=title, font=dict(size=14, color="#e0e0e0"))
@@ -450,22 +450,34 @@ def page_top(data: dict):
 
     st.markdown(f"<div style='color:#888;font-size:12px;margin-bottom:4px;'>{t('central_league')}</div>",
                 unsafe_allow_html=True)
-    cl_cols = st.columns(6)
-    for i, team in enumerate(CENTRAL_TEAMS):
-        glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
+    cl_row1 = st.columns(3)
+    for i, team in enumerate(CENTRAL_TEAMS[:3]):
         is_selected = st.session_state.get("selected_team") == team
-        if cl_cols[i].button(team, key=f"team_{team}",
+        if cl_row1[i].button(team, key=f"team_{team}",
+                             type="primary" if is_selected else "secondary"):
+            st.session_state["selected_team"] = team
+            st.rerun()
+    cl_row2 = st.columns(3)
+    for i, team in enumerate(CENTRAL_TEAMS[3:]):
+        is_selected = st.session_state.get("selected_team") == team
+        if cl_row2[i].button(team, key=f"team_{team}",
                              type="primary" if is_selected else "secondary"):
             st.session_state["selected_team"] = team
             st.rerun()
 
     st.markdown(f"<div style='color:#888;font-size:12px;margin-bottom:4px;'>{t('pacific_league')}</div>",
                 unsafe_allow_html=True)
-    pl_cols = st.columns(6)
-    for i, team in enumerate(PACIFIC_TEAMS):
-        glow = NPB_TEAM_GLOW.get(team, "#00e5ff")
+    pl_row1 = st.columns(3)
+    for i, team in enumerate(PACIFIC_TEAMS[:3]):
         is_selected = st.session_state.get("selected_team") == team
-        if pl_cols[i].button(team, key=f"team_{team}",
+        if pl_row1[i].button(team, key=f"team_{team}",
+                             type="primary" if is_selected else "secondary"):
+            st.session_state["selected_team"] = team
+            st.rerun()
+    pl_row2 = st.columns(3)
+    for i, team in enumerate(PACIFIC_TEAMS[3:]):
+        is_selected = st.session_state.get("selected_team") == team
+        if pl_row2[i].button(team, key=f"team_{team}",
                              type="primary" if is_selected else "secondary"):
             st.session_state["selected_team"] = team
             st.rerun()
@@ -537,28 +549,24 @@ def page_top(data: dict):
         st.markdown(f"### {t('top3_batters')}")
         top_hitters = mh[mh["PA"] >= 200].nlargest(3, "OPS")
 
-        cols = st.columns(3)
         medals = ["🥇", "🥈", "🥉"]
         for i, (_, row) in enumerate(top_hitters.iterrows()):
-            with cols[i]:
-                glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-                st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
-                            unsafe_allow_html=True)
-                components.html(render_hitter_card(row, glow=glow), height=260)
-                st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                        unsafe_allow_html=True)
+            components.html(render_hitter_card(row, glow=glow), height=260)
+            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
         # TOP3 投手
         st.markdown(f"### {t('top3_pitchers')}")
         top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
 
-        cols = st.columns(3)
         for i, (_, row) in enumerate(top_pitchers.iterrows()):
-            with cols[i]:
-                glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-                st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
-                            unsafe_allow_html=True)
-                components.html(render_pitcher_card(row, glow=glow), height=260)
-                st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                        unsafe_allow_html=True)
+            components.html(render_pitcher_card(row, glow=glow), height=260)
+            st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
 
 QUICK_HITTERS = ["牧", "近藤", "サンタナ", "宮崎", "佐藤輝", "細川", "坂倉", "万波"]
@@ -568,11 +576,15 @@ QUICK_PITCHERS = ["才木", "モイネロ", "宮城", "戸郷", "東", "高橋�
 def page_hitter_prediction(data: dict):
     st.markdown(f"### {t('hitter_pred_title')}")
 
-    # クイックボタン
+    # クイックボタン（4列×2行）
     st.markdown('<div style="margin-bottom:10px;">', unsafe_allow_html=True)
-    btn_cols = st.columns(len(QUICK_HITTERS))
-    for i, qname in enumerate(QUICK_HITTERS):
-        if btn_cols[i].button(qname, key=f"qh_{qname}"):
+    qh_row1 = st.columns(4)
+    for i, qname in enumerate(QUICK_HITTERS[:4]):
+        if qh_row1[i].button(qname, key=f"qh_{qname}"):
+            st.session_state["hitter_search"] = qname
+    qh_row2 = st.columns(4)
+    for i, qname in enumerate(QUICK_HITTERS[4:]):
+        if qh_row2[i].button(qname, key=f"qh_{qname}"):
             st.session_state["hitter_search"] = qname
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -593,22 +605,19 @@ def page_hitter_prediction(data: dict):
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            components.html(render_hitter_card(row, glow=glow), height=280)
-        with col2:
-            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
-                            use_container_width=True)
+        components.html(render_hitter_card(row, glow=glow), height=280)
+        st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
+                        use_container_width=True)
 
-        # wOBA / wRC+ / wRAA カード
+        # wOBA / wRC+ / wRAA カード（2列+単独行）
         if "wOBA" in row.index and not pd.isna(row.get("wOBA")):
-            m1, m2, m3 = st.columns(3)
+            m1, m2 = st.columns(2)
             m1.metric("wOBA", f"{row['wOBA']:.3f}")
             m1.markdown(f"<span style='color:#888;font-size:11px;'>{t('woba_value_desc')}</span>", unsafe_allow_html=True)
             m2.metric("wRC+", f"{int(row['wRC+'])}")
             m2.markdown(f"<span style='color:#888;font-size:11px;'>{t('wrcplus_value_desc')}</span>", unsafe_allow_html=True)
-            m3.metric("wRAA", f"{row['wRAA']:+.1f}")
-            m3.markdown(f"<span style='color:#888;font-size:11px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
+            st.metric("wRAA", f"{row['wRAA']:+.1f}")
+            st.markdown(f"<span style='color:#888;font-size:11px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
 
             # 計算式の説明
             with st.expander(t("formula_hitter")):
@@ -644,9 +653,13 @@ def page_hitter_prediction(data: dict):
 def page_pitcher_prediction(data: dict):
     st.markdown(f"### {t('pitcher_pred_title')}")
 
-    btn_cols = st.columns(len(QUICK_PITCHERS))
-    for i, qname in enumerate(QUICK_PITCHERS):
-        if btn_cols[i].button(qname, key=f"qp_{qname}"):
+    qp_row1 = st.columns(4)
+    for i, qname in enumerate(QUICK_PITCHERS[:4]):
+        if qp_row1[i].button(qname, key=f"qp_{qname}"):
+            st.session_state["pitcher_search"] = qname
+    qp_row2 = st.columns(4)
+    for i, qname in enumerate(QUICK_PITCHERS[4:]):
+        if qp_row2[i].button(qname, key=f"qp_{qname}"):
             st.session_state["pitcher_search"] = qname
 
     name = st.text_input(t("search_by_name"), key="pitcher_search",
@@ -664,39 +677,37 @@ def page_pitcher_prediction(data: dict):
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            components.html(render_pitcher_card(row, glow=glow), height=280)
-        with col2:
-            st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
-                            use_container_width=True)
+        components.html(render_pitcher_card(row, glow=glow), height=280)
+        st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
+                        use_container_width=True)
 
-        # FIP / K% / BB% / K-BB% カード
+        # FIP / K% / BB% / K-BB% カード（2列×2行）
         has_fip = "FIP" in row.index and not pd.isna(row.get("FIP"))
         has_k_pct = "K_pct" in row.index and not pd.isna(row.get("K_pct"))
         if has_fip or has_k_pct:
-            r1 = st.columns(4)
+            r1a, r1b = st.columns(2)
             if has_fip:
-                r1[0].metric("FIP", f"{row['FIP']:.2f}")
-                r1[0].markdown(f"<span style='color:#888;font-size:11px;'>{t('fip_value_desc')}</span>", unsafe_allow_html=True)
+                r1a.metric("FIP", f"{row['FIP']:.2f}")
+                r1a.markdown(f"<span style='color:#888;font-size:11px;'>{t('fip_value_desc')}</span>", unsafe_allow_html=True)
             if has_k_pct:
-                r1[1].metric("K%", f"{row['K_pct']:.1f}%")
-                r1[1].markdown(f"<span style='color:#888;font-size:11px;'>{t('k_pct_desc')}</span>", unsafe_allow_html=True)
-                r1[2].metric("BB%", f"{row['BB_pct']:.1f}%")
-                r1[2].markdown(f"<span style='color:#888;font-size:11px;'>{t('bb_pct_desc')}</span>", unsafe_allow_html=True)
-                r1[3].metric("K-BB%", f"{row['K_BB_pct']:.1f}%")
-                r1[3].markdown(f"<span style='color:#888;font-size:11px;'>{t('k_bb_pct_desc')}</span>", unsafe_allow_html=True)
+                r1b.metric("K%", f"{row['K_pct']:.1f}%")
+                r1b.markdown(f"<span style='color:#888;font-size:11px;'>{t('k_pct_desc')}</span>", unsafe_allow_html=True)
+                r2a, r2b = st.columns(2)
+                r2a.metric("BB%", f"{row['BB_pct']:.1f}%")
+                r2a.markdown(f"<span style='color:#888;font-size:11px;'>{t('bb_pct_desc')}</span>", unsafe_allow_html=True)
+                r2b.metric("K-BB%", f"{row['K_BB_pct']:.1f}%")
+                r2b.markdown(f"<span style='color:#888;font-size:11px;'>{t('k_bb_pct_desc')}</span>", unsafe_allow_html=True)
 
-        # K/9, BB/9, HR/9
+        # K/9, BB/9, HR/9（2列+単独行）
         has_k9 = "K9" in row.index and not pd.isna(row.get("K9"))
         if has_k9:
-            r2 = st.columns(3)
-            r2[0].metric("K/9", f"{row['K9']:.2f}")
-            r2[0].markdown(f"<span style='color:#888;font-size:11px;'>{t('k9_desc')}</span>", unsafe_allow_html=True)
-            r2[1].metric("BB/9", f"{row['BB9']:.2f}")
-            r2[1].markdown(f"<span style='color:#888;font-size:11px;'>{t('bb9_desc')}</span>", unsafe_allow_html=True)
-            r2[2].metric("HR/9", f"{row['HR9']:.2f}")
-            r2[2].markdown(f"<span style='color:#888;font-size:11px;'>{t('hr9_desc')}</span>", unsafe_allow_html=True)
+            r3a, r3b = st.columns(2)
+            r3a.metric("K/9", f"{row['K9']:.2f}")
+            r3a.markdown(f"<span style='color:#888;font-size:11px;'>{t('k9_desc')}</span>", unsafe_allow_html=True)
+            r3b.metric("BB/9", f"{row['BB9']:.2f}")
+            r3b.markdown(f"<span style='color:#888;font-size:11px;'>{t('bb9_desc')}</span>", unsafe_allow_html=True)
+            st.metric("HR/9", f"{row['HR9']:.2f}")
+            st.markdown(f"<span style='color:#888;font-size:11px;'>{t('hr9_desc')}</span>", unsafe_allow_html=True)
 
         # 計算式の説明
         with st.expander(t("formula_pitcher")):
@@ -777,13 +788,13 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
     val = row[stat_key]
 
     return f"""
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:4px 0;
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;margin:4px 0;
                 background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
                 font-family:'Segoe UI',sans-serif;">
-      <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
+      <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
       <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
       <span style="color:#888;font-size:12px;">{row['team']}</span>
-      <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
+      <span style="min-width:50px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
     </div>"""
 
 
@@ -1043,14 +1054,14 @@ def page_pythagorean_standings(data: dict):
                 else:
                     w_cell = f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row["pred_W"]:.0f}{t("wins_suffix")}</span>'
                 cards += f"""
-                <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin:4px 0;
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 14px;margin:4px 0;
                             background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
                             font-family:'Segoe UI',sans-serif;">
-                  <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
-                  <span style="min-width:100px;color:{glow};font-weight:bold;font-size:16px;">{row['team']}</span>
+                  <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
+                  <span style="min-width:70px;color:{glow};font-weight:bold;font-size:15px;">{row['team']}</span>
                   {w_cell}
-                  <span style="color:#888;font-size:14px;min-width:50px;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
-                  <span style="color:#aaa;font-size:12px;min-width:60px;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
+                  <span style="color:#888;font-size:13px;min-width:40px;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
+                  <span style="color:#aaa;font-size:11px;min-width:50px;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
                   <span style="color:#666;font-size:11px;">{t("rs_label")}{row['pred_RS']:.0f} / {t("ra_label")}{row['pred_RA']:.0f}</span>{badge}
                 </div>"""
 
@@ -1188,7 +1199,7 @@ PAGE_FUNCS = {
 
 
 def main():
-    st.set_page_config(page_title="NPB成績予測", page_icon="⚾", layout="wide")
+    st.set_page_config(page_title="NPB成績予測", page_icon="⚾")
 
     # グローバルCSS
     st.markdown("""
@@ -1200,6 +1211,10 @@ def main():
     div[data-testid="stSidebar"] .stRadio label:hover { color: #00e5ff !important; }
     h1, h2, h3 { color: #e0e0e0 !important; }
     .stMarkdown a { color: #00e5ff !important; }
+    /* Mobile responsive */
+    button[kind="secondary"], button[kind="primary"] { min-height: 44px !important; }
+    .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+    table, .stDataFrame { overflow-x: auto !important; }
     </style>
     """, unsafe_allow_html=True)
 
