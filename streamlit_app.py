@@ -1093,8 +1093,8 @@ def page_pythagorean_standings(data: dict):
 
 
 PAGE_KEYS = [
-    "page_top", "page_standings", "page_hitter", "page_pitcher",
-    "page_hitter_rank", "page_pitcher_rank", "page_team_wpct",
+    "page_top", "page_standings", "page_hitter_rank", "page_pitcher_rank",
+    "page_team_wpct", "page_hitter", "page_pitcher",
 ]
 
 PAGE_FUNCS = {
