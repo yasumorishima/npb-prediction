@@ -577,7 +577,8 @@ def page_hitter_prediction(data: dict):
         st.info(t("search_prompt_btn"))
         return
 
-    marcel = _search(data["marcel_hitters"], name)
+    mh = _ensure_hitter_saber(data["marcel_hitters"], data)
+    marcel = _search(mh, name)
     if marcel.empty:
         st.warning(t("no_player_found").format(name=name))
         return
@@ -645,7 +646,8 @@ def page_pitcher_prediction(data: dict):
         st.info(t("search_prompt_btn"))
         return
 
-    marcel = _search(data["marcel_pitchers"], name)
+    mp = _ensure_pitcher_saber(data["marcel_pitchers"])
+    marcel = _search(mp, name)
     if marcel.empty:
         st.warning(t("no_player_found").format(name=name))
         return
@@ -761,12 +763,54 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
     </div>"""
 
 
+def _ensure_hitter_saber(mh: pd.DataFrame, data: dict) -> pd.DataFrame:
+    """wOBA/wRC+/wRAA列がなければ計算して追加"""
+    if "wOBA" in mh.columns:
+        return mh
+    saber = data.get("sabermetrics", pd.DataFrame())
+    if saber.empty:
+        return mh
+    df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
+    if len(df_fit) < 10:
+        return mh
+    X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
+    coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
+    a, b, c = coeffs
+    recent_s = saber[saber["year"] >= 2022]
+    lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+    ws = 1.15
+    mh["wOBA"] = (a * mh["OBP"] + b * mh["SLG"] + c).round(3)
+    mh["wRAA"] = ((mh["wOBA"] - lg_woba) / ws * mh["PA"]).round(1)
+    lg_r = lg_woba / ws
+    mh["wRC+"] = (((mh["wOBA"] - lg_woba) / ws + lg_r) / lg_r * 100).round(0).astype(int)
+    return mh
+
+
+def _ensure_pitcher_saber(mp: pd.DataFrame) -> pd.DataFrame:
+    """FIP/K%/BB%/K-BB%列がなければ計算して追加"""
+    if "FIP" in mp.columns:
+        return mp
+    if not all(c in mp.columns for c in ["BB", "HBP", "HRA", "BF"]):
+        return mp
+    mp["K_pct"] = (mp["SO"] / mp["BF"].replace(0, np.nan) * 100).round(1)
+    mp["BB_pct"] = (mp["BB"] / mp["BF"].replace(0, np.nan) * 100).round(1)
+    mp["K_BB_pct"] = (mp["K_pct"] - mp["BB_pct"]).round(1)
+    lg_ip = mp["IP"].sum()
+    if lg_ip > 0:
+        lg_era = (mp["ERA"] * mp["IP"]).sum() / lg_ip
+        fip_c = lg_era - (13 * mp["HRA"].sum() + 3 * (mp["BB"].sum() + mp["HBP"].sum()) - 2 * mp["SO"].sum()) / lg_ip
+        mp["FIP"] = ((13 * mp["HRA"] + 3 * (mp["BB"] + mp["HBP"]) - 2 * mp["SO"]) / mp["IP"] + fip_c).round(2)
+    return mp
+
+
 def page_hitter_rankings(data: dict):
     st.markdown(f"### {t('hitter_rank_title')}")
     mh = data["marcel_hitters"]
     if mh.empty:
         st.error(t("no_data"))
         return
+
+    mh = _ensure_hitter_saber(mh, data)
 
     col1, col2 = st.columns(2)
     top_n = col1.slider(t("show_n"), 5, 50, 20, key="hitter_rank_n")
@@ -776,7 +820,6 @@ def page_hitter_rankings(data: dict):
     }
     if "wOBA" in mh.columns:
         sort_labels[t("sort_woba")] = "wOBA"
-    if "wRC+" in mh.columns:
         sort_labels[t("sort_wrcplus")] = "wRC+"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="hitter_rank_sort")
     sort_by = sort_labels[sort_label]
@@ -804,6 +847,8 @@ def page_pitcher_rankings(data: dict):
         st.error(t("no_data"))
         return
 
+    mp = _ensure_pitcher_saber(mp)
+
     col1, col2 = st.columns(2)
     top_n = col1.slider(t("show_n"), 5, 50, 20, key="pitcher_rank_n")
     sort_labels = {
@@ -812,11 +857,8 @@ def page_pitcher_rankings(data: dict):
     }
     if "FIP" in mp.columns:
         sort_labels[t("sort_fip")] = "FIP"
-    if "K_pct" in mp.columns:
         sort_labels[t("sort_k_pct")] = "K_pct"
-    if "BB_pct" in mp.columns:
         sort_labels[t("sort_bb_pct")] = "BB_pct"
-    if "K_BB_pct" in mp.columns:
         sort_labels[t("sort_k_bb_pct")] = "K_BB_pct"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="pitcher_rank_sort")
     sort_by = sort_labels[sort_label]
