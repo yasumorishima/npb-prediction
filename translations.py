@@ -175,6 +175,65 @@ TEXTS: dict[str, dict[str, str]] = {
         "k_pct_desc": "K% — 対戦打者のうち三振を取った割合。20%超なら優秀",
         "bb_pct_desc": "BB% — 対戦打者のうち四球を出した割合。7%未満なら優秀",
         "k_bb_pct_desc": "K-BB% — 三振率から四球率を引いた値。15%超ならエース級",
+        "k9_desc": "K/9 — 9イニングあたり奪三振数。9.0超なら奪三振マシン",
+        "bb9_desc": "BB/9 — 9イニングあたり与四球数。2.5未満なら制球力◎",
+        "hr9_desc": "HR/9 — 9イニングあたり被本塁打数。0.8未満なら優秀",
+        "formula_hitter": "計算式の説明",
+        "formula_hitter_content": (
+            "**wOBA（加重出塁率）**\n\n"
+            "```\n"
+            "wOBA = (0.69×四球 + 0.73×死球 + 0.89×単打\n"
+            "      + 1.27×二塁打 + 1.62×三塁打 + 2.10×本塁打)\n"
+            "      ÷ 打席数\n"
+            "```\n"
+            "各打撃結果を「得点への貢献度」で重みづけした出塁率。\n"
+            "ホームランは四球の約3倍の価値。**.350超なら一流、.400超ならMVP級**。\n\n"
+            "---\n"
+            "**wRC+（加重得点創出力+）**\n\n"
+            "```\n"
+            "wRC+ = ((wOBA − リーグ平均wOBA) ÷ スケール\n"
+            "       + リーグ平均得点率)\n"
+            "       ÷ リーグ平均得点率 × 100\n"
+            "```\n"
+            "リーグ平均 = **100**。**120なら平均の2割増し、80なら2割減**。\n"
+            "球場やリーグの違いを補正できるため、異なる環境の打者を比較可能。\n\n"
+            "---\n"
+            "**wRAA（平均比得点貢献）**\n\n"
+            "```\n"
+            "wRAA = (wOBA − リーグ平均wOBA) ÷ スケール × 打席数\n"
+            "```\n"
+            "リーグ平均の打者と比べて**何点多く稼いだか**。\n"
+            "プラスなら平均以上、マイナスなら平均以下。**+20なら主力、+40ならMVP候補**。"
+        ),
+        "formula_pitcher": "計算式の説明",
+        "formula_pitcher_content": (
+            "**FIP（守備から独立した防御率）**\n\n"
+            "```\n"
+            "FIP = (13×被本塁打 + 3×(四球+死球) − 2×奪三振)\n"
+            "      ÷ 投球回 + 定数\n"
+            "```\n"
+            "味方の守備や運に左右されない「投手自身の実力」を測る指標。\n"
+            "本塁打（×13）のペナルティが最も重く、三振（×2）で相殺する構造。\n"
+            "**ERAとFIPの差が大きい投手は、翌年ERAがFIPに近づく傾向あり**。\n\n"
+            "---\n"
+            "**K%（三振率）/ BB%（四球率）/ K-BB%**\n\n"
+            "```\n"
+            "K%    = 奪三振 ÷ 対戦打者数 × 100\n"
+            "BB%   = 与四球 ÷ 対戦打者数 × 100\n"
+            "K-BB% = K% − BB%\n"
+            "```\n"
+            "K%が高く、BB%が低いほど優秀。**K-BB%が15%超ならエース級**。\n"
+            "K/9（9回あたり三振数）と違い、対戦打者数ベースなので投球効率を正確に反映。\n\n"
+            "---\n"
+            "**K/9・BB/9・HR/9**\n\n"
+            "```\n"
+            "K/9  = 奪三振 × 9 ÷ 投球回\n"
+            "BB/9 = 与四球 × 9 ÷ 投球回\n"
+            "HR/9 = 被本塁打 × 9 ÷ 投球回\n"
+            "```\n"
+            "9イニングあたりの三振・四球・被本塁打。\n"
+            "**K/9 9.0超 = 奪三振マシン、BB/9 2.5未満 = 制球力◎、HR/9 0.8未満 = 被弾少**。"
+        ),
 
         # --- Rankings ---
         "hitter_rank_title": "打者ランキング（2026予測）",
@@ -195,6 +254,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "sort_k_pct": "K% — 三振を取る割合",
         "sort_bb_pct": "BB% — 四球を出す割合",
         "sort_k_bb_pct": "K-BB% — 三振率−四球率",
+        "sort_k9": "K/9 — 9回あたり奪三振",
+        "sort_bb9": "BB/9 — 9回あたり与四球",
+        "sort_hr9": "HR/9 — 9回あたり被本塁打",
 
         # --- Standings ---
         "standings_title": "予測順位表",
@@ -422,6 +484,65 @@ TEXTS: dict[str, dict[str, str]] = {
         "k_pct_desc": "K% — Percentage of batters struck out. 20%+ is excellent",
         "bb_pct_desc": "BB% — Percentage of batters walked. Under 7% is excellent",
         "k_bb_pct_desc": "K-BB% — Strikeout rate minus walk rate. 15%+ is ace-level",
+        "k9_desc": "K/9 — Strikeouts per 9 innings. 9.0+ is elite",
+        "bb9_desc": "BB/9 — Walks per 9 innings. Under 2.5 is excellent",
+        "hr9_desc": "HR/9 — Home runs per 9 innings. Under 0.8 is excellent",
+        "formula_hitter": "How These Stats Work",
+        "formula_hitter_content": (
+            "**wOBA (Weighted On-Base Average)**\n\n"
+            "```\n"
+            "wOBA = (0.69×BB + 0.73×HBP + 0.89×1B\n"
+            "      + 1.27×2B + 1.62×3B + 2.10×HR)\n"
+            "      ÷ PA\n"
+            "```\n"
+            "Weights each outcome by run value. A HR is worth ~3× a walk.\n"
+            "**.350+ is elite, .400+ is MVP-caliber.**\n\n"
+            "---\n"
+            "**wRC+ (Weighted Runs Created Plus)**\n\n"
+            "```\n"
+            "wRC+ = ((wOBA − lgwOBA) ÷ Scale\n"
+            "       + lgRunsPerPA)\n"
+            "       ÷ lgRunsPerPA × 100\n"
+            "```\n"
+            "League average = **100**. **120 = 20% above avg, 80 = 20% below.**\n"
+            "Adjusts for league/park, allowing cross-era comparison.\n\n"
+            "---\n"
+            "**wRAA (Weighted Runs Above Average)**\n\n"
+            "```\n"
+            "wRAA = (wOBA − lgwOBA) ÷ Scale × PA\n"
+            "```\n"
+            "Runs contributed above a league-average batter.\n"
+            "**+20 = solid regular, +40 = MVP candidate.**"
+        ),
+        "formula_pitcher": "How These Stats Work",
+        "formula_pitcher_content": (
+            "**FIP (Fielding Independent Pitching)**\n\n"
+            "```\n"
+            "FIP = (13×HR + 3×(BB+HBP) − 2×K)\n"
+            "      ÷ IP + constant\n"
+            "```\n"
+            "Measures pitcher skill independent of defense and luck.\n"
+            "HR penalty (×13) is heaviest; strikeouts (×2) offset it.\n"
+            "**Large ERA−FIP gap → ERA likely regresses toward FIP next year.**\n\n"
+            "---\n"
+            "**K% / BB% / K-BB%**\n\n"
+            "```\n"
+            "K%    = K ÷ BF × 100\n"
+            "BB%   = BB ÷ BF × 100\n"
+            "K-BB% = K% − BB%\n"
+            "```\n"
+            "High K%, low BB% = dominant. **K-BB% 15%+ = ace-level.**\n"
+            "More accurate than K/9 since it's per batter faced, not per inning.\n\n"
+            "---\n"
+            "**K/9 · BB/9 · HR/9**\n\n"
+            "```\n"
+            "K/9  = K × 9 ÷ IP\n"
+            "BB/9 = BB × 9 ÷ IP\n"
+            "HR/9 = HR × 9 ÷ IP\n"
+            "```\n"
+            "Per-9-inning rates.\n"
+            "**K/9 9.0+ = strikeout machine, BB/9 < 2.5 = pinpoint control, HR/9 < 0.8 = stingy.**"
+        ),
 
         # --- Rankings ---
         "hitter_rank_title": "Batter Rankings (2026 Projections)",
@@ -442,6 +563,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "sort_k_pct": "K% — Strikeout Rate",
         "sort_bb_pct": "BB% — Walk Rate",
         "sort_k_bb_pct": "K-BB% — Strikeout minus Walk Rate",
+        "sort_k9": "K/9 — Strikeouts per 9 Inn.",
+        "sort_bb9": "BB/9 — Walks per 9 Inn.",
+        "sort_hr9": "HR/9 — Home Runs per 9 Inn.",
 
         # --- Standings ---
         "standings_title": "Predicted Standings",

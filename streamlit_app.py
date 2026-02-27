@@ -182,9 +182,14 @@ def _enrich_projections(data: dict) -> None:
     if not mp.empty and mp["IP"].sum() > 0:
         has_fip_cols = all(c in mp.columns for c in ["BB", "HBP", "HRA", "BF"])
         if has_fip_cols:
-            mp["K_pct"] = (mp["SO"] / mp["BF"].replace(0, np.nan) * 100).round(1)
-            mp["BB_pct"] = (mp["BB"] / mp["BF"].replace(0, np.nan) * 100).round(1)
+            ip_safe = mp["IP"].replace(0, np.nan)
+            bf_safe = mp["BF"].replace(0, np.nan)
+            mp["K_pct"] = (mp["SO"] / bf_safe * 100).round(1)
+            mp["BB_pct"] = (mp["BB"] / bf_safe * 100).round(1)
             mp["K_BB_pct"] = (mp["K_pct"] - mp["BB_pct"]).round(1)
+            mp["K9"] = (mp["SO"] * 9 / ip_safe).round(2)
+            mp["BB9"] = (mp["BB"] * 9 / ip_safe).round(2)
+            mp["HR9"] = (mp["HRA"] * 9 / ip_safe).round(2)
 
             lg_ip = mp["IP"].sum()
             lg_era = (mp["ERA"] * mp["IP"]).sum() / lg_ip
@@ -598,12 +603,16 @@ def page_hitter_prediction(data: dict):
         # wOBA / wRC+ / wRAA カード
         if "wOBA" in row.index and not pd.isna(row.get("wOBA")):
             m1, m2, m3 = st.columns(3)
-            m1.metric("wOBA", f"{row['wOBA']:.3f}", help=t("woba_value_desc"))
-            m1.markdown(f"<span style='color:#888;font-size:12px;'>{t('woba_value_desc')}</span>", unsafe_allow_html=True)
-            m2.metric("wRC+", f"{int(row['wRC+'])}", help=t("wrcplus_value_desc"))
-            m2.markdown(f"<span style='color:#888;font-size:12px;'>{t('wrcplus_value_desc')}</span>", unsafe_allow_html=True)
-            m3.metric("wRAA", f"{row['wRAA']:+.1f}", help=t("wraa_value_desc"))
-            m3.markdown(f"<span style='color:#888;font-size:12px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
+            m1.metric("wOBA", f"{row['wOBA']:.3f}")
+            m1.markdown(f"<span style='color:#888;font-size:11px;'>{t('woba_value_desc')}</span>", unsafe_allow_html=True)
+            m2.metric("wRC+", f"{int(row['wRC+'])}")
+            m2.markdown(f"<span style='color:#888;font-size:11px;'>{t('wrcplus_value_desc')}</span>", unsafe_allow_html=True)
+            m3.metric("wRAA", f"{row['wRAA']:+.1f}")
+            m3.markdown(f"<span style='color:#888;font-size:11px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
+
+            # 計算式の説明
+            with st.expander(t("formula_hitter")):
+                st.markdown(t("formula_hitter_content"))
 
         # wRC+推移グラフ（sabermetrics履歴データから）
         if not saber.empty:
@@ -666,17 +675,32 @@ def page_pitcher_prediction(data: dict):
         has_fip = "FIP" in row.index and not pd.isna(row.get("FIP"))
         has_k_pct = "K_pct" in row.index and not pd.isna(row.get("K_pct"))
         if has_fip or has_k_pct:
-            cols = st.columns(4)
+            r1 = st.columns(4)
             if has_fip:
-                cols[0].metric("FIP", f"{row['FIP']:.2f}", help=t("fip_value_desc"))
-                cols[0].markdown(f"<span style='color:#888;font-size:12px;'>{t('fip_value_desc')}</span>", unsafe_allow_html=True)
+                r1[0].metric("FIP", f"{row['FIP']:.2f}")
+                r1[0].markdown(f"<span style='color:#888;font-size:11px;'>{t('fip_value_desc')}</span>", unsafe_allow_html=True)
             if has_k_pct:
-                cols[1].metric("K%", f"{row['K_pct']:.1f}%", help=t("k_pct_desc"))
-                cols[1].markdown(f"<span style='color:#888;font-size:12px;'>{t('k_pct_desc')}</span>", unsafe_allow_html=True)
-                cols[2].metric("BB%", f"{row['BB_pct']:.1f}%", help=t("bb_pct_desc"))
-                cols[2].markdown(f"<span style='color:#888;font-size:12px;'>{t('bb_pct_desc')}</span>", unsafe_allow_html=True)
-                cols[3].metric("K-BB%", f"{row['K_BB_pct']:.1f}%", help=t("k_bb_pct_desc"))
-                cols[3].markdown(f"<span style='color:#888;font-size:12px;'>{t('k_bb_pct_desc')}</span>", unsafe_allow_html=True)
+                r1[1].metric("K%", f"{row['K_pct']:.1f}%")
+                r1[1].markdown(f"<span style='color:#888;font-size:11px;'>{t('k_pct_desc')}</span>", unsafe_allow_html=True)
+                r1[2].metric("BB%", f"{row['BB_pct']:.1f}%")
+                r1[2].markdown(f"<span style='color:#888;font-size:11px;'>{t('bb_pct_desc')}</span>", unsafe_allow_html=True)
+                r1[3].metric("K-BB%", f"{row['K_BB_pct']:.1f}%")
+                r1[3].markdown(f"<span style='color:#888;font-size:11px;'>{t('k_bb_pct_desc')}</span>", unsafe_allow_html=True)
+
+        # K/9, BB/9, HR/9
+        has_k9 = "K9" in row.index and not pd.isna(row.get("K9"))
+        if has_k9:
+            r2 = st.columns(3)
+            r2[0].metric("K/9", f"{row['K9']:.2f}")
+            r2[0].markdown(f"<span style='color:#888;font-size:11px;'>{t('k9_desc')}</span>", unsafe_allow_html=True)
+            r2[1].metric("BB/9", f"{row['BB9']:.2f}")
+            r2[1].markdown(f"<span style='color:#888;font-size:11px;'>{t('bb9_desc')}</span>", unsafe_allow_html=True)
+            r2[2].metric("HR/9", f"{row['HR9']:.2f}")
+            r2[2].markdown(f"<span style='color:#888;font-size:11px;'>{t('hr9_desc')}</span>", unsafe_allow_html=True)
+
+        # 計算式の説明
+        with st.expander(t("formula_pitcher")):
+            st.markdown(t("formula_pitcher_content"))
 
         st.markdown("---")
 
@@ -787,14 +811,19 @@ def _ensure_hitter_saber(mh: pd.DataFrame, data: dict) -> pd.DataFrame:
 
 
 def _ensure_pitcher_saber(mp: pd.DataFrame) -> pd.DataFrame:
-    """FIP/K%/BB%/K-BB%列がなければ計算して追加"""
+    """FIP/K%/BB%/K-BB%/K9/BB9/HR9列がなければ計算して追加"""
     if "FIP" in mp.columns:
         return mp
     if not all(c in mp.columns for c in ["BB", "HBP", "HRA", "BF"]):
         return mp
-    mp["K_pct"] = (mp["SO"] / mp["BF"].replace(0, np.nan) * 100).round(1)
-    mp["BB_pct"] = (mp["BB"] / mp["BF"].replace(0, np.nan) * 100).round(1)
+    ip_safe = mp["IP"].replace(0, np.nan)
+    bf_safe = mp["BF"].replace(0, np.nan)
+    mp["K_pct"] = (mp["SO"] / bf_safe * 100).round(1)
+    mp["BB_pct"] = (mp["BB"] / bf_safe * 100).round(1)
     mp["K_BB_pct"] = (mp["K_pct"] - mp["BB_pct"]).round(1)
+    mp["K9"] = (mp["SO"] * 9 / ip_safe).round(2)
+    mp["BB9"] = (mp["BB"] * 9 / ip_safe).round(2)
+    mp["HR9"] = (mp["HRA"] * 9 / ip_safe).round(2)
     lg_ip = mp["IP"].sum()
     if lg_ip > 0:
         lg_era = (mp["ERA"] * mp["IP"]).sum() / lg_ip
@@ -860,14 +889,18 @@ def page_pitcher_rankings(data: dict):
         sort_labels[t("sort_k_pct")] = "K_pct"
         sort_labels[t("sort_bb_pct")] = "BB_pct"
         sort_labels[t("sort_k_bb_pct")] = "K_BB_pct"
+        sort_labels[t("sort_k9")] = "K9"
+        sort_labels[t("sort_bb9")] = "BB9"
+        sort_labels[t("sort_hr9")] = "HR9"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="pitcher_rank_sort")
     sort_by = sort_labels[sort_label]
 
-    ascending = sort_by in ("ERA", "WHIP", "FIP", "BB_pct")
+    ascending = sort_by in ("ERA", "WHIP", "FIP", "BB_pct", "BB9", "HR9")
     df = mp[mp["IP"] >= 50].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
 
     fmt_map = {"ERA": ".2f", "WHIP": ".2f", "SO": ".0f", "W": ".0f",
-               "FIP": ".2f", "K_pct": ".1f", "BB_pct": ".1f", "K_BB_pct": ".1f"}
+               "FIP": ".2f", "K_pct": ".1f", "BB_pct": ".1f", "K_BB_pct": ".1f",
+               "K9": ".2f", "BB9": ".2f", "HR9": ".2f"}
     fmt = fmt_map.get(sort_by, ".2f")
 
     # 表示ラベル（K_pct → K% のように変換）
