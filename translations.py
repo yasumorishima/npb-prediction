@@ -99,6 +99,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "新外国人・新人・復帰選手など、NPBでの過去データがない選手の貢献はすべて「平均」として扱われています。"
             "記録のない選手たちが活躍すれば、どのチームの順位も大きく変わりえます。"
             "シーズンが始まってみないとわからない部分が必ずあります。\n\n"
+            "**球場補正（パークファクター）は考慮していません** —— "
+            "2026年のバンテリンドームへのホームランテラス設置など、球場改修による影響は反映されていません。"
+            "球場ごとの打者有利・投手有利の差も未補正です。\n\n"
             "2025–2026オフの移籍・退団は反映済みです。"
         ),
         "btn_all_top3": "全体TOP3",
@@ -330,6 +333,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "New foreign players, rookies, and returning players with no NPB history are all treated as 'average' contributions. "
             "These players' performances could significantly change any team's standing. "
             "There will always be uncertainties that only the season itself can reveal.\n\n"
+            "**Park factors are not accounted for** —— "
+            "Changes such as the 2026 home run terrace addition at Vantelin Dome Nagoya are not reflected. "
+            "Batter-friendly vs. pitcher-friendly park differences are also unadjusted.\n\n"
             "Transactions from the 2025–2026 offseason are reflected."
         ),
         "btn_all_top3": "Top 3 Overall",
