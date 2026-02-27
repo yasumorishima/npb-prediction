@@ -26,7 +26,7 @@ def t(key: str) -> str:
     return TEXTS.get(dict_key, TEXTS["ja"]).get(key, key)
 
 
-BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/master/"
+BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main/"
 
 NPB_TEAM_COLORS = {
     "DeNA": "#0055A5",
