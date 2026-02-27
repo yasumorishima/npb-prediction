@@ -68,6 +68,12 @@ def era_to_level(era: float) -> int:
     return max(1, min(99, int(100 - era * 16.5)))
 
 
+def lv_to_stars(lv: int) -> str:
+    """Lv 1–99 → 星5段階表示 (例: ★★★★☆)。平均(Lv.50)=3星"""
+    n = max(1, min(5, (lv - 1) // 20 + 1))
+    return "★" * n + "☆" * (5 - n)
+
+
 def _norm_hr(hr: float) -> float:
     return max(0.0, min(100.0, hr / 50.0 * 100.0))
 
@@ -86,6 +92,31 @@ def _norm_slg(slg: float) -> float:
 
 def _norm_ops(ops: float) -> float:
     return max(0.0, min(100.0, (ops - 0.500) / 0.600 * 100.0))
+
+
+def _norm_era_r(era: float) -> float:
+    """ERA → 0-100 (低いほど高スコア: ERA 1.0→100, 5.0→0)"""
+    return max(0.0, min(100.0, (5.0 - era) / 4.0 * 100.0))
+
+
+def _norm_whip_r(whip: float) -> float:
+    """WHIP → 0-100 (低いほど高スコア: 0.8→100, 1.6→0)"""
+    return max(0.0, min(100.0, (1.6 - whip) / 0.8 * 100.0))
+
+
+def _norm_so_p(so: float) -> float:
+    """投手SO → 0-100 (200K→100)"""
+    return max(0.0, min(100.0, so / 200.0 * 100.0))
+
+
+def _norm_ip(ip: float) -> float:
+    """投球回 → 0-100 (200IP→100)"""
+    return max(0.0, min(100.0, ip / 200.0 * 100.0))
+
+
+def _norm_w(w: float) -> float:
+    """勝利数 → 0-100 (20W→100)"""
+    return max(0.0, min(100.0, w / 20.0 * 100.0))
 
 
 # --- データ読み込み ---
@@ -210,7 +241,6 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     """RPGステータスカード（打者）をHTMLで生成"""
     lv = ops_to_level(row["OPS"])
     team = row.get("team", "")
-    stars = "★" * min(5, max(1, lv // 20))
 
     bars = ""
     bars += _bar_html("本塁打", row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
@@ -233,7 +263,7 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
                 font-family:'Segoe UI',sans-serif;max-width:400px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <span style="color:{glow};font-size:14px;font-weight:bold;">{stars} Lv.{lv}</span>
+          <span style="color:{glow};font-size:16px;font-weight:bold;">{lv_to_stars(lv)}</span>
           <span style="color:#e0e0e0;font-size:18px;font-weight:bold;margin-left:10px;">{row['player']}</span>
         </div>
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
@@ -247,7 +277,6 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
     """RPGステータスカード（投手）をHTMLで生成"""
     lv = era_to_level(row["ERA"])
     team = row.get("team", "")
-    stars = "★" * min(5, max(1, lv // 20))
 
     bars = ""
     bars += _bar_html("WHIP", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff")
@@ -278,7 +307,7 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
                 font-family:'Segoe UI',sans-serif;max-width:400px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <span style="color:{glow};font-size:14px;font-weight:bold;">{stars} Lv.{lv}</span>
+          <span style="color:{glow};font-size:16px;font-weight:bold;">{lv_to_stars(lv)}</span>
           <span style="color:#e0e0e0;font-size:18px;font-weight:bold;margin-left:10px;">{row['player']}</span>
         </div>
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
@@ -305,6 +334,47 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
         _norm_obp(_safe_float(row["OBP"])),
         _norm_slg(_safe_float(row["SLG"])),
         _norm_ops(_safe_float(row["OPS"])),
+    ]
+
+    r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=values + [values[0]],
+        theta=categories + [categories[0]],
+        fill="toself",
+        fillcolor=f"rgba({r},{g},{b},0.15)",
+        line=dict(color=color, width=2),
+        name=title if title else str(row["player"]),
+    ))
+    layout_kwargs = dict(
+        polar=dict(
+            bgcolor="#0d0d24",
+            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
+            angularaxis=dict(gridcolor="#333", linecolor="#444"),
+        ),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e0e0e0"),
+        height=300,
+        margin=dict(l=50, r=50, t=30, b=30),
+    )
+    if title:
+        layout_kwargs["title"] = dict(text=title, font=dict(size=14, color="#e0e0e0"))
+    fig.update_layout(**layout_kwargs)
+    return fig
+
+
+def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
+    """投手レーダーチャート（5軸: 防御率・WHIP・奪三振・投球回・勝利）"""
+    categories = ["防御率", "WHIP", "奪三振", "投球回", "勝利"]
+    values = [
+        _norm_era_r(_safe_float(row["ERA"])),
+        _norm_whip_r(_safe_float(row["WHIP"])),
+        _norm_so_p(_safe_float(row["SO"])),
+        _norm_ip(_safe_float(row["IP"])),
+        _norm_w(_safe_float(row["W"])),
     ]
 
     r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
@@ -534,7 +604,7 @@ def page_top(data: dict):
                 st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
         # TOP3 投手
-        st.markdown("### 投手 TOP3（防御率予測）")
+        st.markdown("### 投手 TOP3（総合投球力予測）")
         top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
 
         cols = st.columns(3)
@@ -547,6 +617,7 @@ def page_top(data: dict):
                 st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                             unsafe_allow_html=True)
                 components.html(render_pitcher_card(row, ml_era=ml_era, glow=glow), height=260)
+                st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
         # 注目対決
         st.markdown("### 注目対決")
@@ -566,13 +637,13 @@ def _render_vs_section(p1: pd.Series, p2: pd.Series):
     <div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:20px 0;">
       <div style="text-align:center;">
         <div style="color:{g1};font-size:20px;font-weight:bold;">{p1['player']}</div>
-        <div style="color:#888;font-size:12px;">{p1['team']} / Lv.{ops_to_level(p1['OPS'])}</div>
+        <div style="color:#888;font-size:12px;">{p1['team']} / {lv_to_stars(ops_to_level(p1['OPS']))}</div>
       </div>
       <div style="font-size:36px;font-weight:bold;color:#ff4466;
                   text-shadow:0 0 20px #ff446688;">VS</div>
       <div style="text-align:center;">
         <div style="color:{g2};font-size:20px;font-weight:bold;">{p2['player']}</div>
-        <div style="color:#888;font-size:12px;">{p2['team']} / Lv.{ops_to_level(p2['OPS'])}</div>
+        <div style="color:#888;font-size:12px;">{p2['team']} / {lv_to_stars(ops_to_level(p2['OPS']))}</div>
       </div>
     </div>"""
     components.html(vs_html, height=100)
@@ -820,8 +891,7 @@ def page_sabermetrics(data: dict):
                     border-radius:10px;padding:12px;margin:6px 0;box-shadow:0 0 10px {glow}22;
                     display:flex;align-items:center;gap:12px;font-family:'Segoe UI',sans-serif;">
           <div style="min-width:60px;text-align:center;">
-            <div style="color:{glow};font-size:11px;">Lv.</div>
-            <div style="color:{glow};font-size:24px;font-weight:bold;">{lv}</div>
+            <div style="color:{glow};font-size:18px;font-weight:bold;">{lv_to_stars(lv)}</div>
           </div>
           <div style="flex:1;">
             <div style="color:#e0e0e0;font-weight:bold;">{row['player']}
@@ -871,7 +941,7 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
                 background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
                 font-family:'Segoe UI',sans-serif;">
       <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
-      <span style="min-width:30px;color:{glow};font-size:13px;font-weight:bold;">Lv.{lv}</span>
+      <span style="min-width:55px;color:{glow};font-size:13px;font-weight:bold;">{lv_to_stars(lv)}</span>
       <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
       <span style="color:#888;font-size:12px;">{row['team']}</span>
       <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
@@ -938,7 +1008,7 @@ def page_pitcher_rankings(data: dict):
                     background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
                     font-family:'Segoe UI',sans-serif;">
           <span style="min-width:30px;font-size:16px;text-align:center;">{medal or i+1}</span>
-          <span style="min-width:30px;color:{glow};font-size:13px;font-weight:bold;">Lv.{lv}</span>
+          <span style="min-width:55px;color:{glow};font-size:13px;font-weight:bold;">{lv_to_stars(lv)}</span>
           <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
           <span style="color:#888;font-size:12px;">{row['team']}</span>
           <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
