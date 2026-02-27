@@ -258,20 +258,23 @@ ROSTER_2026 = {
 }
 
 
+_VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
+
+
 def get_all_roster_names() -> set[str]:
-    """全チームの支配下選手名をfuzzy形式（スペース除去）で返す"""
+    """全チームの支配下選手名をfuzzy形式（スペース除去＋異体字統一）で返す"""
     names = set()
     for team_players in ROSTER_2026.values():
         for name in team_players:
-            names.add(name.replace("\u3000", "").replace(" ", "").strip())
+            names.add(name.replace("\u3000", "").replace(" ", "").strip().translate(_VARIANT_MAP))
     return names
 
 
 def get_team_for_player(player_name: str) -> str | None:
-    """選手名からチーム名を返す（fuzzyマッチ）"""
-    fuzzy = player_name.replace("\u3000", "").replace(" ", "").strip()
+    """選手名からチーム名を返す（fuzzyマッチ＋異体字統一）"""
+    fuzzy = player_name.replace("\u3000", "").replace(" ", "").strip().translate(_VARIANT_MAP)
     for team, players in ROSTER_2026.items():
         for p in players:
-            if p.replace("\u3000", "").replace(" ", "").strip() == fuzzy:
+            if p.replace("\u3000", "").replace(" ", "").strip().translate(_VARIANT_MAP) == fuzzy:
                 return team
     return None

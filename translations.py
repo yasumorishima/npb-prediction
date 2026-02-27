@@ -135,7 +135,7 @@ TEXTS: dict[str, dict[str, str]] = {
 
         # --- Hitter prediction ---
         "hitter_pred_title": "打者予測（2026年）",
-        "search_hint_hitter": "例: 牧、近藤、岡本",
+        "search_hint_hitter": "例: 牧、近藤、細川",
         "ops_chart_label": "総合打撃力（OPS）",
 
         # --- Pitcher prediction ---
@@ -366,7 +366,7 @@ TEXTS: dict[str, dict[str, str]] = {
 
         # --- Hitter prediction ---
         "hitter_pred_title": "Batter Predictions (2026)",
-        "search_hint_hitter": "e.g. Maki, Kondo, Okamoto",
+        "search_hint_hitter": "e.g. Maki, Kondo, Hosokawa",
         "ops_chart_label": "Overall Batting (OPS)",
 
         # --- Pitcher prediction ---

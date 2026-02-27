@@ -663,7 +663,7 @@ def _render_vs_section(p1: pd.Series, p2: pd.Series):
     st.plotly_chart(render_vs_radar(p1, p2, c1=g1, c2=g2), use_container_width=True)
 
 
-QUICK_HITTERS = ["牧", "近藤", "村上", "宮崎", "佐藤輝", "岡本", "坂倉", "万波"]
+QUICK_HITTERS = ["牧", "近藤", "サンタナ", "宮崎", "佐藤輝", "細川", "坂倉", "万波"]
 QUICK_PITCHERS = ["才木", "モイネロ", "宮城", "戸郷", "東", "高橋宏", "伊藤大", "山下"]
 
 
@@ -1299,7 +1299,11 @@ def main():
     """, unsafe_allow_html=True)
 
     # Language toggle FIRST — must precede any t() call
-    st.sidebar.radio("Language / 言語", ["日本語", "English"], key="lang", horizontal=True)
+    st.sidebar.markdown(
+        '<div style="text-align:center;padding:8px 0 4px;font-size:13px;color:#00e5ff;font-weight:bold;">🌐 Language / 言語</div>',
+        unsafe_allow_html=True,
+    )
+    st.sidebar.radio("Language / 言語", ["日本語", "English"], key="lang", horizontal=True, label_visibility="collapsed")
 
     st.sidebar.markdown(f"""
     <div style="text-align:center;padding:10px 0;">
