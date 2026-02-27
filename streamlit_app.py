@@ -1092,7 +1092,15 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
     df["pred_W"] = df["pred_WPCT"] * 143
     df["pred_L"] = 143 - df["pred_W"]
 
-    return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT", "pred_W", "pred_L", "missing_count"]]
+    # 予測幅: 計算外選手1人 ≈ ±1.5勝の不確実性（wRAA±15点 / 10点≒1勝）
+    # 根拠: NPB外国人選手の初年度wRAAは-15〜+25点のばらつきがあり、
+    #       リーグ平均（wRAA=0）との差が最大±15点程度と仮定。
+    _UNC = 1.5  # 1選手あたりの不確実性（勝）
+    df["pred_W_low"]  = (df["pred_W"] - df["missing_count"] * _UNC).clip(lower=0)
+    df["pred_W_high"] = (df["pred_W"] + df["missing_count"] * _UNC).clip(upper=143)
+
+    return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT",
+               "pred_W", "pred_L", "missing_count", "pred_W_low", "pred_W_high"]]
 
 
 def page_pythagorean_standings(data: dict):
@@ -1131,13 +1139,25 @@ def page_pythagorean_standings(data: dict):
                     f'padding:2px 6px;border-radius:4px;margin-left:4px;">計算外{mc}名</span>'
                     if mc > 0 else ""
                 )
+                # 計算外選手がいるチームは予測幅（±1.5勝/人）を表示
+                if mc > 0:
+                    w_lo = int(row.get("pred_W_low", row["pred_W"] - mc * 1.5))
+                    w_hi = int(row.get("pred_W_high", row["pred_W"] + mc * 1.5))
+                    w_cell = (
+                        f'<div style="min-width:110px;display:flex;flex-direction:column;align-items:flex-start;">'
+                        f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;">{row["pred_W"]:.0f}勝</span>'
+                        f'<span style="color:#ff9944;font-size:10px;">幅: {w_lo}〜{w_hi}勝</span>'
+                        f'</div>'
+                    )
+                else:
+                    w_cell = f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row["pred_W"]:.0f}勝</span>'
                 cards += f"""
                 <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin:4px 0;
                             background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
                             font-family:'Segoe UI',sans-serif;">
                   <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
                   <span style="min-width:100px;color:{glow};font-weight:bold;font-size:16px;">{row['team']}</span>
-                  <span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row['pred_W']:.0f}勝</span>
+                  {w_cell}
                   <span style="color:#888;font-size:14px;min-width:50px;">{row['pred_L']:.0f}敗</span>
                   <span style="color:#aaa;font-size:12px;min-width:60px;">勝率 {row['pred_WPCT']:.3f}</span>
                   <span style="color:#666;font-size:11px;">得点{row['pred_RS']:.0f} / 失点{row['pred_RA']:.0f}</span>{badge}
@@ -1146,47 +1166,69 @@ def page_pythagorean_standings(data: dict):
             components.html(f"<div>{cards}</div>", height=len(lg) * 55 + 10)
 
             fig = go.Figure()
+            err_plus  = (lg["pred_W_high"] - lg["pred_W"]).tolist() if "pred_W_high" in lg else None
+            err_minus = (lg["pred_W"] - lg["pred_W_low"]).tolist()  if "pred_W_low"  in lg else None
             fig.add_trace(go.Bar(
                 name="予測勝数", x=lg["team"], y=lg["pred_W"],
                 marker_color=[NPB_TEAM_COLORS.get(t, "#333") for t in lg["team"]],
+                error_y=dict(
+                    type="data", array=err_plus, arrayminus=err_minus,
+                    visible=True, color="#ff9944", thickness=2, width=6,
+                ),
             ))
             fig.update_layout(
-                height=300, yaxis_title="予測勝数",
-                yaxis_range=[0, max(lg["pred_W"]) * 1.15],
+                height=320, yaxis_title="予測勝数",
+                yaxis_range=[0, max(lg["pred_W_high"] if "pred_W_high" in lg.columns else lg["pred_W"]) * 1.1],
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
                 xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
+                annotations=[dict(
+                    x=0.5, y=-0.18, xref="paper", yref="paper", showarrow=False,
+                    text="オレンジの縦線 = 計算外選手による予測幅（±1.5勝/人）",
+                    font=dict(size=10, color="#888"),
+                )],
             )
             st.plotly_chart(fig, use_container_width=True)
 
         missing_all = _get_missing_players(data)
-        with st.expander("⚠️ チームごとの計算対象外選手（新人・新外国人等）"):
-            st.caption(
-                "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。"
-                "モデルはこれらの選手を**リーグ平均の貢献（±0）**として扱っています。"
-                "実際に平均以上の外国人スラッガーや即戦力新人が加わっている場合、"
-                "そのチームの得点は**過小評価**されている可能性があります。"
+        with st.expander("⚠️ チームごとの計算対象外選手（新人・新外国人等）— wRAA=0で計算中"):
+            st.markdown(
+                "**以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。**\n\n"
+                "モデルはこれらの選手を **wRAA=0（リーグ平均と同等の貢献）** として自動的に計算しています。\n\n"
+                "- 活躍すれば実際の勝利数はモデルの上限（オレンジ線）を上回る可能性があります\n"
+                "- 不振の場合は下限を下回る可能性があります\n"
+                "- 計算外選手が多いチームほど、予測幅（グラフのオレンジ縦線）が広くなります"
             )
+            st.markdown("---")
             for league_code, label in [("CL", "セ・リーグ"), ("PL", "パ・リーグ")]:
                 league_teams = CENTRAL_TEAMS if league_code == "CL" else PACIFIC_TEAMS
                 st.markdown(f"**{label}**")
                 for team in league_teams:
                     missing = missing_all.get(team, [])
+                    mc = len(missing)
+                    unc = mc * 1.5
                     if not missing:
                         st.markdown(f"- **{team}**: 全員Marcel予測対象 ✅")
                     else:
                         names_str = "、".join(
-                            f"{m['name']}({m['kind']})" for m in missing
+                            f"{m['name']}（{m['kind']}, wRAA=0で計算中）" for m in missing
                         )
-                        st.markdown(f"- **{team}** ({len(missing)}名): {names_str}")
+                        st.markdown(
+                            f"- **{team}** {mc}名 → 予測幅 **±{unc:.0f}勝**: {names_str}"
+                        )
 
         with st.expander("予測方法の説明"):
             st.markdown(
-                "- **得点の推定**: チーム所属打者の予測打点（RBI）を合計\n"
-                "- **失点の推定**: チーム所属投手の予測防御率（ERA）× 予測投球回 ÷ 9 を合計\n"
+                "- **得点の推定**: チーム所属打者の予測wRAA（打者の得点貢献）を合計し、リーグ平均得点に加算\n"
+                "- **失点の推定**: チーム所属投手の予測ERA×投球回÷9でリーグ平均からの超過失点を算出\n"
                 "- **勝率の計算**: ピタゴラス勝率（得点^1.72 ÷ (得点^1.72 + 失点^1.72)）\n"
                 "- **試合数**: 143試合（NPBレギュラーシーズン）\n"
-                "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく"
+                "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく\n\n"
+                "**予測幅（信頼区間）の考え方**\n\n"
+                "- 計算外選手（新外国人・新人等）はNPBデータ不足のためwRAA=0（リーグ平均貢献）と仮定\n"
+                "- 歴史的にNPB外国人選手の初年度wRAAは -15点〜+25点 のばらつきがある\n"
+                "- この不確実性を 1人あたり ±1.5勝 に換算（±15点÷10点≒1勝 の野球統計の経験則を適用）\n"
+                "- グラフのオレンジ縦線が予測幅。計算外が多いチームほど幅が広く、実際の順位との差が出やすい"
             )
 
     st.markdown("---")
