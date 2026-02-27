@@ -1154,15 +1154,17 @@ def page_pythagorean_standings(data: dict):
             diff = row["diff_W_npb"]
             diff_color = "#4CAF50" if diff >= 0 else "#ff4466"
             cards += f"""
-            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 0;
-                        background:#0d0d24;border-left:3px solid {glow};border-radius:6px;
-                        font-family:'Segoe UI',sans-serif;">
-              <span style="min-width:25px;font-size:14px;text-align:center;">{medal or rank}</span>
-              <span style="min-width:90px;color:{glow};font-weight:bold;">{row['team']}</span>
-              <span style="color:#e0e0e0;min-width:70px;">{t("record_fmt").format(w=int(row['W']), l=int(row['L']))}</span>
-              <span style="color:#888;font-size:12px;min-width:50px;">{row['actual_WPCT']:.3f}</span>
-              <span style="color:#00e5ff;font-size:12px;min-width:50px;">{t("expected_prefix")}{row['pyth_W_npb']:.1f}{t("wins_suffix")}</span>
-              <span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px 0;">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;
+                          background:#0d0d24;border-left:3px solid {glow};border-radius:6px;
+                          font-family:'Segoe UI',sans-serif;min-width:max-content;">
+                <span style="min-width:25px;font-size:14px;text-align:center;">{medal or rank}</span>
+                <span style="min-width:90px;color:{glow};font-weight:bold;white-space:nowrap;">{row['team']}</span>
+                <span style="color:#e0e0e0;white-space:nowrap;">{t("record_fmt").format(w=int(row['W']), l=int(row['L']))}</span>
+                <span style="color:#888;font-size:12px;white-space:nowrap;">{row['actual_WPCT']:.3f}</span>
+                <span style="color:#00e5ff;font-size:12px;white-space:nowrap;">{t("expected_prefix")}{row['pyth_W_npb']:.1f}{t("wins_suffix")}</span>
+                <span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>
+              </div>
             </div>"""
 
         components.html(f"<div>{cards}</div>", height=len(lg) * 50 + 10)
