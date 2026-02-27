@@ -597,12 +597,12 @@ def page_hitter_prediction(data: dict):
         # wOBA / wRC+ / wRAA カード
         if "wOBA" in row.index and not pd.isna(row.get("wOBA")):
             m1, m2, m3 = st.columns(3)
-            m1.metric("wOBA", f"{row['wOBA']:.3f}")
-            m1.caption(t("woba_value_desc"))
-            m2.metric("wRC+", f"{int(row['wRC+'])}")
-            m2.caption(t("wrcplus_value_desc"))
-            m3.metric("wRAA", f"{row['wRAA']:+.1f}")
-            m3.caption(t("wraa_value_desc"))
+            m1.metric("wOBA", f"{row['wOBA']:.3f}", help=t("woba_value_desc"))
+            m1.markdown(f"<span style='color:#888;font-size:12px;'>{t('woba_value_desc')}</span>", unsafe_allow_html=True)
+            m2.metric("wRC+", f"{int(row['wRC+'])}", help=t("wrcplus_value_desc"))
+            m2.markdown(f"<span style='color:#888;font-size:12px;'>{t('wrcplus_value_desc')}</span>", unsafe_allow_html=True)
+            m3.metric("wRAA", f"{row['wRAA']:+.1f}", help=t("wraa_value_desc"))
+            m3.markdown(f"<span style='color:#888;font-size:12px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
 
         # wRC+推移グラフ（sabermetrics履歴データから）
         if not saber.empty:
@@ -666,15 +666,15 @@ def page_pitcher_prediction(data: dict):
         if has_fip or has_k_pct:
             cols = st.columns(4)
             if has_fip:
-                cols[0].metric("FIP", f"{row['FIP']:.2f}")
-                cols[0].caption(t("fip_value_desc"))
+                cols[0].metric("FIP", f"{row['FIP']:.2f}", help=t("fip_value_desc"))
+                cols[0].markdown(f"<span style='color:#888;font-size:12px;'>{t('fip_value_desc')}</span>", unsafe_allow_html=True)
             if has_k_pct:
-                cols[1].metric("K%", f"{row['K_pct']:.1f}%")
-                cols[1].caption(t("k_pct_desc"))
-                cols[2].metric("BB%", f"{row['BB_pct']:.1f}%")
-                cols[2].caption(t("bb_pct_desc"))
-                cols[3].metric("K-BB%", f"{row['K_BB_pct']:.1f}%")
-                cols[3].caption(t("k_bb_pct_desc"))
+                cols[1].metric("K%", f"{row['K_pct']:.1f}%", help=t("k_pct_desc"))
+                cols[1].markdown(f"<span style='color:#888;font-size:12px;'>{t('k_pct_desc')}</span>", unsafe_allow_html=True)
+                cols[2].metric("BB%", f"{row['BB_pct']:.1f}%", help=t("bb_pct_desc"))
+                cols[2].markdown(f"<span style='color:#888;font-size:12px;'>{t('bb_pct_desc')}</span>", unsafe_allow_html=True)
+                cols[3].metric("K-BB%", f"{row['K_BB_pct']:.1f}%", help=t("k_bb_pct_desc"))
+                cols[3].markdown(f"<span style='color:#888;font-size:12px;'>{t('k_bb_pct_desc')}</span>", unsafe_allow_html=True)
 
         st.markdown("---")
 
