@@ -145,6 +145,41 @@ def _fuzzy(s: str) -> str:
     return s.replace(" ", "").replace("\u3000", "").translate(_VARIANT_MAP)
 
 
+def _is_foreign_player(name: str) -> bool:
+    """カタカナ文字が名前の半分超 → 外国人選手と判定"""
+    cleaned = name.replace("\u3000", "").replace(" ", "")
+    if not cleaned:
+        return False
+    katakana = sum(1 for c in cleaned if "\u30A0" <= c <= "\u30FF")
+    return katakana / len(cleaned) > 0.5
+
+
+def _get_missing_players(data: dict) -> dict:
+    """ロースター登録済みだがMarcel予測対象外の選手をチーム別に返す。
+    返り値: {team: [{"name": str, "kind": "外国人" | "新人/データなし"}, ...]}
+    """
+    from roster_2026 import ROSTER_2026
+
+    mh = data["marcel_hitters"]
+    mp = data["marcel_pitchers"]
+    if mh.empty or mp.empty:
+        return {}
+    calculated = (
+        set(mh["player"].apply(_fuzzy))
+        | set(mp["player"].apply(_fuzzy))
+    )
+    result = {}
+    for team, players in ROSTER_2026.items():
+        missing = []
+        for p in players:
+            if _fuzzy(p) not in calculated:
+                kind = "外国人" if _is_foreign_player(p) else "新人/データなし"
+                display = p.replace("\u3000", " ").strip()
+                missing.append({"name": display, "kind": kind})
+        result[team] = missing
+    return result
+
+
 def _search(df: pd.DataFrame, name: str) -> pd.DataFrame:
     q = _fuzzy(_norm(name))
     return df[df["player"].apply(lambda p: q in _fuzzy(p))]
@@ -468,6 +503,14 @@ def page_top(data: dict):
                     "- **投球回** — 投げたイニング数。多いほどスタミナがある\n"
                     "- **WHIP** — 1イニングに許した走者数。1.00以下ならエース級"
                 )
+
+        # 計算対象外選手
+        missing_for_team = _get_missing_players(data).get(selected_team, [])
+        if missing_for_team:
+            with st.expander(f"⚠️ {selected_team}の計算対象外選手 ({len(missing_for_team)}名)"):
+                st.caption("以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です（リーグ平均の貢献として計算）。")
+                for m in missing_for_team:
+                    st.markdown(f"- **{m['name']}** — {m['kind']}（リーグ平均の貢献として計算）")
     else:
         # デフォルト: TOP3表示
         # TOP3 打者
@@ -945,6 +988,10 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
     mp["era_above_avg"] = mp["ERA"] - lg_era  # 正=平均より悪い（失点多い）
 
     # --- チームごとにRS/RA算出 ---
+    # ※ ロースター登録済みだがMarcel対象外の選手（新人・新外国人等）は
+    #    wRAA=0（リーグ平均貢献）として暗黙的に扱われる。
+    #    実際の戦力との差（過小/過大評価）は missing_count が多いほど不確実。
+    missing_all = _get_missing_players(data)
     rows = []
     for team in TEAMS:
         h = mh[mh["team"] == team]
@@ -952,7 +999,10 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
         rs_raw = lg_avg_rs + (h["wRAA_est"].sum() if not h.empty else 0)
         ra_raw = lg_avg_ra + ((p["era_above_avg"] * p["IP"] / 9.0).sum() if not p.empty else 0)
         league = "CL" if team in CENTRAL_TEAMS else "PL"
-        rows.append({"league": league, "team": team, "rs_raw": rs_raw, "ra_raw": ra_raw})
+        rows.append({
+            "league": league, "team": team, "rs_raw": rs_raw, "ra_raw": ra_raw,
+            "missing_count": len(missing_all.get(team, [])),
+        })
 
     df = pd.DataFrame(rows)
 
@@ -968,7 +1018,7 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
     df["pred_W"] = df["pred_WPCT"] * 143
     df["pred_L"] = 143 - df["pred_W"]
 
-    return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT", "pred_W", "pred_L"]]
+    return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT", "pred_W", "pred_L", "missing_count"]]
 
 
 def page_pythagorean_standings(data: dict):
@@ -999,6 +1049,12 @@ def page_pythagorean_standings(data: dict):
                 glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
                 rank = i + 1
                 medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
+                mc = int(row.get("missing_count", 0))
+                badge = (
+                    f'<span style="color:#ff9944;font-size:11px;background:#2a1500;'
+                    f'padding:2px 6px;border-radius:4px;margin-left:4px;">計算外{mc}名</span>'
+                    if mc > 0 else ""
+                )
                 cards += f"""
                 <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin:4px 0;
                             background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
@@ -1008,7 +1064,7 @@ def page_pythagorean_standings(data: dict):
                   <span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row['pred_W']:.0f}勝</span>
                   <span style="color:#888;font-size:14px;min-width:50px;">{row['pred_L']:.0f}敗</span>
                   <span style="color:#aaa;font-size:12px;min-width:60px;">勝率 {row['pred_WPCT']:.3f}</span>
-                  <span style="color:#666;font-size:11px;">得点{row['pred_RS']:.0f} / 失点{row['pred_RA']:.0f}</span>
+                  <span style="color:#666;font-size:11px;">得点{row['pred_RS']:.0f} / 失点{row['pred_RA']:.0f}</span>{badge}
                 </div>"""
 
             components.html(f"<div>{cards}</div>", height=len(lg) * 55 + 10)
@@ -1026,6 +1082,27 @@ def page_pythagorean_standings(data: dict):
                 xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
             )
             st.plotly_chart(fig, use_container_width=True)
+
+        missing_all = _get_missing_players(data)
+        with st.expander("⚠️ チームごとの計算対象外選手（新人・新外国人等）"):
+            st.caption(
+                "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。"
+                "モデルはこれらの選手を**リーグ平均の貢献（±0）**として扱っています。"
+                "実際に平均以上の外国人スラッガーや即戦力新人が加わっている場合、"
+                "そのチームの得点は**過小評価**されている可能性があります。"
+            )
+            for league_code, label in [("CL", "セ・リーグ"), ("PL", "パ・リーグ")]:
+                league_teams = CENTRAL_TEAMS if league_code == "CL" else PACIFIC_TEAMS
+                st.markdown(f"**{label}**")
+                for team in league_teams:
+                    missing = missing_all.get(team, [])
+                    if not missing:
+                        st.markdown(f"- **{team}**: 全員Marcel予測対象 ✅")
+                    else:
+                        names_str = "、".join(
+                            f"{m['name']}({m['kind']})" for m in missing
+                        )
+                        st.markdown(f"- **{team}** ({len(missing)}名): {names_str}")
 
         with st.expander("予測方法の説明"):
             st.markdown(
