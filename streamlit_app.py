@@ -1083,13 +1083,14 @@ def page_pythagorean_standings(data: dict):
                 ),
             ))
             fig.update_layout(
-                height=320, yaxis_title=t("pred_wins_label"),
+                height=380, yaxis_title=t("pred_wins_label"),
                 yaxis_range=[0, max(lg["pred_W_high"] if "pred_W_high" in lg.columns else lg["pred_W"]) * 1.1],
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
+                margin=dict(b=80),
                 xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
                 annotations=[dict(
-                    x=0.5, y=-0.18, xref="paper", yref="paper", showarrow=False,
+                    x=0.5, y=-0.30, xref="paper", yref="paper", showarrow=False,
                     text=t("chart_annotation"),
                     font=dict(size=10, color="#888"),
                 )],
@@ -1174,9 +1175,10 @@ def page_pythagorean_standings(data: dict):
             marker_color="#555",
         ))
         fig.update_layout(
-            barmode="group", height=300, yaxis_title=t("wins_y"),
+            barmode="group", height=350, yaxis_title=t("wins_y"),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#e0e0e0"),
+            margin=dict(b=60),
             xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
             legend=dict(orientation="h", y=1.12, font=dict(color="#e0e0e0")),
         )
