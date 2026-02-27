@@ -168,6 +168,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "woba_desc": "打席あたりの得点貢献",
         "wrcplus_desc": "リーグ平均=100の打撃力",
         "wraa_desc": "平均より何点多く稼いだか",
+        "woba_value_desc": "wOBA — 打席あたりの得点への貢献度。.350超なら一流",
+        "wrcplus_value_desc": "wRC+ — リーグ平均を100とした打撃力。120ならリーグ平均の2割増し",
+        "wraa_value_desc": "wRAA — リーグ平均の打者より何点多く稼いだか",
+        "fip_value_desc": "FIP — 被本塁打・四球・三振だけで評価した防御率。味方の守備に左右されない",
+        "k_pct_desc": "K% — 対戦打者のうち三振を取った割合。20%超なら優秀",
+        "bb_pct_desc": "BB% — 対戦打者のうち四球を出した割合。7%未満なら優秀",
+        "k_bb_pct_desc": "K-BB% — 三振率から四球率を引いた値。15%超ならエース級",
 
         # --- Rankings ---
         "hitter_rank_title": "打者ランキング（2026予測）",
@@ -178,10 +185,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "sort_avg": "打率 — ヒットの確率",
         "sort_hr": "本塁打 — ホームラン数",
         "sort_rbi": "打点 — 走者を返した数",
+        "sort_woba": "wOBA — 打席あたりの得点貢献度",
+        "sort_wrcplus": "wRC+ — リーグ平均=100の打撃力",
         "sort_era": "防御率 — 9回あたり失点",
         "sort_whip": "WHIP — 1回あたり出した走者数",
         "sort_so": "奪三振 — 三振を取った数",
         "sort_w": "勝利数",
+        "sort_fip": "FIP — 投手の真の実力",
+        "sort_k_pct": "K% — 三振を取る割合",
+        "sort_bb_pct": "BB% — 四球を出す割合",
+        "sort_k_bb_pct": "K-BB% — 三振率−四球率",
 
         # --- Standings ---
         "standings_title": "予測順位表",
@@ -402,6 +415,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "woba_desc": "Run value per plate appearance",
         "wrcplus_desc": "Batting vs. league avg (100 = avg)",
         "wraa_desc": "Runs above average",
+        "woba_value_desc": "wOBA — Run value per plate appearance. .350+ is elite",
+        "wrcplus_value_desc": "wRC+ — League average = 100. 120 means 20% above average",
+        "wraa_value_desc": "wRAA — Runs above league-average batter",
+        "fip_value_desc": "FIP — ERA based only on HR, BB, K. Defense-independent",
+        "k_pct_desc": "K% — Percentage of batters struck out. 20%+ is excellent",
+        "bb_pct_desc": "BB% — Percentage of batters walked. Under 7% is excellent",
+        "k_bb_pct_desc": "K-BB% — Strikeout rate minus walk rate. 15%+ is ace-level",
 
         # --- Rankings ---
         "hitter_rank_title": "Batter Rankings (2026 Projections)",
@@ -412,10 +432,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "sort_avg": "AVG — Batting Average",
         "sort_hr": "HR — Home Runs",
         "sort_rbi": "RBI — Runs Batted In",
+        "sort_woba": "wOBA — Weighted On-Base Average",
+        "sort_wrcplus": "wRC+ — Batting vs. League Avg (100=avg)",
         "sort_era": "ERA — Earned Runs per 9 Inn.",
         "sort_whip": "WHIP — Baserunners per Inning",
         "sort_so": "SO — Strikeouts",
         "sort_w": "W — Wins",
+        "sort_fip": "FIP — Fielding Independent Pitching",
+        "sort_k_pct": "K% — Strikeout Rate",
+        "sort_bb_pct": "BB% — Walk Rate",
+        "sort_k_bb_pct": "K-BB% — Strikeout minus Walk Rate",
 
         # --- Standings ---
         "standings_title": "Predicted Standings",

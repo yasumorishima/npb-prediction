@@ -1,7 +1,7 @@
 """
-NPB成績予測 Streamlitダッシュボード — RPG風UI
+NPB成績予測 Streamlitダッシュボード
 
-Marcel法・LightGBM/XGBoost・ピタゴラス勝率・wOBA/wRC+の予測結果をブラウザで閲覧。
+Marcel法・ピタゴラス勝率・wOBA/wRC+/FIPの予測結果をブラウザで閲覧。
 
 Data sources:
 - プロ野球データFreak (https://baseball-data.com)
@@ -148,7 +148,52 @@ def load_all():
             if new_team:
                 df.at[idx, "team"] = new_team
         result[key] = df
+
+    _enrich_projections(result)
     return result
+
+
+def _enrich_projections(data: dict) -> None:
+    """打者にwOBA/wRC+/wRAA、投手にFIP/K%/BB%/K-BB%を追加"""
+    mh = data["marcel_hitters"]
+    mp = data["marcel_pitchers"]
+    saber = data.get("sabermetrics", pd.DataFrame())
+
+    # --- 打者: wOBA, wRC+, wRAA ---
+    if not mh.empty and not saber.empty:
+        df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
+        if len(df_fit) >= 10:
+            X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
+            coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
+            a_obp, b_slg, intercept_w = coeffs
+
+            recent_s = saber[saber["year"] >= 2022]
+            lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+            woba_scale = 1.15
+
+            mh["wOBA"] = (a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w).round(3)
+            mh["wRAA"] = ((mh["wOBA"] - lg_woba) / woba_scale * mh["PA"]).round(1)
+            lg_r_per_pa = lg_woba / woba_scale
+            mh["wRC+"] = (((mh["wOBA"] - lg_woba) / woba_scale + lg_r_per_pa) / lg_r_per_pa * 100).round(0).astype(int)
+
+            data["_lg_woba"] = lg_woba
+
+    # --- 投手: FIP, K%, BB%, K-BB% ---
+    if not mp.empty and mp["IP"].sum() > 0:
+        has_fip_cols = all(c in mp.columns for c in ["BB", "HBP", "HRA", "BF"])
+        if has_fip_cols:
+            mp["K_pct"] = (mp["SO"] / mp["BF"].replace(0, np.nan) * 100).round(1)
+            mp["BB_pct"] = (mp["BB"] / mp["BF"].replace(0, np.nan) * 100).round(1)
+            mp["K_BB_pct"] = (mp["K_pct"] - mp["BB_pct"]).round(1)
+
+            lg_ip = mp["IP"].sum()
+            lg_era = (mp["ERA"] * mp["IP"]).sum() / lg_ip
+            lg_hra = mp["HRA"].sum()
+            lg_bb = mp["BB"].sum()
+            lg_hbp = mp["HBP"].sum()
+            lg_so = mp["SO"].sum()
+            fip_c = lg_era - (13 * lg_hra + 3 * (lg_bb + lg_hbp) - 2 * lg_so) / lg_ip
+            mp["FIP"] = ((13 * mp["HRA"] + 3 * (mp["BB"] + mp["HBP"]) - 2 * mp["SO"]) / mp["IP"] + fip_c).round(2)
 
 
 _VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
@@ -537,6 +582,8 @@ def page_hitter_prediction(data: dict):
         st.warning(t("no_player_found").format(name=name))
         return
 
+    saber = data.get("sabermetrics", pd.DataFrame())
+
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
 
@@ -546,6 +593,41 @@ def page_hitter_prediction(data: dict):
         with col2:
             st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
                             use_container_width=True)
+
+        # wOBA / wRC+ / wRAA カード
+        if "wOBA" in row.index and not pd.isna(row.get("wOBA")):
+            m1, m2, m3 = st.columns(3)
+            m1.metric("wOBA", f"{row['wOBA']:.3f}")
+            m1.caption(t("woba_value_desc"))
+            m2.metric("wRC+", f"{int(row['wRC+'])}")
+            m2.caption(t("wrcplus_value_desc"))
+            m3.metric("wRAA", f"{row['wRAA']:+.1f}")
+            m3.caption(t("wraa_value_desc"))
+
+        # wRC+推移グラフ（sabermetrics履歴データから）
+        if not saber.empty:
+            player_saber = _search(saber, row["player"])
+            if len(player_saber) > 1:
+                player_name = player_saber.iloc[0]["player"]
+                trend = player_saber[player_saber["player"] == player_name].sort_values("year")
+                if len(trend) > 1:
+                    st.markdown(f"**{t('wrc_trend_title').format(player=player_name)}**")
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(
+                        x=trend["year"], y=trend["wRC+"],
+                        mode="lines+markers", line=dict(color=glow, width=2),
+                        marker=dict(size=8, color=glow),
+                    ))
+                    fig.add_hline(y=100, line_dash="dash", line_color="#666",
+                                  annotation_text=t("league_average"), annotation_font_color="#888")
+                    fig.update_layout(
+                        height=300, xaxis_title=t("year_axis"), yaxis_title="wRC+",
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="#e0e0e0"),
+                        xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
         st.markdown("---")
 
 
@@ -570,7 +652,30 @@ def page_pitcher_prediction(data: dict):
 
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-        components.html(render_pitcher_card(row, glow=glow), height=280)
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            components.html(render_pitcher_card(row, glow=glow), height=280)
+        with col2:
+            st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
+                            use_container_width=True)
+
+        # FIP / K% / BB% / K-BB% カード
+        has_fip = "FIP" in row.index and not pd.isna(row.get("FIP"))
+        has_k_pct = "K_pct" in row.index and not pd.isna(row.get("K_pct"))
+        if has_fip or has_k_pct:
+            cols = st.columns(4)
+            if has_fip:
+                cols[0].metric("FIP", f"{row['FIP']:.2f}")
+                cols[0].caption(t("fip_value_desc"))
+            if has_k_pct:
+                cols[1].metric("K%", f"{row['K_pct']:.1f}%")
+                cols[1].caption(t("k_pct_desc"))
+                cols[2].metric("BB%", f"{row['BB_pct']:.1f}%")
+                cols[2].caption(t("bb_pct_desc"))
+                cols[3].metric("K-BB%", f"{row['K_BB_pct']:.1f}%")
+                cols[3].caption(t("k_bb_pct_desc"))
+
         st.markdown("---")
 
 
@@ -639,72 +744,6 @@ def page_team_wpct(data: dict):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def page_sabermetrics(data: dict):
-    st.markdown(f"### {t('saber_title')}")
-    saber = data["sabermetrics"]
-    if saber.empty:
-        st.error(t("no_data"))
-        return
-
-    col1, col2 = st.columns([2, 1])
-    name = col1.text_input(t("search_label"), key="saber_search", placeholder=t("search_hint_saber"))
-    years = sorted(saber["year"].unique())
-    year_option = col2.selectbox(t("year_label"), [t("all_years")] + [str(int(y)) for y in years], key="saber_year")
-
-    if not name:
-        st.info(t("search_prompt"))
-        return
-
-    matched = _search(saber, name)
-    if year_option != t("all_years"):
-        matched = matched[matched["year"] == int(year_option)]
-
-    if matched.empty:
-        st.warning(t("no_match").format(name=name))
-        return
-
-    for _, row in matched.iterrows():
-        glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-        card = f"""
-        <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
-                    border-radius:10px;padding:12px;margin:6px 0;box-shadow:0 0 10px {glow}22;
-                    display:flex;align-items:center;gap:12px;font-family:'Segoe UI',sans-serif;">
-          <div style="flex:1;">
-            <div style="color:#e0e0e0;font-weight:bold;">{row['player']}
-              <span style="color:#888;font-size:12px;margin-left:8px;">{row['team']} / {int(row['year'])}</span>
-            </div>
-            <div style="color:#aaa;font-size:12px;margin-top:4px;">
-              wOBA<span style="color:#666;font-size:10px;">({t("woba_desc")})</span>: <span style="color:#44ff88;">{row['wOBA']:.3f}</span> &nbsp;
-              wRC+<span style="color:#666;font-size:10px;">({t("wrcplus_desc")})</span>: <span style="color:#00e5ff;">{row['wRC+']:.0f}</span> &nbsp;
-              wRAA<span style="color:#666;font-size:10px;">({t("wraa_desc")})</span>: <span style="color:#ffaa44;">{row['wRAA']:.1f}</span> &nbsp;
-              OPS: <span style="color:#ff4466;">{row.get('OPS', row['SLG']+row['OBP']):.3f}</span>
-            </div>
-          </div>
-        </div>"""
-        components.html(card, height=80)
-
-    if len(matched) > 1:
-        player_name = matched.iloc[0]["player"]
-        player_data = matched[matched["player"] == player_name].sort_values("year")
-        if len(player_data) > 1:
-            st.markdown(f"**{t('wrc_trend_title').format(player=player_name)}**")
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=player_data["year"], y=player_data["wRC+"],
-                mode="lines+markers", line=dict(color="#00e5ff", width=2),
-                marker=dict(size=8, color="#00e5ff"),
-            ))
-            fig.add_hline(y=100, line_dash="dash", line_color="#666",
-                          annotation_text=t("league_average"), annotation_font_color="#888")
-            fig.update_layout(
-                height=350, xaxis_title=t("year_axis"), yaxis_title="wRC+",
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e0e0e0"),
-                xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-
 def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: str) -> str:
     """ランキングカード1行"""
     medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
@@ -735,12 +774,16 @@ def page_hitter_rankings(data: dict):
         t("sort_ops"): "OPS", t("sort_avg"): "AVG",
         t("sort_hr"): "HR", t("sort_rbi"): "RBI",
     }
+    if "wOBA" in mh.columns:
+        sort_labels[t("sort_woba")] = "wOBA"
+    if "wRC+" in mh.columns:
+        sort_labels[t("sort_wrcplus")] = "wRC+"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="hitter_rank_sort")
     sort_by = sort_labels[sort_label]
 
     df = mh[mh["PA"] >= 200].sort_values(sort_by, ascending=False).head(top_n).reset_index(drop=True)
 
-    fmt_map = {"OPS": ".3f", "AVG": ".3f", "HR": ".0f", "RBI": ".0f"}
+    fmt_map = {"OPS": ".3f", "AVG": ".3f", "HR": ".0f", "RBI": ".0f", "wOBA": ".3f", "wRC+": ".0f"}
     fmt = fmt_map.get(sort_by, ".3f")
 
     cards = ""
@@ -767,30 +810,32 @@ def page_pitcher_rankings(data: dict):
         t("sort_era"): "ERA", t("sort_whip"): "WHIP",
         t("sort_so"): "SO", t("sort_w"): "W",
     }
+    if "FIP" in mp.columns:
+        sort_labels[t("sort_fip")] = "FIP"
+    if "K_pct" in mp.columns:
+        sort_labels[t("sort_k_pct")] = "K_pct"
+    if "BB_pct" in mp.columns:
+        sort_labels[t("sort_bb_pct")] = "BB_pct"
+    if "K_BB_pct" in mp.columns:
+        sort_labels[t("sort_k_bb_pct")] = "K_BB_pct"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="pitcher_rank_sort")
     sort_by = sort_labels[sort_label]
 
-    ascending = sort_by in ("ERA", "WHIP")
+    ascending = sort_by in ("ERA", "WHIP", "FIP", "BB_pct")
     df = mp[mp["IP"] >= 50].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
 
-    fmt_map = {"ERA": ".2f", "WHIP": ".2f", "SO": ".0f", "W": ".0f"}
+    fmt_map = {"ERA": ".2f", "WHIP": ".2f", "SO": ".0f", "W": ".0f",
+               "FIP": ".2f", "K_pct": ".1f", "BB_pct": ".1f", "K_BB_pct": ".1f"}
     fmt = fmt_map.get(sort_by, ".2f")
+
+    # 表示ラベル（K_pct → K% のように変換）
+    display_suffix = {"K_pct": "%", "BB_pct": "%", "K_BB_pct": "%"}
+    suffix = display_suffix.get(sort_by, "")
 
     cards = ""
     for i, (_, row) in enumerate(df.iterrows()):
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
-        medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(i + 1, "")
-        border_color = {1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32"}.get(i + 1, "#333")
-        val = row[sort_by]
-        cards += f"""
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin:4px 0;
-                    background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
-                    font-family:'Segoe UI',sans-serif;">
-          <span style="min-width:30px;font-size:16px;text-align:center;">{medal or i+1}</span>
-          <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
-          <span style="color:#888;font-size:12px;">{row['team']}</span>
-          <span style="min-width:60px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
-        </div>"""
+        cards += _leaderboard_card(i + 1, row, sort_by, fmt, glow)
 
     components.html(f"""
     <div style="max-height:600px;overflow-y:auto;padding:4px;">
@@ -812,17 +857,6 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
     if mh.empty or mp.empty or saber.empty or pyth.empty:
         return pd.DataFrame()
 
-    # --- wOBA回帰係数（2015-2025実績から算出）---
-    df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
-    X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
-    coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
-    a_obp, b_slg, intercept_w = coeffs
-
-    # リーグ環境値（2022-2025）
-    recent_s = saber[saber["year"] >= 2022]
-    lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
-    woba_scale = 1.15  # NPB典型的wOBAスケール
-
     # 歴史的リーグ平均得点・失点（1チームあたり）
     recent_p = pyth[pyth["year"] >= 2022]
     lg_avg_rs = recent_p.groupby("year")["RS"].mean().mean()
@@ -833,8 +867,20 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
 
     # --- 選手ごとのwOBA・wRAA推定 ---
     mh = mh.copy()
-    mh["wOBA_est"] = a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w
-    mh["wRAA_est"] = (mh["wOBA_est"] - lg_woba) / woba_scale * mh["PA"]
+    if "wOBA" in mh.columns and "wRAA" in mh.columns:
+        mh["wOBA_est"] = mh["wOBA"]
+        mh["wRAA_est"] = mh["wRAA"]
+    else:
+        # フォールバック: 回帰係数を計算
+        df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
+        X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
+        coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
+        a_obp, b_slg, intercept_w = coeffs
+        recent_s = saber[saber["year"] >= 2022]
+        lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+        woba_scale = 1.15
+        mh["wOBA_est"] = a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w
+        mh["wRAA_est"] = (mh["wOBA_est"] - lg_woba) / woba_scale * mh["PA"]
 
     mp = mp.copy()
     mp["era_above_avg"] = mp["ERA"] - lg_era  # 正=平均より悪い（失点多い）
@@ -1048,7 +1094,7 @@ def page_pythagorean_standings(data: dict):
 
 PAGE_KEYS = [
     "page_top", "page_standings", "page_hitter", "page_pitcher",
-    "page_hitter_rank", "page_pitcher_rank", "page_team_wpct", "page_saber",
+    "page_hitter_rank", "page_pitcher_rank", "page_team_wpct",
 ]
 
 PAGE_FUNCS = {
@@ -1059,7 +1105,6 @@ PAGE_FUNCS = {
     "page_hitter_rank": page_hitter_rankings,
     "page_pitcher_rank": page_pitcher_rankings,
     "page_team_wpct": page_team_wpct,
-    "page_saber": page_sabermetrics,
 }
 
 

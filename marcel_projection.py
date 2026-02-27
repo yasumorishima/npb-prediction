@@ -72,7 +72,7 @@ def load_hitters() -> pd.DataFrame:
 def load_pitchers() -> pd.DataFrame:
     df = pd.read_csv(RAW_DIR / "npb_pitchers_2015_2025.csv")
     # 数値型に変換
-    for col in ["ERA", "WHIP", "DIPS", "IP"]:
+    for col in ["ERA", "WHIP", "DIPS", "IP", "BB", "HBP", "HRA", "BF"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
@@ -227,7 +227,7 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
     available_years = sorted(df["year"].unique())
 
     rate_cols = ["ERA", "WHIP"]
-    count_cols = ["W", "L", "SV", "SO"]
+    count_cols = ["W", "L", "SV", "SO", "BB", "HBP", "HRA", "BF"]
 
     # IP列を数値化（"123.1" → 123.333...）
     df = df.copy()
