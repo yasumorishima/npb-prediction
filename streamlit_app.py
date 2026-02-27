@@ -104,6 +104,13 @@ def _norm_w(w: float) -> float:
     return max(0.0, min(100.0, w / 20.0 * 100.0))
 
 
+# --- リーグ平均 ---
+
+# NPBリーグ平均（規定打席以上の代表的な水準）
+HITTER_AVG = {"HR": 15, "AVG": 0.260, "OBP": 0.320, "SLG": 0.400, "OPS": 0.720}
+PITCHER_AVG = {"ERA": 3.50, "WHIP": 1.30, "SO": 120, "IP": 140, "W": 9}
+
+
 # --- データ読み込み ---
 
 
@@ -258,13 +265,22 @@ def _pythagorean_wpct(rs: float, ra: float, k: float = 1.72) -> float:
 # --- HTML/CSSカード描画 ---
 
 
-def _bar_html(label: str, value: float, max_val: float, display: str, color: str = "#00e5ff") -> str:
+def _bar_html(label: str, value: float, max_val: float, display: str, color: str = "#00e5ff",
+              avg_val: float | None = None) -> str:
     pct = max(0, min(100, value / max_val * 100))
+    avg_marker = ""
+    if avg_val is not None:
+        avg_pct = max(0, min(100, avg_val / max_val * 100))
+        avg_marker = (
+            f'<div style="position:absolute;left:{avg_pct:.0f}%;top:0;width:2px;height:100%;'
+            f'background:#fff;opacity:0.5;"></div>'
+        )
     return f"""
     <div style="display:flex;align-items:center;margin:4px 0;gap:8px;">
       <span style="width:60px;font-size:13px;color:#aaa;">{label}</span>
-      <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;">
+      <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;position:relative;">
         <div style="width:{pct:.0f}%;height:100%;background:linear-gradient(90deg,{color},{color}88);border-radius:8px;transition:width 0.5s;"></div>
+        {avg_marker}
       </div>
       <span style="width:50px;text-align:right;font-size:13px;font-weight:bold;color:#e0e0e0;">{display}</span>
     </div>"""
@@ -274,13 +290,15 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     """打者ステータスカードをHTMLで生成"""
     team = row.get("team", "")
 
+    ha = HITTER_AVG
     bars = ""
-    bars += _bar_html(t("bar_hr"), row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
-    bars += _bar_html(t("bar_avg"), row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88")
-    bars += _bar_html(t("bar_obp"), row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff")
-    bars += _bar_html(t("bar_slg"), row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
-    bars += _bar_html("OPS", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff")
+    bars += _bar_html(t("bar_hr"), row["HR"], 50, f"{row['HR']:.0f}", "#ff4466", avg_val=ha["HR"])
+    bars += _bar_html(t("bar_avg"), row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88", avg_val=ha["AVG"])
+    bars += _bar_html(t("bar_obp"), row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff", avg_val=ha["OBP"])
+    bars += _bar_html(t("bar_slg"), row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44", avg_val=ha["SLG"])
+    bars += _bar_html("OPS", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff", avg_val=ha["OPS"])
 
+    avg_legend = t("avg_legend")
     return f"""
     <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                 border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
@@ -292,6 +310,9 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
       </div>
       {bars}
+      <div style="text-align:right;margin-top:4px;">
+        <span style="color:#888;font-size:10px;">▏{avg_legend}</span>
+      </div>
     </div>"""
 
 
@@ -299,21 +320,26 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
     """投手ステータスカードをHTMLで生成"""
     team = row.get("team", "")
 
+    pa = PITCHER_AVG
     bars = ""
-    bars += _bar_html("WHIP", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff")
-    bars += _bar_html(t("bar_so"), row["SO"], 250, f"{row['SO']:.0f}", "#ff4466")
-    bars += _bar_html(t("bar_w"), row["W"], 20, f"{row['W']:.0f}", "#44ff88")
-    bars += _bar_html(t("bar_ip"), row["IP"], 200, f"{row['IP']:.0f}", "#ffaa44")
+    bars += _bar_html("WHIP", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff",
+                      avg_val=1.0 / pa["WHIP"])
+    bars += _bar_html(t("bar_so"), row["SO"], 250, f"{row['SO']:.0f}", "#ff4466", avg_val=pa["SO"])
+    bars += _bar_html(t("bar_w"), row["W"], 20, f"{row['W']:.0f}", "#44ff88", avg_val=pa["W"])
+    bars += _bar_html(t("bar_ip"), row["IP"], 200, f"{row['IP']:.0f}", "#ffaa44", avg_val=pa["IP"])
     era_pct = max(0, min(100, (6.0 - row["ERA"]) / 5.0 * 100))
+    era_avg_pct = max(0, min(100, (6.0 - pa["ERA"]) / 5.0 * 100))
     bars += f"""
     <div style="display:flex;align-items:center;margin:4px 0;gap:8px;">
       <span style="width:60px;font-size:13px;color:#aaa;">{t("bar_era")}</span>
-      <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;">
+      <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;position:relative;">
         <div style="width:{era_pct:.0f}%;height:100%;background:linear-gradient(90deg,#00e5ff,#00e5ff88);border-radius:8px;"></div>
+        <div style="position:absolute;left:{era_avg_pct:.0f}%;top:0;width:2px;height:100%;background:#fff;opacity:0.5;"></div>
       </div>
       <span style="width:50px;text-align:right;font-size:13px;font-weight:bold;color:#e0e0e0;">{row['ERA']:.2f}</span>
     </div>"""
 
+    avg_legend = t("avg_legend")
     return f"""
     <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
                 border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
@@ -325,6 +351,9 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
       </div>
       {bars}
+      <div style="text-align:right;margin-top:4px;">
+        <span style="color:#888;font-size:10px;">▏{avg_legend}</span>
+      </div>
     </div>"""
 
 
@@ -337,7 +366,7 @@ def _safe_float(val, default: float = 0.0) -> float:
 
 
 def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
-    """打者レーダーチャート（5軸）"""
+    """打者レーダーチャート（5軸）+ リーグ平均"""
     categories = [t("radar_hr"), t("radar_avg"), t("radar_obp"), t("radar_slg"), "OPS"]
     values = [
         _norm_hr(_safe_float(row["HR"])),
@@ -346,10 +375,22 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
         _norm_slg(_safe_float(row["SLG"])),
         _norm_ops(_safe_float(row["OPS"])),
     ]
+    ha = HITTER_AVG
+    avg_values = [
+        _norm_hr(ha["HR"]), _norm_avg(ha["AVG"]), _norm_obp(ha["OBP"]),
+        _norm_slg(ha["SLG"]), _norm_ops(ha["OPS"]),
+    ]
 
     r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
 
     fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=avg_values + [avg_values[0]],
+        theta=categories + [categories[0]],
+        fill="none",
+        line=dict(color="#ffffff", width=1, dash="dash"),
+        name=t("league_average"),
+    ))
     fig.add_trace(go.Scatterpolar(
         r=values + [values[0]],
         theta=categories + [categories[0]],
@@ -364,12 +405,13 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
             radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
             angularaxis=dict(gridcolor="#333", linecolor="#444"),
         ),
-        showlegend=False,
+        showlegend=True,
+        legend=dict(orientation="h", y=-0.05, font=dict(size=10, color="#aaa")),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e0e0e0"),
-        height=300,
-        margin=dict(l=30, r=30, t=30, b=30),
+        height=320,
+        margin=dict(l=30, r=30, t=30, b=40),
     )
     if title:
         layout_kwargs["title"] = dict(text=title, font=dict(size=14, color="#e0e0e0"))
@@ -378,7 +420,7 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
 
 
 def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
-    """投手レーダーチャート（5軸: 防御率・WHIP・奪三振・投球回・勝利）"""
+    """投手レーダーチャート（5軸: 防御率・WHIP・奪三振・投球回・勝利）+ リーグ平均"""
     categories = [t("radar_era"), "WHIP", t("radar_so"), t("radar_ip"), t("radar_w")]
     values = [
         _norm_era_r(_safe_float(row["ERA"])),
@@ -387,10 +429,22 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
         _norm_ip(_safe_float(row["IP"])),
         _norm_w(_safe_float(row["W"])),
     ]
+    pa = PITCHER_AVG
+    avg_values = [
+        _norm_era_r(pa["ERA"]), _norm_whip_r(pa["WHIP"]), _norm_so_p(pa["SO"]),
+        _norm_ip(pa["IP"]), _norm_w(pa["W"]),
+    ]
 
     r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
 
     fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=avg_values + [avg_values[0]],
+        theta=categories + [categories[0]],
+        fill="none",
+        line=dict(color="#ffffff", width=1, dash="dash"),
+        name=t("league_average"),
+    ))
     fig.add_trace(go.Scatterpolar(
         r=values + [values[0]],
         theta=categories + [categories[0]],
@@ -405,12 +459,13 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
             radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
             angularaxis=dict(gridcolor="#333", linecolor="#444"),
         ),
-        showlegend=False,
+        showlegend=True,
+        legend=dict(orientation="h", y=-0.05, font=dict(size=10, color="#aaa")),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#e0e0e0"),
-        height=300,
-        margin=dict(l=30, r=30, t=30, b=30),
+        height=320,
+        margin=dict(l=30, r=30, t=30, b=40),
     )
     if title:
         layout_kwargs["title"] = dict(text=title, font=dict(size=14, color="#e0e0e0"))
@@ -611,12 +666,13 @@ def page_hitter_prediction(data: dict):
 
         # wOBA / wRC+ / wRAA カード（2列+単独行）
         if "wOBA" in row.index and not pd.isna(row.get("wOBA")):
+            woba_avg = 0.320
             m1, m2 = st.columns(2)
-            m1.metric("wOBA", f"{row['wOBA']:.3f}")
+            m1.metric("wOBA", f"{row['wOBA']:.3f}", delta=f"{row['wOBA'] - woba_avg:+.3f} vs {t('avg_short')}")
             m1.markdown(f"<span style='color:#888;font-size:11px;'>{t('woba_value_desc')}</span>", unsafe_allow_html=True)
-            m2.metric("wRC+", f"{int(row['wRC+'])}")
+            m2.metric("wRC+", f"{int(row['wRC+'])}", delta=f"{int(row['wRC+']) - 100:+d} vs 100")
             m2.markdown(f"<span style='color:#888;font-size:11px;'>{t('wrcplus_value_desc')}</span>", unsafe_allow_html=True)
-            st.metric("wRAA", f"{row['wRAA']:+.1f}")
+            st.metric("wRAA", f"{row['wRAA']:+.1f}", delta=f"{t('above_avg') if row['wRAA'] > 0 else t('below_avg')}")
             st.markdown(f"<span style='color:#888;font-size:11px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
 
             # 計算式の説明
@@ -685,17 +741,23 @@ def page_pitcher_prediction(data: dict):
         has_fip = "FIP" in row.index and not pd.isna(row.get("FIP"))
         has_k_pct = "K_pct" in row.index and not pd.isna(row.get("K_pct"))
         if has_fip or has_k_pct:
+            fip_avg, k_pct_avg, bb_pct_avg = 3.80, 18.0, 8.0
             r1a, r1b = st.columns(2)
             if has_fip:
-                r1a.metric("FIP", f"{row['FIP']:.2f}")
+                fip_delta = row['FIP'] - fip_avg
+                r1a.metric("FIP", f"{row['FIP']:.2f}",
+                           delta=f"{fip_delta:+.2f} vs {t('avg_short')}", delta_color="inverse")
                 r1a.markdown(f"<span style='color:#888;font-size:11px;'>{t('fip_value_desc')}</span>", unsafe_allow_html=True)
             if has_k_pct:
-                r1b.metric("K%", f"{row['K_pct']:.1f}%")
+                r1b.metric("K%", f"{row['K_pct']:.1f}%",
+                           delta=f"{row['K_pct'] - k_pct_avg:+.1f}% vs {t('avg_short')}")
                 r1b.markdown(f"<span style='color:#888;font-size:11px;'>{t('k_pct_desc')}</span>", unsafe_allow_html=True)
                 r2a, r2b = st.columns(2)
-                r2a.metric("BB%", f"{row['BB_pct']:.1f}%")
+                r2a.metric("BB%", f"{row['BB_pct']:.1f}%",
+                           delta=f"{row['BB_pct'] - bb_pct_avg:+.1f}% vs {t('avg_short')}", delta_color="inverse")
                 r2a.markdown(f"<span style='color:#888;font-size:11px;'>{t('bb_pct_desc')}</span>", unsafe_allow_html=True)
-                r2b.metric("K-BB%", f"{row['K_BB_pct']:.1f}%")
+                r2b.metric("K-BB%", f"{row['K_BB_pct']:.1f}%",
+                           delta=f"{row['K_BB_pct'] - (k_pct_avg - bb_pct_avg):+.1f}% vs {t('avg_short')}")
                 r2b.markdown(f"<span style='color:#888;font-size:11px;'>{t('k_bb_pct_desc')}</span>", unsafe_allow_html=True)
 
         # K/9, BB/9, HR/9（2列+単独行）
