@@ -16,6 +16,16 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from translations import TEXTS
+
+
+def t(key: str) -> str:
+    """Return translated string for the current language."""
+    lang = st.session_state.get("lang", "日本語")
+    dict_key = "en" if lang == "English" else "ja"
+    return TEXTS.get(dict_key, TEXTS["ja"]).get(key, key)
+
+
 BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/master/"
 
 NPB_TEAM_COLORS = {
@@ -204,7 +214,7 @@ def _get_missing_players(data: dict) -> dict:
         missing = []
         for p in players:
             if _fuzzy(p) not in calculated:
-                kind = "外国人" if _is_foreign_player(p) else "新人/データなし"
+                kind = "foreign" if _is_foreign_player(p) else "rookie"
                 display = p.replace("\u3000", " ").strip()
                 missing.append({"name": display, "kind": kind})
         result[team] = missing
@@ -243,18 +253,18 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     team = row.get("team", "")
 
     bars = ""
-    bars += _bar_html("本塁打", row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
-    bars += _bar_html("打率", row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88")
-    bars += _bar_html("出塁率", row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff")
-    bars += _bar_html("長打率", row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
+    bars += _bar_html(t("bar_hr"), row["HR"], 50, f"{row['HR']:.0f}", "#ff4466")
+    bars += _bar_html(t("bar_avg"), row["AVG"], 0.350, f"{row['AVG']:.3f}", "#44ff88")
+    bars += _bar_html(t("bar_obp"), row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff")
+    bars += _bar_html(t("bar_slg"), row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44")
     bars += _bar_html("OPS", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff")
 
     compare = ""
     if ml_ops is not None:
         compare = f"""
         <div style="margin-top:8px;padding:6px 10px;background:#1a1a2e;border-radius:6px;font-size:12px;color:#aaa;">
-          統計予測: <span style="color:#4CAF50;font-weight:bold;">{row['OPS']:.3f}</span>
-          &nbsp;|&nbsp; AI予測: <span style="color:#2196F3;font-weight:bold;">{ml_ops:.3f}</span>
+          {t("stat_pred")}: <span style="color:#4CAF50;font-weight:bold;">{row['OPS']:.3f}</span>
+          &nbsp;|&nbsp; {t("ai_pred")}: <span style="color:#2196F3;font-weight:bold;">{ml_ops:.3f}</span>
         </div>"""
 
     return f"""
@@ -280,13 +290,13 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
 
     bars = ""
     bars += _bar_html("WHIP", 1.0 / max(row["WHIP"], 0.5), 1.0 / 0.8, f"{row['WHIP']:.2f}", "#44aaff")
-    bars += _bar_html("奪三振", row["SO"], 250, f"{row['SO']:.0f}", "#ff4466")
-    bars += _bar_html("勝利", row["W"], 20, f"{row['W']:.0f}", "#44ff88")
-    bars += _bar_html("投球回", row["IP"], 200, f"{row['IP']:.0f}", "#ffaa44")
+    bars += _bar_html(t("bar_so"), row["SO"], 250, f"{row['SO']:.0f}", "#ff4466")
+    bars += _bar_html(t("bar_w"), row["W"], 20, f"{row['W']:.0f}", "#44ff88")
+    bars += _bar_html(t("bar_ip"), row["IP"], 200, f"{row['IP']:.0f}", "#ffaa44")
     era_pct = max(0, min(100, (6.0 - row["ERA"]) / 5.0 * 100))
     bars += f"""
     <div style="display:flex;align-items:center;margin:4px 0;gap:8px;">
-      <span style="width:60px;font-size:13px;color:#aaa;">防御率</span>
+      <span style="width:60px;font-size:13px;color:#aaa;">{t("bar_era")}</span>
       <div style="flex:1;height:16px;background:#1a1a2e;border-radius:8px;overflow:hidden;">
         <div style="width:{era_pct:.0f}%;height:100%;background:linear-gradient(90deg,#00e5ff,#00e5ff88);border-radius:8px;"></div>
       </div>
@@ -297,8 +307,8 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
     if ml_era is not None:
         compare = f"""
         <div style="margin-top:8px;padding:6px 10px;background:#1a1a2e;border-radius:6px;font-size:12px;color:#aaa;">
-          統計予測: <span style="color:#4CAF50;font-weight:bold;">{row['ERA']:.2f}</span>
-          &nbsp;|&nbsp; AI予測: <span style="color:#2196F3;font-weight:bold;">{ml_era:.2f}</span>
+          {t("stat_pred")}: <span style="color:#4CAF50;font-weight:bold;">{row['ERA']:.2f}</span>
+          &nbsp;|&nbsp; {t("ai_pred")}: <span style="color:#2196F3;font-weight:bold;">{ml_era:.2f}</span>
         </div>"""
 
     return f"""
@@ -327,7 +337,7 @@ def _safe_float(val, default: float = 0.0) -> float:
 
 def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
     """打者レーダーチャート（5軸）"""
-    categories = ["本塁打", "打率", "出塁率", "長打率", "OPS"]
+    categories = [t("radar_hr"), t("radar_avg"), t("radar_obp"), t("radar_slg"), "OPS"]
     values = [
         _norm_hr(_safe_float(row["HR"])),
         _norm_avg(_safe_float(row["AVG"])),
@@ -368,7 +378,7 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
 
 def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
     """投手レーダーチャート（5軸: 防御率・WHIP・奪三振・投球回・勝利）"""
-    categories = ["防御率", "WHIP", "奪三振", "投球回", "勝利"]
+    categories = [t("radar_era"), "WHIP", t("radar_so"), t("radar_ip"), t("radar_w")]
     values = [
         _norm_era_r(_safe_float(row["ERA"])),
         _norm_whip_r(_safe_float(row["WHIP"])),
@@ -409,7 +419,7 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
 
 def render_vs_radar(row1: pd.Series, row2: pd.Series, c1: str = "#ff4466", c2: str = "#44aaff") -> go.Figure:
     """2選手の重ねレーダーチャート"""
-    categories = ["本塁打", "打率", "出塁率", "長打率", "OPS"]
+    categories = [t("radar_hr"), t("radar_avg"), t("radar_obp"), t("radar_slg"), "OPS"]
     v1 = [_norm_hr(_safe_float(row1["HR"])), _norm_avg(_safe_float(row1["AVG"])),
           _norm_obp(_safe_float(row1["OBP"])), _norm_slg(_safe_float(row1["SLG"])),
           _norm_ops(_safe_float(row1["OPS"]))]
@@ -458,38 +468,28 @@ PACIFIC_TEAMS = ["ソフトバンク", "日本ハム", "楽天", "ロッテ", "�
 
 def page_top(data: dict):
     """トップページ — 入力不要・1画面完結"""
-    st.markdown("""
+    st.markdown(f"""
     <div style="text-align:center;padding:10px 0;">
-      <h2 style="color:#00e5ff;margin:0;">NPB 2026 予測</h2>
-      <p style="color:#888;font-size:14px;margin:4px 0;">過去の成績データ × AI予測</p>
+      <h2 style="color:#00e5ff;margin:0;">{t("top_title")}</h2>
+      <p style="color:#888;font-size:14px;margin:4px 0;">{t("top_subtitle")}</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.warning(
-        "⚠️ **ご注意 — これは統計モデルの自動計算結果です**\n\n"
-        "Marcel法が「過去3年のNPB成績データ」だけをもとに算出した参考値です。"
-        "好きなチームや選手が低く出ていても、それはモデルが過去の数字をそう計算したというだけで、"
-        "作者の見解・応援・願望とは一切関係ありません。\n\n"
-        "**このモデルには捉えられない要素がたくさんあります** —— "
-        "新外国人・新人・復帰選手など、NPBでの過去データがない選手の貢献はすべて「平均」として扱われています。"
-        "記録のない選手たちが活躍すれば、どのチームの順位も大きく変わりえます。"
-        "シーズンが始まってみないとわからない部分が必ずあります。\n\n"
-        "2025–2026オフの移籍・退団は反映済みです。"
-    )
+    st.warning(t("top_warning"))
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
     ml_h = data["ml_hitters"]
 
     if mh.empty or mp.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     # チーム選択ボタン
-    if st.button("全体TOP3", key="top_reset", type="primary" if not st.session_state.get("selected_team") else "secondary"):
+    if st.button(t("btn_all_top3"), key="top_reset", type="primary" if not st.session_state.get("selected_team") else "secondary"):
         st.session_state["selected_team"] = None
 
-    st.markdown("<div style='color:#888;font-size:12px;margin-bottom:4px;'>セ・リーグ</div>",
+    st.markdown(f"<div style='color:#888;font-size:12px;margin-bottom:4px;'>{t('central_league')}</div>",
                 unsafe_allow_html=True)
     cl_cols = st.columns(6)
     for i, team in enumerate(CENTRAL_TEAMS):
@@ -500,7 +500,7 @@ def page_top(data: dict):
             st.session_state["selected_team"] = team
             st.rerun()
 
-    st.markdown("<div style='color:#888;font-size:12px;margin-bottom:4px;'>パ・リーグ</div>",
+    st.markdown(f"<div style='color:#888;font-size:12px;margin-bottom:4px;'>{t('pacific_league')}</div>",
                 unsafe_allow_html=True)
     pl_cols = st.columns(6)
     for i, team in enumerate(PACIFIC_TEAMS):
@@ -520,13 +520,16 @@ def page_top(data: dict):
 
         # 打者一覧
         team_hitters = mh[(mh["team"] == selected_team) & (mh["PA"] >= 100)].sort_values("OPS", ascending=False)
-        st.markdown(f"### {selected_team} 打者一覧（2026年予測）")
-        st.caption("過去3年の成績から予測した2026年の成績です。小数が出るのは統計的な予測値のためです。")
+        st.markdown(f"### {t('team_batters_title').format(team=selected_team)}")
+        st.caption(t("batter_pred_caption"))
         if team_hitters.empty:
-            st.info(f"{selected_team}の打者データがありません（PA >= 100）")
+            st.info(t("no_data_pa").format(team=selected_team))
         else:
             display_h = team_hitters[["player", "AVG", "HR", "RBI", "H", "BB", "SB", "OBP", "SLG", "OPS"]].copy()
-            display_h.columns = ["選手名", "打率", "本塁打", "打点", "安打", "四球", "盗塁", "出塁率", "長打率", "OPS"]
+            display_h.columns = [
+                t("col_player"), t("col_avg"), t("col_hr"), t("col_rbi"), t("col_h"),
+                t("col_bb"), t("col_sb"), t("col_obp"), t("col_slg"), "OPS",
+            ]
             display_h["打率"] = display_h["打率"].apply(lambda x: f".{int(x*1000):03d}")
             display_h["本塁打"] = display_h["本塁打"].apply(lambda x: f"{x:.0f}")
             display_h["打点"] = display_h["打点"].apply(lambda x: f"{x:.0f}")
@@ -539,28 +542,18 @@ def page_top(data: dict):
             display_h = display_h.reset_index(drop=True)
             display_h.index = display_h.index + 1
             st.dataframe(display_h, use_container_width=True, height=min(400, len(display_h) * 40 + 60))
-            with st.expander("指標の見方"):
-                st.markdown(
-                    "- **打率** — ヒットを打つ確率。.300以上なら一流\n"
-                    "- **本塁打** — ホームラン数\n"
-                    "- **打点** — 自分の打撃でホームに返した走者の数\n"
-                    "- **安打** — ヒット数\n"
-                    "- **四球** — フォアボールの数。多いほど選球眼が良い\n"
-                    "- **盗塁** — 走力の指標\n"
-                    "- **出塁率** — 打席でアウトにならずに塁に出る確率。.380以上なら一流\n"
-                    "- **長打率** — 1打数あたりの塁打数。二塁打・本塁打が多いほど高い\n"
-                    "- **OPS** — 出塁率＋長打率。打者の総合打撃力。.800以上なら主力級、.900超はスター"
-                )
+            with st.expander(t("how_to_read")):
+                st.markdown(t("batter_stats_help"))
 
         # 投手一覧
         team_pitchers = mp[(mp["team"] == selected_team) & (mp["IP"] >= 30)].sort_values("ERA", ascending=True)
-        st.markdown(f"### {selected_team} 投手一覧（2026年予測）")
-        st.caption("過去3年の成績から予測した2026年の成績です。")
+        st.markdown(f"### {t('team_pitchers_title').format(team=selected_team)}")
+        st.caption(t("pitcher_pred_caption"))
         if team_pitchers.empty:
-            st.info(f"{selected_team}の投手データがありません（IP >= 30）")
+            st.info(t("no_data_ip").format(team=selected_team))
         else:
             display_p = team_pitchers[["player", "ERA", "W", "SO", "IP", "WHIP"]].copy()
-            display_p.columns = ["選手名", "防御率", "勝利", "奪三振", "投球回", "WHIP"]
+            display_p.columns = [t("col_player"), t("col_era"), t("col_w"), t("col_so"), t("col_ip"), "WHIP"]
             display_p["防御率"] = display_p["防御率"].apply(lambda x: f"{x:.2f}")
             display_p["勝利"] = display_p["勝利"].apply(lambda x: f"{x:.0f}")
             display_p["奪三振"] = display_p["奪三振"].apply(lambda x: f"{x:.0f}")
@@ -569,26 +562,21 @@ def page_top(data: dict):
             display_p = display_p.reset_index(drop=True)
             display_p.index = display_p.index + 1
             st.dataframe(display_p, use_container_width=True, height=min(400, len(display_p) * 40 + 60))
-            with st.expander("指標の見方"):
-                st.markdown(
-                    "- **防御率** — 9イニング投げたら何点取られるか。2点台なら一流\n"
-                    "- **勝利** — 勝ち投手になった回数\n"
-                    "- **奪三振** — 三振を奪った数。多いほど支配力が高い\n"
-                    "- **投球回** — 投げたイニング数。多いほどスタミナがある\n"
-                    "- **WHIP** — 1イニングに許した走者数。1.00以下ならエース級"
-                )
+            with st.expander(t("how_to_read")):
+                st.markdown(t("pitcher_stats_help"))
 
         # 計算対象外選手
         missing_for_team = _get_missing_players(data).get(selected_team, [])
         if missing_for_team:
-            with st.expander(f"⚠️ {selected_team}の計算対象外選手 ({len(missing_for_team)}名)"):
-                st.caption("以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です（リーグ平均の貢献として計算）。")
+            with st.expander(t("missing_expander_team").format(team=selected_team, n=len(missing_for_team))):
+                st.caption(t("missing_caption_team"))
                 for m in missing_for_team:
-                    st.markdown(f"- **{m['name']}** — {m['kind']}（リーグ平均の貢献として計算）")
+                    kind_label = t("foreign_player") if m["kind"] == "foreign" else t("rookie_no_data")
+                    st.markdown(f"- **{m['name']}** — {kind_label}（{t('wraa_zero_note')}）")
     else:
         # デフォルト: TOP3表示
         # TOP3 打者
-        st.markdown("### 打者 TOP3（総合打撃力予測）")
+        st.markdown(f"### {t('top3_batters')}")
         top_hitters = mh[mh["PA"] >= 200].nlargest(3, "OPS")
 
         cols = st.columns(3)
@@ -604,7 +592,7 @@ def page_top(data: dict):
                 st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
         # TOP3 投手
-        st.markdown("### 投手 TOP3（総合投球力予測）")
+        st.markdown(f"### {t('top3_pitchers')}")
         top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
 
         cols = st.columns(3)
@@ -620,7 +608,7 @@ def page_top(data: dict):
                 st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
 
         # 注目対決
-        st.markdown("### 注目対決")
+        st.markdown(f"### {t('featured_matchup')}")
         top10 = mh[mh["PA"] >= 200].nlargest(10, "OPS")
         if len(top10) >= 2:
             pair = top10.sample(2, random_state=random.randint(0, 9999))
@@ -649,8 +637,10 @@ def _render_vs_section(p1: pd.Series, p2: pd.Series):
     components.html(vs_html, height=100)
 
     col1, col2 = st.columns(2)
-    stats = [("本塁打", "HR", ".0f"), ("打率", "AVG", ".3f"), ("出塁率", "OBP", ".3f"),
-             ("長打率", "SLG", ".3f"), ("OPS", "OPS", ".3f")]
+    stats = [
+        (t("radar_hr"), "HR", ".0f"), (t("radar_avg"), "AVG", ".3f"), (t("radar_obp"), "OBP", ".3f"),
+        (t("radar_slg"), "SLG", ".3f"), ("OPS", "OPS", ".3f"),
+    ]
 
     rows_html = ""
     for label, key, fmt in stats:
@@ -678,7 +668,7 @@ QUICK_PITCHERS = ["才木", "モイネロ", "宮城", "戸郷", "東", "高橋�
 
 
 def page_hitter_prediction(data: dict):
-    st.markdown("### 打者予測（2026年）")
+    st.markdown(f"### {t('hitter_pred_title')}")
 
     # クイックボタン
     st.markdown('<div style="margin-bottom:10px;">', unsafe_allow_html=True)
@@ -688,16 +678,16 @@ def page_hitter_prediction(data: dict):
             st.session_state["hitter_search"] = qname
     st.markdown('</div>', unsafe_allow_html=True)
 
-    name = st.text_input("選手名で検索（部分一致）", key="hitter_search",
-                         placeholder="例: 牧、近藤、岡本")
+    name = st.text_input(t("search_by_name"), key="hitter_search",
+                         placeholder=t("search_hint_hitter"))
     if not name:
-        st.info("選手名を入力するか、上のボタンをタップしてください")
+        st.info(t("search_prompt_btn"))
         return
 
     marcel = _search(data["marcel_hitters"], name)
     ml = _search(data["ml_hitters"], name)
     if marcel.empty and ml.empty:
-        st.warning(f"「{name}」に該当する選手が見つかりません")
+        st.warning(t("no_player_found").format(name=name))
         return
 
     for _, row in marcel.iterrows():
@@ -714,11 +704,11 @@ def page_hitter_prediction(data: dict):
 
         if ml_ops is not None:
             fig = go.Figure(data=[
-                go.Bar(name="統計予測", x=["総合打撃力（OPS）"], y=[row["OPS"]], marker_color="#4CAF50"),
-                go.Bar(name="AI予測", x=["総合打撃力（OPS）"], y=[ml_ops], marker_color="#2196F3"),
+                go.Bar(name=t("stat_pred"), x=[t("ops_chart_label")], y=[row["OPS"]], marker_color="#4CAF50"),
+                go.Bar(name=t("ai_pred"), x=[t("ops_chart_label")], y=[ml_ops], marker_color="#2196F3"),
             ])
             fig.update_layout(
-                barmode="group", height=250, yaxis_title="総合打撃力（OPS）",
+                barmode="group", height=250, yaxis_title=t("ops_chart_label"),
                 yaxis_range=[0, max(row["OPS"], ml_ops) * 1.2],
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
@@ -729,23 +719,23 @@ def page_hitter_prediction(data: dict):
 
 
 def page_pitcher_prediction(data: dict):
-    st.markdown("### 投手予測（2026年）")
+    st.markdown(f"### {t('pitcher_pred_title')}")
 
     btn_cols = st.columns(len(QUICK_PITCHERS))
     for i, qname in enumerate(QUICK_PITCHERS):
         if btn_cols[i].button(qname, key=f"qp_{qname}"):
             st.session_state["pitcher_search"] = qname
 
-    name = st.text_input("選手名で検索（部分一致）", key="pitcher_search",
-                         placeholder="例: 才木、モイネロ、宮城")
+    name = st.text_input(t("search_by_name"), key="pitcher_search",
+                         placeholder=t("search_hint_pitcher"))
     if not name:
-        st.info("選手名を入力するか、上のボタンをタップしてください")
+        st.info(t("search_prompt_btn"))
         return
 
     marcel = _search(data["marcel_pitchers"], name)
     ml = _search(data["ml_pitchers"], name)
     if marcel.empty and ml.empty:
-        st.warning(f"「{name}」に該当する選手が見つかりません")
+        st.warning(t("no_player_found").format(name=name))
         return
 
     for _, row in marcel.iterrows():
@@ -757,11 +747,11 @@ def page_pitcher_prediction(data: dict):
 
         if ml_era is not None:
             fig = go.Figure(data=[
-                go.Bar(name="統計予測", x=["防御率（ERA）"], y=[row["ERA"]], marker_color="#4CAF50"),
-                go.Bar(name="AI予測", x=["防御率（ERA）"], y=[ml_era], marker_color="#2196F3"),
+                go.Bar(name=t("stat_pred"), x=[t("era_chart_label")], y=[row["ERA"]], marker_color="#4CAF50"),
+                go.Bar(name=t("ai_pred"), x=[t("era_chart_label")], y=[ml_era], marker_color="#2196F3"),
             ])
             fig.update_layout(
-                barmode="group", height=250, yaxis_title="防御率（ERA）",
+                barmode="group", height=250, yaxis_title=t("era_chart_label"),
                 yaxis_range=[0, max(row["ERA"], ml_era) * 1.3],
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
@@ -773,20 +763,20 @@ def page_pitcher_prediction(data: dict):
 
 def page_vs_battle(data: dict):
     """VS対決画面"""
-    st.markdown("### VS 対決")
+    st.markdown(f"### {t('vs_title')}")
 
     mh = data["marcel_hitters"]
     if mh.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     eligible = mh[mh["PA"] >= 200].sort_values("OPS", ascending=False)
     players = eligible["player"].tolist()
 
     col1, col2 = st.columns(2)
-    p1_name = col1.selectbox("プレイヤー1", players, index=0, key="vs_p1")
+    p1_name = col1.selectbox(t("player1_label"), players, index=0, key="vs_p1")
     p2_idx = min(1, len(players) - 1)
-    p2_name = col2.selectbox("プレイヤー2", players, index=p2_idx, key="vs_p2")
+    p2_name = col2.selectbox(t("player2_label"), players, index=p2_idx, key="vs_p2")
 
     p1 = eligible[eligible["player"] == p1_name].iloc[0]
     p2 = eligible[eligible["player"] == p2_name].iloc[0]
@@ -795,20 +785,20 @@ def page_vs_battle(data: dict):
 
 
 def page_team_wpct(data: dict):
-    st.markdown("### チーム勝率予測")
+    st.markdown(f"### {t('team_wpct_title')}")
     pyth = data["pythagorean"]
     if pyth.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     col1, col2 = st.columns(2)
-    team = col1.selectbox("チーム", TEAMS, key="team_wpct")
-    year = col2.slider("年度", 2015, 2025, 2025, key="team_year")
+    team = col1.selectbox(t("team_label"), TEAMS, key="team_wpct")
+    year = col2.slider(t("year_label"), 2015, 2025, 2025, key="team_year")
 
     mask = pyth["team"].str.contains(_norm(team), na=False) & (pyth["year"] == year)
     matched = pyth[mask]
     if matched.empty:
-        st.warning(f"{team} ({year}) のデータがありません")
+        st.warning(t("no_data_team_year").format(team=team, year=year))
         return
 
     row = matched.iloc[0]
@@ -824,19 +814,19 @@ def page_team_wpct(data: dict):
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
-          <div style="color:#888;font-size:11px;">実際の勝率</div>
+          <div style="color:#888;font-size:11px;">{t("actual_wpct")}</div>
           <div style="color:#e0e0e0;font-size:22px;font-weight:bold;">{row['actual_WPCT']:.3f}</div>
         </div>
         <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
-          <div style="color:#888;font-size:11px;">予測勝率</div>
+          <div style="color:#888;font-size:11px;">{t("pred_wpct")}</div>
           <div style="color:#00e5ff;font-size:22px;font-weight:bold;">{row['pyth_WPCT_npb']:.3f}</div>
         </div>
         <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
-          <div style="color:#888;font-size:11px;">実際の成績</div>
-          <div style="color:#e0e0e0;font-size:18px;font-weight:bold;">{int(row['W'])}勝{int(row['L'])}敗</div>
+          <div style="color:#888;font-size:11px;">{t("actual_record")}</div>
+          <div style="color:#e0e0e0;font-size:18px;font-weight:bold;">{t("record_fmt").format(w=int(row['W']), l=int(row['L']))}</div>
         </div>
         <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
-          <div style="color:#888;font-size:11px;">期待勝数</div>
+          <div style="color:#888;font-size:11px;">{t("expected_wins")}</div>
           <div style="color:#ffaa44;font-size:18px;font-weight:bold;">{row['pyth_W_npb']:.1f}
             <span style="font-size:12px;color:{'#4CAF50' if row['diff_W_npb']>=0 else '#ff4466'};">({row['diff_W_npb']:+.1f})</span>
           </div>
@@ -846,8 +836,8 @@ def page_team_wpct(data: dict):
     components.html(card_html, height=220)
 
     fig = go.Figure(data=[
-        go.Bar(name="得点", x=["得失点"], y=[row["RS"]], marker_color="#4CAF50"),
-        go.Bar(name="失点", x=["得失点"], y=[row["RA"]], marker_color="#F44336"),
+        go.Bar(name=t("rs_label"), x=[f"{t('rs_label')} / {t('ra_label')}"], y=[row["RS"]], marker_color="#4CAF50"),
+        go.Bar(name=t("ra_label"), x=[f"{t('rs_label')} / {t('ra_label')}"], y=[row["RA"]], marker_color="#F44336"),
     ])
     fig.update_layout(
         barmode="group", height=300,
@@ -859,27 +849,27 @@ def page_team_wpct(data: dict):
 
 
 def page_sabermetrics(data: dict):
-    st.markdown("### 選手の実力指標")
+    st.markdown(f"### {t('saber_title')}")
     saber = data["sabermetrics"]
     if saber.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     col1, col2 = st.columns([2, 1])
-    name = col1.text_input("選手名で検索", key="saber_search", placeholder="例: 近藤、牧")
+    name = col1.text_input(t("search_label"), key="saber_search", placeholder=t("search_hint_saber"))
     years = sorted(saber["year"].unique())
-    year_option = col2.selectbox("年度", ["全年度"] + [str(int(y)) for y in years], key="saber_year")
+    year_option = col2.selectbox(t("year_label"), [t("all_years")] + [str(int(y)) for y in years], key="saber_year")
 
     if not name:
-        st.info("選手名を入力してください")
+        st.info(t("search_prompt"))
         return
 
     matched = _search(saber, name)
-    if year_option != "全年度":
+    if year_option != t("all_years"):
         matched = matched[matched["year"] == int(year_option)]
 
     if matched.empty:
-        st.warning(f"「{name}」に該当するデータがありません")
+        st.warning(t("no_match").format(name=name))
         return
 
     # wRC+をLv表示
@@ -898,9 +888,9 @@ def page_sabermetrics(data: dict):
               <span style="color:#888;font-size:12px;margin-left:8px;">{row['team']} / {int(row['year'])}</span>
             </div>
             <div style="color:#aaa;font-size:12px;margin-top:4px;">
-              wOBA<span style="color:#666;font-size:10px;">(打席あたりの得点貢献)</span>: <span style="color:#44ff88;">{row['wOBA']:.3f}</span> &nbsp;
-              wRC+<span style="color:#666;font-size:10px;">(リーグ平均=100の打撃力)</span>: <span style="color:#00e5ff;">{row['wRC+']:.0f}</span> &nbsp;
-              wRAA<span style="color:#666;font-size:10px;">(平均より何点多く稼いだか)</span>: <span style="color:#ffaa44;">{row['wRAA']:.1f}</span> &nbsp;
+              wOBA<span style="color:#666;font-size:10px;">({t("woba_desc")})</span>: <span style="color:#44ff88;">{row['wOBA']:.3f}</span> &nbsp;
+              wRC+<span style="color:#666;font-size:10px;">({t("wrcplus_desc")})</span>: <span style="color:#00e5ff;">{row['wRC+']:.0f}</span> &nbsp;
+              wRAA<span style="color:#666;font-size:10px;">({t("wraa_desc")})</span>: <span style="color:#ffaa44;">{row['wRAA']:.1f}</span> &nbsp;
               OPS: <span style="color:#ff4466;">{row.get('OPS', row['SLG']+row['OBP']):.3f}</span>
             </div>
           </div>
@@ -911,7 +901,7 @@ def page_sabermetrics(data: dict):
         player_name = matched.iloc[0]["player"]
         player_data = matched[matched["player"] == player_name].sort_values("year")
         if len(player_data) > 1:
-            st.markdown(f"**{player_name} 打撃力（wRC+）の推移**")
+            st.markdown(f"**{t('wrc_trend_title').format(player=player_name)}**")
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=player_data["year"], y=player_data["wRC+"],
@@ -919,9 +909,9 @@ def page_sabermetrics(data: dict):
                 marker=dict(size=8, color="#00e5ff"),
             ))
             fig.add_hline(y=100, line_dash="dash", line_color="#666",
-                          annotation_text="リーグ平均", annotation_font_color="#888")
+                          annotation_text=t("league_average"), annotation_font_color="#888")
             fig.update_layout(
-                height=350, xaxis_title="年度", yaxis_title="wRC+",
+                height=350, xaxis_title=t("year_axis"), yaxis_title="wRC+",
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
                 xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
@@ -949,16 +939,19 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
 
 
 def page_hitter_rankings(data: dict):
-    st.markdown("### 打者ランキング（2026予測）")
+    st.markdown(f"### {t('hitter_rank_title')}")
     mh = data["marcel_hitters"]
     if mh.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     col1, col2 = st.columns(2)
-    top_n = col1.slider("表示人数", 5, 50, 20, key="hitter_rank_n")
-    sort_labels = {"総合打撃力(OPS)": "OPS", "打率(AVG)": "AVG", "本塁打(HR)": "HR", "打点(RBI)": "RBI"}
-    sort_label = col2.selectbox("ソート", list(sort_labels.keys()), key="hitter_rank_sort")
+    top_n = col1.slider(t("show_n"), 5, 50, 20, key="hitter_rank_n")
+    sort_labels = {
+        t("sort_ops"): "OPS", t("sort_avg"): "AVG",
+        t("sort_hr"): "HR", t("sort_rbi"): "RBI",
+    }
+    sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="hitter_rank_sort")
     sort_by = sort_labels[sort_label]
 
     df = mh[mh["PA"] >= 200].sort_values(sort_by, ascending=False).head(top_n).reset_index(drop=True)
@@ -978,16 +971,19 @@ def page_hitter_rankings(data: dict):
 
 
 def page_pitcher_rankings(data: dict):
-    st.markdown("### 投手ランキング（2026予測）")
+    st.markdown(f"### {t('pitcher_rank_title')}")
     mp = data["marcel_pitchers"]
     if mp.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     col1, col2 = st.columns(2)
-    top_n = col1.slider("表示人数", 5, 50, 20, key="pitcher_rank_n")
-    sort_labels = {"防御率(ERA)": "ERA", "走者許容率(WHIP)": "WHIP", "奪三振(SO)": "SO", "勝利数(W)": "W"}
-    sort_label = col2.selectbox("ソート", list(sort_labels.keys()), key="pitcher_rank_sort")
+    top_n = col1.slider(t("show_n"), 5, 50, 20, key="pitcher_rank_n")
+    sort_labels = {
+        t("sort_era"): "ERA", t("sort_whip"): "WHIP",
+        t("sort_so"): "SO", t("sort_w"): "W",
+    }
+    sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="pitcher_rank_sort")
     sort_by = sort_labels[sort_label]
 
     ascending = sort_by in ("ERA", "WHIP")
@@ -1104,25 +1100,16 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
 
 
 def page_pythagorean_standings(data: dict):
-    st.markdown("### 予測順位表")
-    st.info(
-        "⚠️ **これは統計モデルの自動計算結果です。作者の予想・応援とは無関係です。**\n\n"
-        "Marcel法は「過去3年のNPBデータ」だけを見ています。"
-        "つまり、**このモデルが知らないことが必ずあります**。\n\n"
-        "- **データなし選手**: 新外国人・新人・復帰選手の貢献は計算に含まれていません（wRAA=0として扱い、予測幅で可視化）\n"
-        "- **若手の急成長**: 23〜26歳の選手が殻を破るような場合、Marcel法は過去3年の平均に引っ張られ、"
-        "実際の成績を大きく下回る予測になることがあります。年齢調整（+0.3%/年）は小さく、急激な成長には追いつきません\n\n"
-        "下位に予測されたチームでも、記録のない選手・殻を破りかけている若手次第で、状況は十分に変わりえます。",
-        icon=None,
-    )
+    st.markdown(f"### {t('standings_title')}")
+    st.info(t("standings_info"), icon=None)
 
     # --- 2026年予測 ---
     standings_2026 = _build_2026_standings(data)
     if not standings_2026.empty:
-        st.markdown("## 2026年 順位予測")
-        st.caption("各チームの打者成績予測（得点）と投手成績予測（失点）からピタゴラス勝率で算出")
+        st.markdown(f"## {t('standings_2026_title')}")
+        st.caption(t("standings_2026_caption"))
 
-        for league, label in [("CL", "セ・リーグ"), ("PL", "パ・リーグ")]:
+        for league, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
             lg = standings_2026[standings_2026["league"] == league].sort_values(
                 "pred_WPCT", ascending=False).reset_index(drop=True)
             if lg.empty:
@@ -1137,7 +1124,7 @@ def page_pythagorean_standings(data: dict):
                 mc = int(row.get("missing_count", 0))
                 badge = (
                     f'<span style="color:#ff9944;font-size:11px;background:#2a1500;'
-                    f'padding:2px 6px;border-radius:4px;margin-left:4px;">計算外{mc}名</span>'
+                    f'padding:2px 6px;border-radius:4px;margin-left:4px;">{t("missing_badge").format(n=mc)}</span>'
                     if mc > 0 else ""
                 )
                 # 計算外選手がいるチームは予測幅（±1.5勝/人）を表示
@@ -1146,12 +1133,12 @@ def page_pythagorean_standings(data: dict):
                     w_hi = int(row.get("pred_W_high", row["pred_W"] + mc * 1.5))
                     w_cell = (
                         f'<div style="min-width:110px;display:flex;flex-direction:column;align-items:flex-start;">'
-                        f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;">{row["pred_W"]:.0f}勝</span>'
-                        f'<span style="color:#ff9944;font-size:10px;">幅: {w_lo}〜{w_hi}勝</span>'
+                        f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;">{row["pred_W"]:.0f}{t("wins_suffix")}</span>'
+                        f'<span style="color:#ff9944;font-size:10px;">{t("pred_range").format(lo=w_lo, hi=w_hi)}</span>'
                         f'</div>'
                     )
                 else:
-                    w_cell = f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row["pred_W"]:.0f}勝</span>'
+                    w_cell = f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row["pred_W"]:.0f}{t("wins_suffix")}</span>'
                 cards += f"""
                 <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin:4px 0;
                             background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
@@ -1159,9 +1146,9 @@ def page_pythagorean_standings(data: dict):
                   <span style="min-width:30px;font-size:16px;text-align:center;">{medal or rank}</span>
                   <span style="min-width:100px;color:{glow};font-weight:bold;font-size:16px;">{row['team']}</span>
                   {w_cell}
-                  <span style="color:#888;font-size:14px;min-width:50px;">{row['pred_L']:.0f}敗</span>
-                  <span style="color:#aaa;font-size:12px;min-width:60px;">勝率 {row['pred_WPCT']:.3f}</span>
-                  <span style="color:#666;font-size:11px;">得点{row['pred_RS']:.0f} / 失点{row['pred_RA']:.0f}</span>{badge}
+                  <span style="color:#888;font-size:14px;min-width:50px;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
+                  <span style="color:#aaa;font-size:12px;min-width:60px;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
+                  <span style="color:#666;font-size:11px;">{t("rs_label")}{row['pred_RS']:.0f} / {t("ra_label")}{row['pred_RA']:.0f}</span>{badge}
                 </div>"""
 
             components.html(f"<div>{cards}</div>", height=len(lg) * 55 + 10)
@@ -1170,7 +1157,7 @@ def page_pythagorean_standings(data: dict):
             err_plus  = (lg["pred_W_high"] - lg["pred_W"]).tolist() if "pred_W_high" in lg else None
             err_minus = (lg["pred_W"] - lg["pred_W_low"]).tolist()  if "pred_W_low"  in lg else None
             fig.add_trace(go.Bar(
-                name="予測勝数", x=lg["team"], y=lg["pred_W"],
+                name=t("pred_wins_label"), x=lg["team"], y=lg["pred_W"],
                 marker_color=[NPB_TEAM_COLORS.get(t, "#333") for t in lg["team"]],
                 error_y=dict(
                     type="data", array=err_plus, arrayminus=err_minus,
@@ -1178,30 +1165,24 @@ def page_pythagorean_standings(data: dict):
                 ),
             ))
             fig.update_layout(
-                height=320, yaxis_title="予測勝数",
+                height=320, yaxis_title=t("pred_wins_label"),
                 yaxis_range=[0, max(lg["pred_W_high"] if "pred_W_high" in lg.columns else lg["pred_W"]) * 1.1],
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
                 xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
                 annotations=[dict(
                     x=0.5, y=-0.18, xref="paper", yref="paper", showarrow=False,
-                    text="オレンジの縦線 = 計算外選手による予測幅（±1.5勝/人）",
+                    text=t("chart_annotation"),
                     font=dict(size=10, color="#888"),
                 )],
             )
             st.plotly_chart(fig, use_container_width=True)
 
         missing_all = _get_missing_players(data)
-        with st.expander("⚠️ チームごとの計算対象外選手（新人・新外国人等）— wRAA=0で計算中"):
-            st.markdown(
-                "**以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。**\n\n"
-                "モデルはこれらの選手を **wRAA=0（リーグ平均と同等の貢献）** として自動的に計算しています。\n\n"
-                "- 活躍すれば実際の勝利数はモデルの上限（オレンジ線）を上回る可能性があります\n"
-                "- 不振の場合は下限を下回る可能性があります\n"
-                "- 計算外選手が多いチームほど、予測幅（グラフのオレンジ縦線）が広くなります"
-            )
+        with st.expander(t("missing_expander_all")):
+            st.markdown(t("missing_expander_content"))
             st.markdown("---")
-            for league_code, label in [("CL", "セ・リーグ"), ("PL", "パ・リーグ")]:
+            for league_code, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
                 league_teams = CENTRAL_TEAMS if league_code == "CL" else PACIFIC_TEAMS
                 st.markdown(f"**{label}**")
                 for team in league_teams:
@@ -1209,45 +1190,32 @@ def page_pythagorean_standings(data: dict):
                     mc = len(missing)
                     unc = mc * 1.5
                     if not missing:
-                        st.markdown(f"- **{team}**: 全員Marcel予測対象 ✅")
+                        st.markdown(f"- **{team}**: {t('all_projected')}")
                     else:
-                        names_str = "、".join(
-                            f"{m['name']}（{m['kind']}, wRAA=0で計算中）" for m in missing
+                        sep = " / " if st.session_state.get("lang") == "English" else "、"
+                        names_str = sep.join(
+                            f"{m['name']}（{t('foreign_player') if m['kind'] == 'foreign' else t('rookie_no_data')}, {t('wraa_zero_inline')}）"
+                            for m in missing
                         )
                         st.markdown(
-                            f"- **{team}** {mc}名 → 予測幅 **±{unc:.0f}勝**: {names_str}"
+                            t("missing_team_detail").format(n=mc, unc=unc, names=names_str)
                         )
 
-        with st.expander("予測方法の説明"):
-            st.markdown(
-                "- **得点の推定**: チーム所属打者の予測wRAA（打者の得点貢献）を合計し、リーグ平均得点に加算\n"
-                "- **失点の推定**: チーム所属投手の予測ERA×投球回÷9でリーグ平均からの超過失点を算出\n"
-                "- **勝率の計算**: ピタゴラス勝率（得点^1.72 ÷ (得点^1.72 + 失点^1.72)）\n"
-                "- **試合数**: 143試合（NPBレギュラーシーズン）\n"
-                "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく\n\n"
-                "**予測幅（信頼区間）の考え方**\n\n"
-                "- 計算外選手（新外国人・新人等）はNPBデータ不足のためwRAA=0（リーグ平均貢献）と仮定\n"
-                "- 歴史的にNPB外国人選手の初年度wRAAは -15点〜+25点 のばらつきがある\n"
-                "- この不確実性を 1人あたり ±1.5勝 に換算（±15点÷10点≒1勝 の野球統計の経験則を適用）\n"
-                "- グラフのオレンジ縦線が予測幅。計算外が多いチームほど幅が広く、実際の順位との差が出やすい\n\n"
-                "**若手の急成長について（Marcel法の構造的な限界）**\n\n"
-                "Marcel法の年齢調整は「27歳基準で±0.3%/年」と非常に小さく、急激な成長は捉えられません。\n"
-                "23〜26歳の選手がブレイクするケースでは、過去3年の平均に引き戻されるため実際を大きく下回る予測になります。\n"
-                "「殻を破りかけている若手が多いチーム」の実力はモデルが示す数字より高い可能性があります。"
-            )
+        with st.expander(t("method_expander")):
+            st.markdown(t("method_content"))
 
     st.markdown("---")
-    st.markdown("### 過去の順位表（実績 vs ピタゴラス期待値）")
+    st.markdown(f"### {t('historical_title')}")
     pyth = data["pythagorean"]
     if pyth.empty:
-        st.error("データが読み込めませんでした")
+        st.error(t("no_data"))
         return
 
     years = sorted(pyth["year"].unique())
-    year = st.selectbox("年度", [int(y) for y in years], index=len(years) - 1, key="pyth_year")
+    year = st.selectbox(t("year_label"), [int(y) for y in years], index=len(years) - 1, key="pyth_year")
     df = pyth[pyth["year"] == year].copy()
 
-    for league, label in [("CL", "セ・リーグ"), ("PL", "パ・リーグ")]:
+    for league, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
         lg = df[df["league"] == league].sort_values("pyth_WPCT_npb", ascending=False).reset_index(drop=True)
         if lg.empty:
             continue
@@ -1266,9 +1234,9 @@ def page_pythagorean_standings(data: dict):
                         font-family:'Segoe UI',sans-serif;">
               <span style="min-width:25px;font-size:14px;text-align:center;">{medal or rank}</span>
               <span style="min-width:90px;color:{glow};font-weight:bold;">{row['team']}</span>
-              <span style="color:#e0e0e0;min-width:70px;">{int(row['W'])}勝{int(row['L'])}敗</span>
+              <span style="color:#e0e0e0;min-width:70px;">{t("record_fmt").format(w=int(row['W']), l=int(row['L']))}</span>
               <span style="color:#888;font-size:12px;min-width:50px;">{row['actual_WPCT']:.3f}</span>
-              <span style="color:#00e5ff;font-size:12px;min-width:50px;">期待{row['pyth_W_npb']:.1f}勝</span>
+              <span style="color:#00e5ff;font-size:12px;min-width:50px;">{t("expected_prefix")}{row['pyth_W_npb']:.1f}{t("wins_suffix")}</span>
               <span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>
             </div>"""
 
@@ -1276,15 +1244,15 @@ def page_pythagorean_standings(data: dict):
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            name="実際の勝数", x=lg["team"], y=lg["W"],
-            marker_color=[NPB_TEAM_COLORS.get(t, "#333") for t in lg["team"]],
+            name=t("actual_wins_bar"), x=lg["team"], y=lg["W"],
+            marker_color=[NPB_TEAM_COLORS.get(team_name, "#333") for team_name in lg["team"]],
         ))
         fig.add_trace(go.Bar(
-            name="期待勝数", x=lg["team"], y=lg["pyth_W_npb"],
+            name=t("expected_wins_bar"), x=lg["team"], y=lg["pyth_W_npb"],
             marker_color="#555",
         ))
         fig.update_layout(
-            barmode="group", height=300, yaxis_title="勝数",
+            barmode="group", height=300, yaxis_title=t("wins_y"),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#e0e0e0"),
             xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
@@ -1294,6 +1262,24 @@ def page_pythagorean_standings(data: dict):
 
 
 # --- メイン ---
+
+
+PAGE_KEYS = [
+    "page_top", "page_standings", "page_hitter", "page_pitcher",
+    "page_hitter_rank", "page_pitcher_rank", "page_vs", "page_team_wpct", "page_saber",
+]
+
+PAGE_FUNCS = {
+    "page_top": page_top,
+    "page_standings": page_pythagorean_standings,
+    "page_hitter": page_hitter_prediction,
+    "page_pitcher": page_pitcher_prediction,
+    "page_hitter_rank": page_hitter_rankings,
+    "page_pitcher_rank": page_pitcher_rankings,
+    "page_vs": page_vs_battle,
+    "page_team_wpct": page_team_wpct,
+    "page_saber": page_sabermetrics,
+}
 
 
 def main():
@@ -1312,58 +1298,38 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    st.sidebar.markdown("""
+    # Language toggle FIRST — must precede any t() call
+    st.sidebar.radio("Language / 言語", ["日本語", "English"], key="lang", horizontal=True)
+
+    st.sidebar.markdown(f"""
     <div style="text-align:center;padding:10px 0;">
       <div style="font-size:28px;">⚾</div>
-      <div style="color:#00e5ff;font-size:16px;font-weight:bold;">NPB予測</div>
+      <div style="color:#00e5ff;font-size:16px;font-weight:bold;">{t("sidebar_title")}</div>
       <div style="color:#666;font-size:11px;">2026 Season</div>
     </div>
     """, unsafe_allow_html=True)
 
     data = load_all()
 
-    page = st.sidebar.radio(
-        "ページ選択",
-        [
-            "トップ",
-            "予測順位表",
-            "打者予測",
-            "投手予測",
-            "打者ランキング",
-            "投手ランキング",
-            "VS対決",
-            "チーム勝率",
-            "選手の実力指標",
-        ],
+    page_key = st.sidebar.radio(
+        t("nav_label"),
+        PAGE_KEYS,
+        format_func=t,
+        key="page_key",
     )
 
-    with st.sidebar.expander("用語の説明"):
+    with st.sidebar.expander(t("glossary")):
         st.markdown(
-            "- **OPS** — 出塁率＋長打率。打者の総合打撃力を示す\n"
-            "- **防御率（ERA）** — 9イニングあたりの平均失点。低いほど優秀\n"
-            "- **WHIP** — 1イニングあたりに許した走者数。低いほど優秀\n"
-            "- **wOBA** — 打席あたりの得点貢献度。四球・単打・本塁打等を重みづけ\n"
-            "- **wRC+** — リーグ平均を100とした打撃力。120なら平均より2割上"
+            f"- {t('glossary_ops')}\n"
+            f"- {t('glossary_era')}\n"
+            f"- {t('glossary_whip')}\n"
+            f"- {t('glossary_woba')}\n"
+            f"- {t('glossary_wrcplus')}"
         )
 
-    st.caption(
-        "データソース: [プロ野球データFreak](https://baseball-data.com) / "
-        "[日本野球機構 NPB](https://npb.jp)"
-    )
+    st.caption(t("data_source"))
 
-    pages = {
-        "トップ": page_top,
-        "打者予測": page_hitter_prediction,
-        "投手予測": page_pitcher_prediction,
-        "VS対決": page_vs_battle,
-        "チーム勝率": page_team_wpct,
-        "選手の実力指標": page_sabermetrics,
-        "打者ランキング": page_hitter_rankings,
-        "投手ランキング": page_pitcher_rankings,
-        "予測順位表": page_pythagorean_standings,
-    }
-
-    pages[page](data)
+    PAGE_FUNCS[page_key](data)
 
 
 if __name__ == "__main__":
