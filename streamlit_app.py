@@ -555,7 +555,7 @@ def page_top(data: dict):
             st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                         unsafe_allow_html=True)
             components.html(render_hitter_card(row, glow=glow), height=260)
-            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
+            st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True, config={"staticPlot": True})
 
         # TOP3 投手
         st.markdown(f"### {t('top3_pitchers')}")
@@ -566,7 +566,7 @@ def page_top(data: dict):
             st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                         unsafe_allow_html=True)
             components.html(render_pitcher_card(row, glow=glow), height=260)
-            st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True)
+            st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True, config={"staticPlot": True})
 
 
 QUICK_HITTERS = ["牧", "近藤", "サンタナ", "宮崎", "佐藤輝", "細川", "坂倉", "万波"]
@@ -645,7 +645,7 @@ def page_hitter_prediction(data: dict):
                         font=dict(color="#e0e0e0"),
                         xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
         st.markdown("---")
 
@@ -778,7 +778,7 @@ def page_team_wpct(data: dict):
         font=dict(color="#e0e0e0"),
         xaxis=dict(gridcolor="#333"), yaxis=dict(gridcolor="#333"),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
 
 def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: str) -> str:
@@ -788,13 +788,15 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
     val = row[stat_key]
 
     return f"""
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;margin:4px 0;
-                background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
-                font-family:'Segoe UI',sans-serif;">
-      <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
-      <span style="flex:1;color:#e0e0e0;font-weight:bold;">{row['player']}</span>
-      <span style="color:#888;font-size:12px;">{row['team']}</span>
-      <span style="min-width:50px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 0;
+                  background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
+                  font-family:'Segoe UI',sans-serif;min-width:max-content;">
+        <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
+        <span style="flex:1;color:#e0e0e0;font-weight:bold;white-space:nowrap;">{row['player']}</span>
+        <span style="color:#888;font-size:12px;white-space:nowrap;">{row['team']}</span>
+        <span style="min-width:50px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
+      </div>
     </div>"""
 
 
@@ -1054,15 +1056,17 @@ def page_pythagorean_standings(data: dict):
                 else:
                     w_cell = f'<span style="color:#00e5ff;font-size:18px;font-weight:bold;min-width:70px;">{row["pred_W"]:.0f}{t("wins_suffix")}</span>'
                 cards += f"""
-                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 14px;margin:4px 0;
-                            background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
-                            font-family:'Segoe UI',sans-serif;">
-                  <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
-                  <span style="min-width:70px;color:{glow};font-weight:bold;font-size:15px;">{row['team']}</span>
-                  {w_cell}
-                  <span style="color:#888;font-size:13px;min-width:40px;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
-                  <span style="color:#aaa;font-size:11px;min-width:50px;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
-                  <span style="color:#666;font-size:11px;">{t("rs_label")}{row['pred_RS']:.0f} / {t("ra_label")}{row['pred_RA']:.0f}</span>{badge}
+                <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px 0;">
+                  <div style="display:flex;align-items:center;gap:6px;padding:10px 14px;
+                              background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
+                              font-family:'Segoe UI',sans-serif;min-width:max-content;">
+                    <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
+                    <span style="min-width:70px;color:{glow};font-weight:bold;font-size:15px;">{row['team']}</span>
+                    {w_cell}
+                    <span style="color:#888;font-size:13px;white-space:nowrap;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
+                    <span style="color:#aaa;font-size:11px;white-space:nowrap;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
+                    <span style="color:#666;font-size:11px;white-space:nowrap;">{t("rs_label")}{row['pred_RS']:.0f} / {t("ra_label")}{row['pred_RA']:.0f}</span>{badge}
+                  </div>
                 </div>"""
 
             components.html(f"<div>{cards}</div>", height=len(lg) * 55 + 10)
@@ -1090,7 +1094,7 @@ def page_pythagorean_standings(data: dict):
                     font=dict(size=10, color="#888"),
                 )],
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
         st.info(t("pred_range_brief"))
         with st.expander(t("pred_range_explain_title")):
@@ -1176,7 +1180,7 @@ def page_pythagorean_standings(data: dict):
             xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
             legend=dict(orientation="h", y=1.12, font=dict(color="#e0e0e0")),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
 
 # --- メイン ---
