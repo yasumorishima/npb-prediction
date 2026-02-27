@@ -1074,28 +1074,30 @@ def page_pythagorean_standings(data: dict):
             fig = go.Figure()
             err_plus  = (lg["pred_W_high"] - lg["pred_W"]).tolist() if "pred_W_high" in lg else None
             err_minus = (lg["pred_W"] - lg["pred_W_low"]).tolist()  if "pred_W_low"  in lg else None
+            teams_reversed = lg["team"].tolist()[::-1]
+            wins_reversed = lg["pred_W"].tolist()[::-1]
+            colors_reversed = [NPB_TEAM_COLORS.get(t, "#333") for t in teams_reversed]
+            err_plus_r = err_plus[::-1] if err_plus else None
+            err_minus_r = err_minus[::-1] if err_minus else None
             fig.add_trace(go.Bar(
-                name=t("pred_wins_label"), x=lg["team"], y=lg["pred_W"],
-                marker_color=[NPB_TEAM_COLORS.get(t, "#333") for t in lg["team"]],
-                error_y=dict(
-                    type="data", array=err_plus, arrayminus=err_minus,
+                name=t("pred_wins_label"), y=teams_reversed, x=wins_reversed,
+                orientation="h",
+                marker_color=colors_reversed,
+                error_x=dict(
+                    type="data", array=err_plus_r, arrayminus=err_minus_r,
                     visible=True, color="#ff9944", thickness=2, width=6,
                 ),
             ))
             fig.update_layout(
-                height=380, yaxis_title=t("pred_wins_label"),
-                yaxis_range=[0, max(lg["pred_W_high"] if "pred_W_high" in lg.columns else lg["pred_W"]) * 1.1],
+                height=300, xaxis_title=t("pred_wins_label"),
+                xaxis_range=[0, max(lg["pred_W_high"] if "pred_W_high" in lg.columns else lg["pred_W"]) * 1.1],
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="#e0e0e0"),
-                margin=dict(b=80),
+                margin=dict(l=90),
                 xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
-                annotations=[dict(
-                    x=0.5, y=-0.30, xref="paper", yref="paper", showarrow=False,
-                    text=t("chart_annotation"),
-                    font=dict(size=10, color="#888"),
-                )],
             )
             st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
+            st.caption(t("chart_annotation"))
 
         st.info(t("pred_range_brief"))
         with st.expander(t("pred_range_explain_title")):
@@ -1166,19 +1168,22 @@ def page_pythagorean_standings(data: dict):
         components.html(f"<div>{cards}</div>", height=len(lg) * 50 + 10)
 
         fig = go.Figure()
+        teams_rev = lg["team"].tolist()[::-1]
         fig.add_trace(go.Bar(
-            name=t("actual_wins_bar"), x=lg["team"], y=lg["W"],
-            marker_color=[NPB_TEAM_COLORS.get(team_name, "#333") for team_name in lg["team"]],
+            name=t("actual_wins_bar"), y=teams_rev, x=lg["W"].tolist()[::-1],
+            orientation="h",
+            marker_color=[NPB_TEAM_COLORS.get(tn, "#333") for tn in teams_rev],
         ))
         fig.add_trace(go.Bar(
-            name=t("expected_wins_bar"), x=lg["team"], y=lg["pyth_W_npb"],
+            name=t("expected_wins_bar"), y=teams_rev, x=lg["pyth_W_npb"].tolist()[::-1],
+            orientation="h",
             marker_color="#555",
         ))
         fig.update_layout(
-            barmode="group", height=350, yaxis_title=t("wins_y"),
+            barmode="group", height=350, xaxis_title=t("wins_y"),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#e0e0e0"),
-            margin=dict(b=60),
+            margin=dict(l=90),
             xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
             legend=dict(orientation="h", y=1.12, font=dict(color="#e0e0e0")),
         )
