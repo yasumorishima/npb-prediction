@@ -83,7 +83,7 @@ TEXTS: dict[str, dict[str, str]] = {
 
         # --- Player kind ---
         "foreign_player": "外国人",
-        "rookie_no_data": "新人/データなし",
+        "rookie_no_data": "データ不足",
         "wraa_zero_note": "リーグ平均の貢献として計算",
         "wraa_zero_inline": "wRAA=0で計算中",
 
@@ -314,7 +314,7 @@ TEXTS: dict[str, dict[str, str]] = {
 
         # --- Player kind ---
         "foreign_player": "Foreign Player",
-        "rookie_no_data": "Rookie/No Data",
+        "rookie_no_data": "Insufficient Data",
         "wraa_zero_note": "projected as league-average contribution",
         "wraa_zero_inline": "wRAA=0",
 
