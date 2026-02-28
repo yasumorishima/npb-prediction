@@ -140,7 +140,7 @@ def marcel_hitter(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
                 continue
             row = season.iloc[0]
             pa = row["PA"]
-            if pa == 0:
+            if pd.isna(pa) or pa == 0:
                 continue
 
             data_years += 1
@@ -269,7 +269,7 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
                 continue
             row = season.iloc[0]
             ip = row["IP_num"]
-            if ip == 0:
+            if pd.isna(ip) or ip == 0:
                 continue
 
             data_years += 1
