@@ -104,11 +104,27 @@ def _norm_w(w: float) -> float:
     return max(0.0, min(100.0, w / 20.0 * 100.0))
 
 
+def _norm_k9(k9: float) -> float:
+    """K/9 → 0-100 (高いほど良い: 5.0→0, 11.0→100)"""
+    return max(0.0, min(100.0, (k9 - 5.0) / 6.0 * 100.0))
+
+
+def _norm_bb9_r(bb9: float) -> float:
+    """BB/9 → 0-100 (低いほど良い: 1.5→100, 5.0→0)"""
+    return max(0.0, min(100.0, (5.0 - bb9) / 3.5 * 100.0))
+
+
+def _norm_hr9_r(hr9: float) -> float:
+    """HR/9 → 0-100 (低いほど良い: 0.2→100, 2.0→0)"""
+    return max(0.0, min(100.0, (2.0 - hr9) / 1.8 * 100.0))
+
+
 # --- リーグ平均 ---
 
 # NPBリーグ平均（規定打席以上の代表的な水準）
 HITTER_AVG = {"HR": 15, "AVG": 0.260, "OBP": 0.320, "SLG": 0.400, "OPS": 0.720}
-PITCHER_AVG = {"ERA": 3.50, "WHIP": 1.30, "SO": 120, "IP": 140, "W": 9}
+PITCHER_AVG = {"ERA": 3.50, "WHIP": 1.30, "SO": 120, "IP": 140, "W": 9,
+               "K9": 7.5, "BB9": 3.2, "HR9": 1.0}
 
 
 # --- データ読み込み ---
@@ -439,19 +455,20 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
 
 
 def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
-    """投手レーダーチャート（5軸: 防御率・WHIP・奪三振・投球回・勝利）+ リーグ平均"""
-    categories = [t("radar_era"), "WHIP", t("radar_so"), t("radar_ip"), t("radar_w")]
+    """投手レーダーチャート（6軸: 防御率・WHIP・奪三振・K/9・BB/9・HR/9）+ リーグ平均"""
+    categories = [t("radar_era"), "WHIP", t("radar_so"), "K/9", "BB/9", "HR/9"]
     values = [
         _norm_era_r(_safe_float(row["ERA"])),
         _norm_whip_r(_safe_float(row["WHIP"])),
         _norm_so_p(_safe_float(row["SO"])),
-        _norm_ip(_safe_float(row["IP"])),
-        _norm_w(_safe_float(row["W"])),
+        _norm_k9(_safe_float(row.get("K9", 7.5))),
+        _norm_bb9_r(_safe_float(row.get("BB9", 3.2))),
+        _norm_hr9_r(_safe_float(row.get("HR9", 1.0))),
     ]
     pa = PITCHER_AVG
     avg_values = [
         _norm_era_r(pa["ERA"]), _norm_whip_r(pa["WHIP"]), _norm_so_p(pa["SO"]),
-        _norm_ip(pa["IP"]), _norm_w(pa["W"]),
+        _norm_k9(pa["K9"]), _norm_bb9_r(pa["BB9"]), _norm_hr9_r(pa["HR9"]),
     ]
 
     r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
