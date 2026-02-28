@@ -904,7 +904,7 @@ def page_team_wpct(data: dict):
         <div style="text-align:center;padding:8px;background:#1a1a2e;border-radius:8px;">
           <div style="color:#888;font-size:11px;">{t("expected_wins")}</div>
           <div style="color:#ffaa44;font-size:18px;font-weight:bold;">{row['pyth_W_npb']:.1f}
-            <span style="font-size:12px;color:{'#4CAF50' if row['diff_W_npb']>=0 else '#ff4466'};">({row['diff_W_npb']:+.1f})</span>
+            <span style="font-size:12px;color:{'#4CAF50' if row['diff_W_npb']<=0 else '#ff4466'};">({-row['diff_W_npb']:+.1f} vs 実際)</span>
           </div>
         </div>
       </div>
