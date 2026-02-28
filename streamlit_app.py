@@ -79,6 +79,16 @@ def _norm_ops(ops: float) -> float:
     return max(0.0, min(100.0, (ops - 0.500) / 0.600 * 100.0))
 
 
+def _norm_woba(woba: float) -> float:
+    """wOBA → 0-100 (.260→0, .400→100)"""
+    return max(0.0, min(100.0, (woba - 0.260) / 0.140 * 100.0))
+
+
+def _norm_wrc_plus(wrc: float) -> float:
+    """wRC+ → 0-100 (60→0, 160→100)"""
+    return max(0.0, min(100.0, (wrc - 60.0) / 100.0 * 100.0))
+
+
 def _norm_era_r(era: float) -> float:
     """ERA → 0-100 (低いほど高スコア: ERA 1.0→100, 5.0→0)"""
     return max(0.0, min(100.0, (5.0 - era) / 4.0 * 100.0))
@@ -122,7 +132,8 @@ def _norm_hr9_r(hr9: float) -> float:
 # --- リーグ平均 ---
 
 # NPBリーグ平均（規定打席以上の代表的な水準）
-HITTER_AVG = {"HR": 15, "AVG": 0.260, "OBP": 0.320, "SLG": 0.400, "OPS": 0.720}
+HITTER_AVG = {"HR": 15, "AVG": 0.260, "OBP": 0.320, "SLG": 0.400, "OPS": 0.720,
+              "wOBA": 0.320, "wRC_plus": 100}
 PITCHER_AVG = {"ERA": 3.50, "WHIP": 1.30, "SO": 120, "IP": 140, "W": 9,
                "K9": 7.5, "BB9": 3.2, "HR9": 1.0}
 
@@ -401,19 +412,20 @@ def _safe_float(val, default: float = 0.0) -> float:
 
 
 def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
-    """打者レーダーチャート（5軸）+ リーグ平均"""
-    categories = [t("radar_hr"), t("radar_avg"), t("radar_obp"), t("radar_slg"), "OPS"]
+    """打者レーダーチャート（6軸: HR・AVG・OBP・SLG・wOBA・wRC+）+ リーグ平均"""
+    categories = [t("radar_hr"), t("radar_avg"), t("radar_obp"), t("radar_slg"), "wOBA", "wRC+"]
     values = [
         _norm_hr(_safe_float(row["HR"])),
         _norm_avg(_safe_float(row["AVG"])),
         _norm_obp(_safe_float(row["OBP"])),
         _norm_slg(_safe_float(row["SLG"])),
-        _norm_ops(_safe_float(row["OPS"])),
+        _norm_woba(_safe_float(row.get("wOBA", 0.320))),
+        _norm_wrc_plus(_safe_float(row.get("wRC_plus", 100))),
     ]
     ha = HITTER_AVG
     avg_values = [
         _norm_hr(ha["HR"]), _norm_avg(ha["AVG"]), _norm_obp(ha["OBP"]),
-        _norm_slg(ha["SLG"]), _norm_ops(ha["OPS"]),
+        _norm_slg(ha["SLG"]), _norm_woba(ha["wOBA"]), _norm_wrc_plus(ha["wRC_plus"]),
     ]
 
     r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
