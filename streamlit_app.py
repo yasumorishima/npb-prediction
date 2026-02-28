@@ -811,12 +811,16 @@ def page_pitcher_prediction(data: dict):
         # K/9, BB/9, HR/9（2列+単独行）
         has_k9 = "K9" in row.index and not pd.isna(row.get("K9"))
         if has_k9:
+            k9_avg, bb9_avg, hr9_avg = 7.5, 3.2, 1.0
             r3a, r3b = st.columns(2)
-            r3a.metric("K/9", f"{row['K9']:.2f}")
+            r3a.metric("K/9", f"{row['K9']:.2f}",
+                       delta=f"{row['K9'] - k9_avg:+.2f} vs {t('avg_short')}")
             r3a.markdown(f"<span style='color:#888;font-size:11px;'>{t('k9_desc')}</span>", unsafe_allow_html=True)
-            r3b.metric("BB/9", f"{row['BB9']:.2f}")
+            r3b.metric("BB/9", f"{row['BB9']:.2f}",
+                       delta=f"{row['BB9'] - bb9_avg:+.2f} vs {t('avg_short')}", delta_color="inverse")
             r3b.markdown(f"<span style='color:#888;font-size:11px;'>{t('bb9_desc')}</span>", unsafe_allow_html=True)
-            st.metric("HR/9", f"{row['HR9']:.2f}")
+            st.metric("HR/9", f"{row['HR9']:.2f}",
+                      delta=f"{row['HR9'] - hr9_avg:+.2f} vs {t('avg_short')}", delta_color="inverse")
             st.markdown(f"<span style='color:#888;font-size:11px;'>{t('hr9_desc')}</span>", unsafe_allow_html=True)
 
         # 計算式の説明
