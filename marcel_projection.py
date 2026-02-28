@@ -63,8 +63,7 @@ def age_adjustment(age: float, peak: int = PEAK_AGE, factor: float = AGE_FACTOR)
 
 def load_hitters() -> pd.DataFrame:
     df = pd.read_csv(RAW_DIR / f"npb_hitters_2015_{DATA_END_YEAR}.csv")
-    # 数値型に変換（RC27, XR27がobjectの場合がある）
-    for col in ["RC27", "XR27"]:
+    for col in ["AVG", "OBP", "SLG", "OPS", "PA", "G", "HR", "RBI", "SB", "BB", "SO", "H", "RC27", "XR27"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
