@@ -569,20 +569,18 @@ def page_top(data: dict):
         if team_hitters.empty:
             st.info(t("no_data_pa").format(team=selected_team))
         else:
-            cols_h = ["player", "AVG", "HR", "RBI", "H", "BB", "SB", "OBP", "SLG", "OPS"]
+            display_h = team_hitters[["player", "AVG", "HR", "RBI", "H", "BB", "SB", "OBP", "SLG", "OPS"]].copy()
             if "data_years" in team_hitters.columns:
-                cols_h = ["player", "data_years"] + cols_h[1:]
-            display_h = team_hitters[cols_h].copy()
-            if "data_years" in display_h.columns:
-                display_h["player"] = display_h.apply(
-                    lambda r: ("⚠️ " if int(r["data_years"]) == 1 else ("📊 " if int(r["data_years"]) == 2 else "")) + r["player"],
-                    axis=1
-                )
-                display_h = display_h.drop(columns=["data_years"])
-            display_h.columns = [
-                t("col_player"), t("col_avg"), t("col_hr"), t("col_rbi"), t("col_h"),
-                t("col_bb"), t("col_sb"), t("col_obp"), t("col_slg"), "OPS",
-            ]
+                display_h["注"] = team_hitters["data_years"].apply(
+                    lambda v: "⚠️1年" if int(v) == 1 else ("📊2年" if int(v) == 2 else "")
+                ).values
+            display_h.columns = (
+                [t("col_player"), t("col_avg"), t("col_hr"), t("col_rbi"), t("col_h"),
+                 t("col_bb"), t("col_sb"), t("col_obp"), t("col_slg"), "OPS", "注"]
+                if "注" in display_h.columns else
+                [t("col_player"), t("col_avg"), t("col_hr"), t("col_rbi"), t("col_h"),
+                 t("col_bb"), t("col_sb"), t("col_obp"), t("col_slg"), "OPS"]
+            )
             display_h["打率"] = display_h["打率"].apply(lambda x: f".{int(x*1000):03d}")
             display_h["本塁打"] = display_h["本塁打"].apply(lambda x: f"{x:.0f}")
             display_h["打点"] = display_h["打点"].apply(lambda x: f"{x:.0f}")
@@ -605,17 +603,16 @@ def page_top(data: dict):
         if team_pitchers.empty:
             st.info(t("no_data_ip").format(team=selected_team))
         else:
-            cols_p = ["player", "ERA", "W", "SO", "IP", "WHIP"]
+            display_p = team_pitchers[["player", "ERA", "W", "SO", "IP", "WHIP"]].copy()
             if "data_years" in team_pitchers.columns:
-                cols_p = ["player", "data_years"] + cols_p[1:]
-            display_p = team_pitchers[cols_p].copy()
-            if "data_years" in display_p.columns:
-                display_p["player"] = display_p.apply(
-                    lambda r: ("⚠️ " if int(r["data_years"]) == 1 else ("📊 " if int(r["data_years"]) == 2 else "")) + r["player"],
-                    axis=1
-                )
-                display_p = display_p.drop(columns=["data_years"])
-            display_p.columns = [t("col_player"), t("col_era"), t("col_w"), t("col_so"), t("col_ip"), "WHIP"]
+                display_p["注"] = team_pitchers["data_years"].apply(
+                    lambda v: "⚠️1年" if int(v) == 1 else ("📊2年" if int(v) == 2 else "")
+                ).values
+            display_p.columns = (
+                [t("col_player"), t("col_era"), t("col_w"), t("col_so"), t("col_ip"), "WHIP", "注"]
+                if "注" in display_p.columns else
+                [t("col_player"), t("col_era"), t("col_w"), t("col_so"), t("col_ip"), "WHIP"]
+            )
             display_p["防御率"] = display_p["防御率"].apply(lambda x: f"{x:.2f}")
             display_p["勝利"] = display_p["勝利"].apply(lambda x: f"{x:.0f}")
             display_p["奪三振"] = display_p["奪三振"].apply(lambda x: f"{x:.0f}")
