@@ -15,6 +15,12 @@ Tom Tangoが考案した成績予測手法。過去3年の成績を **5/4/3** �
 
 日本語/英語対応のインタラクティブダッシュボード。ブラウザから全機能を操作できます。
 
+## FastAPI（Swagger UI）
+
+**https://raspberrypi.tailb303d6.ts.net/docs**
+
+Raspberry Pi 5 + Docker で常時稼働中。Tailscale Funnelで外部公開しています。全エンドポイントをSwagger UIから直接試せます（止まっている場合はご容赦ください）。
+
 - **トップページ**: TOP3打者/投手 + レーダーチャート（入力不要）
 - **順位表**: セ・パ両リーグの予測順位（ピタゴラス勝率ベース）
 - **打者ランキング**: OPS/AVG/HR/RBI/wOBA/wRC+ でソート
