@@ -269,6 +269,8 @@ TEXTS: dict[str, dict[str, str]] = {
             "Marcel法は「過去3年のNPBデータ」だけを見ています。"
             "つまり、**このモデルが知らないことが必ずあります**。\n\n"
             "- **データなし選手**: 新外国人・新人・復帰選手の貢献は計算に含まれていません（wRAA=0として扱い、予測幅で可視化）\n"
+            "- **NPB 1〜2年目選手**: データはあるが少ないため予測値がリーグ平均に強く補正されます。"
+            "実力の過小/過大評価が起きやすく、特に2年目外国人選手の移籍初年度実績は参考程度にしてください（選手名横の「NPB1年/2年」バッジで確認できます）\n"
             "- **若手の急成長**: 23〜26歳の選手が殻を破るような場合、Marcel法は過去3年の平均に引っ張られ、"
             "実際の成績を大きく下回る予測になることがあります。年齢調整（+0.3%/年）は小さく、急激な成長には追いつきません\n\n"
             "下位に予測されたチームでも、記録のない選手・殻を破りかけている若手次第で、状況は十分に変わりえます。"
@@ -276,6 +278,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "standings_2026_title": "2026年 順位予測",
         "standings_2026_caption": "各チームの打者成績予測（得点）と投手成績予測（失点）からピタゴラス勝率で算出",
         "missing_badge": "計算外{n}名",
+        "data_years_badge": "NPB{n}年",
+        "data_years_note_1": "⚠️ NPBデータが1年のみのため、予測値はリーグ平均に強く補正されています（約2/3がリーグ平均寄り）。実力の過小/過大評価に注意してください。",
+        "data_years_note_2": "📊 NPBデータが2年のみのため、予測値はリーグ平均にやや補正されています。参考値としてご覧ください。",
         "pred_range": "幅: {lo}〜{hi}勝",
         "wpct_prefix": "勝率 ",
         "pred_wins_label": "予測勝数",
@@ -594,6 +599,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "**There are things this model simply cannot know.**\n\n"
             "- **Players with no NPB data**: Contributions of new foreign players, rookies, and returning players "
             "are excluded (set to wRAA=0, visualized as prediction ranges)\n"
+            "- **Players with 1–2 years of NPB data**: These players appear in projections but their stats are "
+            "heavily anchored to league average due to limited data. Projections may under- or over-estimate actual ability. "
+            "Look for the 'NPB1yr / NPB2yr' badge next to player names\n"
             "- **Young player breakouts**: When players aged 23–26 break out, Marcel is anchored to a 3-year average "
             "and will significantly underestimate their actual performance. "
             "The age adjustment (+0.3%/year) is too small to capture rapid growth\n\n"
@@ -602,6 +610,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "standings_2026_title": "2026 Season Projections",
         "standings_2026_caption": "Calculated using Pythagorean Win% from projected runs scored/allowed per team",
         "missing_badge": "{n} not projected",
+        "data_years_badge": "{n}yr NPB",
+        "data_years_note_1": "⚠️ Only 1 year of NPB data — projection is heavily anchored to league average (~2/3 regression). May under- or over-estimate actual ability.",
+        "data_years_note_2": "📊 Only 2 years of NPB data — projection is moderately anchored to league average. Treat as a rough estimate.",
         "pred_range": "Range: {lo}–{hi}W",
         "wpct_prefix": "Win% ",
         "pred_wins_label": "Projected Wins",

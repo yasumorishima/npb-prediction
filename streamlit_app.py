@@ -225,6 +225,23 @@ def _is_foreign_player(name: str) -> bool:
     return katakana / len(cleaned) > 0.5
 
 
+def _data_years_badge(years: int) -> str:
+    """data_years が 1 or 2 のときオレンジ/黄バッジHTMLを返す。3以上は空文字。"""
+    if years == 1:
+        return (
+            '<span style="color:#ff9944;font-size:10px;background:#2a1500;'
+            f'padding:1px 5px;border-radius:3px;margin-left:5px;">'
+            f'{t("data_years_badge").format(n=1)}</span>'
+        )
+    if years == 2:
+        return (
+            '<span style="color:#ffcc44;font-size:10px;background:#2a2000;'
+            f'padding:1px 5px;border-radius:3px;margin-left:5px;">'
+            f'{t("data_years_badge").format(n=2)}</span>'
+        )
+    return ""
+
+
 def _get_missing_players(data: dict) -> dict:
     """ロースター登録済みだがMarcel予測対象外の選手をチーム別に返す。
     返り値: {team: [{"name": str, "kind": "外国人" | "新人/データなし"}, ...]}
@@ -289,6 +306,7 @@ def _bar_html(label: str, value: float, max_val: float, display: str, color: str
 def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = "#00e5ff") -> str:
     """打者ステータスカードをHTMLで生成"""
     team = row.get("team", "")
+    dy_badge = _data_years_badge(int(row.get("data_years", 3)))
 
     ha = HITTER_AVG
     bars = ""
@@ -305,7 +323,7 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
                 font-family:'Segoe UI',sans-serif;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
+          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>{dy_badge}
         </div>
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
       </div>
@@ -319,6 +337,7 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
 def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str = "#00e5ff") -> str:
     """投手ステータスカードをHTMLで生成"""
     team = row.get("team", "")
+    dy_badge = _data_years_badge(int(row.get("data_years", 3)))
 
     pa = PITCHER_AVG
     bars = ""
@@ -346,7 +365,7 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
                 font-family:'Segoe UI',sans-serif;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
+          <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>{dy_badge}
         </div>
         <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team}</span>
       </div>
@@ -659,6 +678,10 @@ def page_hitter_prediction(data: dict):
 
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+        dy = int(row.get("data_years", 3))
+        if dy <= 2:
+            note_key = "data_years_note_1" if dy == 1 else "data_years_note_2"
+            st.caption(t(note_key))
 
         components.html(render_hitter_card(row, glow=glow), height=280)
         st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
@@ -732,6 +755,10 @@ def page_pitcher_prediction(data: dict):
 
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+        dy = int(row.get("data_years", 3))
+        if dy <= 2:
+            note_key = "data_years_note_1" if dy == 1 else "data_years_note_2"
+            st.caption(t(note_key))
 
         components.html(render_pitcher_card(row, glow=glow), height=280)
         st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
@@ -848,6 +875,7 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
     medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
     border_color = {1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32"}.get(rank, "#333")
     val = row[stat_key]
+    dy_badge = _data_years_badge(int(row.get("data_years", 3)))
 
     return f"""
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -855,7 +883,7 @@ def _leaderboard_card(rank: int, row: pd.Series, stat_key: str, fmt: str, glow: 
                   background:#0d0d24;border:1px solid {border_color}88;border-radius:8px;
                   font-family:'Segoe UI',sans-serif;min-width:max-content;">
         <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
-        <span style="flex:1;color:#e0e0e0;font-weight:bold;white-space:nowrap;">{row['player']}</span>
+        <span style="flex:1;color:#e0e0e0;font-weight:bold;white-space:nowrap;">{row['player']}{dy_badge}</span>
         <span style="color:#888;font-size:12px;white-space:nowrap;">{row['team']}</span>
         <span style="min-width:50px;text-align:right;color:#00e5ff;font-size:16px;font-weight:bold;">{val:{fmt}}</span>
       </div>

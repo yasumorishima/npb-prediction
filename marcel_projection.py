@@ -131,6 +131,7 @@ def marcel_hitter(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
         weighted_rates = {col: 0.0 for col in rate_cols}
         weighted_count_rates = {col: 0.0 for col in count_cols}
         weighted_pa = 0
+        data_years = 0
 
         for i, y in enumerate(years):
             w = WEIGHTS[i]
@@ -142,6 +143,7 @@ def marcel_hitter(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
             if pa == 0:
                 continue
 
+            data_years += 1
             total_weight += w
             weighted_pa += pa * w
 
@@ -200,6 +202,7 @@ def marcel_hitter(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
         proj["PA"] = round(proj_pa)
         proj["target_year"] = target_year
         proj["age"] = age
+        proj["data_years"] = data_years
 
         results.append(proj)
 
@@ -257,6 +260,7 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
         weighted_er = 0
         weighted_ha_bb = 0
         weighted_count_rates = {col: 0.0 for col in count_cols}
+        data_years = 0
 
         for i, y in enumerate(years):
             w = WEIGHTS[i]
@@ -268,6 +272,7 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
             if ip == 0:
                 continue
 
+            data_years += 1
             total_weight += w
             weighted_ip += ip * w
             weighted_er += row["ER"] * w
@@ -320,6 +325,7 @@ def marcel_pitcher(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
         proj["IP"] = round(avg_ip, 1)
         proj["target_year"] = target_year
         proj["age"] = age
+        proj["data_years"] = data_years
 
         results.append(proj)
 
