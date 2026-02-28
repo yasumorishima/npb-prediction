@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from datetime import date
+from config import DATA_END_YEAR, TARGET_YEAR
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -61,7 +62,7 @@ def age_adjustment(age: float, peak: int = PEAK_AGE, factor: float = AGE_FACTOR)
 
 
 def load_hitters() -> pd.DataFrame:
-    df = pd.read_csv(RAW_DIR / "npb_hitters_2015_2025.csv")
+    df = pd.read_csv(RAW_DIR / f"npb_hitters_2015_{DATA_END_YEAR}.csv")
     # 数値型に変換（RC27, XR27がobjectの場合がある）
     for col in ["RC27", "XR27"]:
         if col in df.columns:
@@ -70,7 +71,7 @@ def load_hitters() -> pd.DataFrame:
 
 
 def load_pitchers() -> pd.DataFrame:
-    df = pd.read_csv(RAW_DIR / "npb_pitchers_2015_2025.csv")
+    df = pd.read_csv(RAW_DIR / f"npb_pitchers_2015_{DATA_END_YEAR}.csv")
     # 数値型に変換
     for col in ["ERA", "WHIP", "DIPS", "IP", "BB", "HBP", "HRA", "BF"]:
         if col in df.columns:
@@ -379,8 +380,8 @@ def main():
     df_h = load_hitters()
     df_p = load_pitchers()
 
-    # 2026年の成績を予測（2023-2025のデータから）
-    target = 2026
+    # TARGET_YEAR の成績を予測（直近3年のデータから）
+    target = TARGET_YEAR
     print(f"\n--- 打者予測 (target: {target}) ---")
     proj_h = marcel_hitter(df_h, target)
     if len(proj_h) > 0:
@@ -406,8 +407,8 @@ def main():
         proj_p.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
 
-    # 予測精度評価: 2024年・2025年を予測して実績と比較
-    for eval_target in [2024, 2025]:
+    # 予測精度評価: 直近2年を予測して実績と比較
+    for eval_target in [DATA_END_YEAR - 1, DATA_END_YEAR]:
         print(f"\n{'=' * 60}")
         print(f"予測精度評価: {eval_target}年を予測 vs 実績")
         print(f"{'=' * 60}")

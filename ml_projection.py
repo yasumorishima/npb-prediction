@@ -16,6 +16,7 @@ from pathlib import Path
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from marcel_projection import load_birthdays, calc_age
+from config import DATA_END_YEAR, TARGET_YEAR
 
 try:
     import lightgbm as lgb
@@ -44,7 +45,7 @@ def _norm_name(name: str) -> str:
 
 def load_sabermetrics() -> pd.DataFrame:
     """wOBA/wRC+データをロード（npb.jpベース）"""
-    path = OUT_DIR / "npb_sabermetrics_2015_2025.csv"
+    path = OUT_DIR / f"npb_sabermetrics_2015_{DATA_END_YEAR}.csv"
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path)
@@ -53,7 +54,7 @@ def load_sabermetrics() -> pd.DataFrame:
 
 
 def load_hitters() -> pd.DataFrame:
-    df = pd.read_csv(RAW_DIR / "npb_hitters_2015_2025.csv")
+    df = pd.read_csv(RAW_DIR / f"npb_hitters_2015_{DATA_END_YEAR}.csv")
     for col in ["RC27", "XR27"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -61,7 +62,7 @@ def load_hitters() -> pd.DataFrame:
 
 
 def load_pitchers() -> pd.DataFrame:
-    df = pd.read_csv(RAW_DIR / "npb_pitchers_2015_2025.csv")
+    df = pd.read_csv(RAW_DIR / f"npb_pitchers_2015_{DATA_END_YEAR}.csv")
     for col in ["ERA", "WHIP", "DIPS", "IP"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -277,9 +278,9 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
     # NaNを-1で埋める（不在年のマーカー）
     X = X.fillna(-1)
 
-    # holdout: 2025年を予測（2024以前で学習）
-    mask_test = feat_df["target_year"] == 2025
-    mask_train = feat_df["target_year"] < 2025
+    # holdout: DATA_END_YEAR を予測（その前年以前で学習）
+    mask_test = feat_df["target_year"] == DATA_END_YEAR
+    mask_train = feat_df["target_year"] < DATA_END_YEAR
 
     X_train, y_train = X[mask_train], y[mask_train]
     X_test, y_test = X[mask_test], y[mask_test]
@@ -287,8 +288,8 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
     print(f"\n{'=' * 60}")
     print(f"{label} 予測")
     print(f"{'=' * 60}")
-    print(f"Train: {len(X_train)} samples (2018-2024 target years)")
-    print(f"Test:  {len(X_test)} samples (2025 target year)")
+    print(f"Train: {len(X_train)} samples (up to {DATA_END_YEAR - 1} target years)")
+    print(f"Test:  {len(X_test)} samples ({DATA_END_YEAR} target year)")
     print(f"Features: {len(feature_cols)}")
 
     results = {}
@@ -404,7 +405,7 @@ def main():
     # Marcel法の2025予測を再生成して比較
     from marcel_projection import marcel_hitter, load_hitters as marcel_load_h
     df_h_marcel = marcel_load_h()
-    proj_h_2025 = marcel_hitter(df_h_marcel, 2025)
+    proj_h_2025 = marcel_hitter(df_h_marcel, DATA_END_YEAR)
     if len(proj_h_2025) > 0:
         test_players = feat_test_h[["player", "target_OPS"]].copy()
         merged = test_players.merge(proj_h_2025[["player", "OPS"]], on="player", how="inner")
@@ -433,7 +434,7 @@ def main():
     # Marcel比較（投手）
     from marcel_projection import marcel_pitcher, load_pitchers as marcel_load_p
     df_p_marcel = marcel_load_p()
-    proj_p_2025 = marcel_pitcher(df_p_marcel, 2025)
+    proj_p_2025 = marcel_pitcher(df_p_marcel, DATA_END_YEAR)
     if len(proj_p_2025) > 0:
         test_players_p = feat_test_p[["player", "target_ERA"]].copy()
         merged_p = test_players_p.merge(proj_p_2025[["player", "ERA"]], on="player", how="inner")
@@ -451,13 +452,13 @@ def main():
                         mae = mean_absolute_error(actual, pred)
                         print(f"{name:10s} MAE={mae:.4f}  {'✅ BETTER' if mae < marcel_mae_p else '❌ WORSE'}")
 
-    # 2026年予測を出力
+    # TARGET_YEAR 予測を出力
     print(f"\n{'=' * 60}")
-    print("2026年予測出力")
+    print(f"{TARGET_YEAR}年予測出力")
     print(f"{'=' * 60}")
 
-    # 打者2026予測
-    feat_h_2026 = build_hitter_features_for_prediction(df_h, 2026)
+    # 打者予測
+    feat_h_2026 = build_hitter_features_for_prediction(df_h, TARGET_YEAR)
     if len(feat_h_2026) > 0 and h_results:
         # ensembleにはmodelがないのでlgb/xgbから選ぶ
         model_candidates = {k: v for k, v in h_results.items() if "model" in v}
@@ -473,12 +474,12 @@ def main():
             print(f"\n打者 Top 20 by predicted OPS (model: {best_model_name}):")
             print(out.to_string(index=False))
 
-            out_path = OUT_DIR / "ml_hitters_2026.csv"
+            out_path = OUT_DIR / f"ml_hitters_{TARGET_YEAR}.csv"
             feat_h_2026[["player", "team", "pred_OPS"]].to_csv(out_path, index=False, encoding="utf-8-sig")
             print(f"Saved: {out_path}")
 
-    # 投手2026予測
-    feat_p_2026 = build_pitcher_features_for_prediction(df_p, 2026)
+    # 投手予測
+    feat_p_2026 = build_pitcher_features_for_prediction(df_p, TARGET_YEAR)
     if len(feat_p_2026) > 0 and p_results:
         model_candidates_p = {k: v for k, v in p_results.items() if "model" in v}
         best_model_name = min(model_candidates_p, key=lambda k: model_candidates_p[k].get("mae", 999))
@@ -493,7 +494,7 @@ def main():
             print(f"\n投手 Top 20 by predicted ERA (model: {best_model_name}):")
             print(out.to_string(index=False))
 
-            out_path = OUT_DIR / "ml_pitchers_2026.csv"
+            out_path = OUT_DIR / f"ml_pitchers_{TARGET_YEAR}.csv"
             feat_p_2026[["player", "team", "pred_ERA"]].to_csv(out_path, index=False, encoding="utf-8-sig")
             print(f"Saved: {out_path}")
 

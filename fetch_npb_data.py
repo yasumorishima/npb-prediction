@@ -11,6 +11,7 @@ pandas.read_html() でテーブルを直接取得
 import pandas as pd
 import time
 from pathlib import Path
+from config import DATA_END_YEAR, YEARS
 
 DATA_DIR = Path(__file__).parent / "data" / "raw"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -18,7 +19,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # 年度コード: 2025→"25", 2024→"24", ...
 # URL: baseball-data.com/{yy}/stats/hitter-all/tpa-1.html (全打者)
 #      baseball-data.com/{yy}/stats/pitcher-all/era-1.html (全投手)
-# 2025以降(当年)はyy部分なし: baseball-data.com/stats/hitter-all/tpa-1.html
+# 当年はyy部分なし: baseball-data.com/stats/hitter-all/tpa-1.html
 
 BASE_URL = "https://baseball-data.com"
 
@@ -30,12 +31,10 @@ TEAM_CODES = {
     "楽天": "e", "西武": "l", "ロッテ": "m",
 }
 
-YEARS = list(range(2015, 2026))  # 2015-2025 (Marcel法に必要な過去データ)
-
 
 def build_url(year: int, stat_type: str) -> str:
     """年度別URL生成"""
-    current_year = 2026
+    current_year = DATA_END_YEAR
     yy = str(year)[2:]  # "15", "16", ...
 
     if stat_type == "hitter":
@@ -148,7 +147,7 @@ def main():
     print("\n--- 打者成績 ---")
     df_hitters = fetch_all("hitter")
     if len(df_hitters) > 0:
-        out_path = DATA_DIR / "npb_hitters_2015_2025.csv"
+        out_path = DATA_DIR / f"npb_hitters_2015_{DATA_END_YEAR}.csv"
         df_hitters.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path} ({len(df_hitters)} rows)")
         print(f"Columns: {list(df_hitters.columns)}")
@@ -158,7 +157,7 @@ def main():
     print("\n--- 投手成績 ---")
     df_pitchers = fetch_all("pitcher")
     if len(df_pitchers) > 0:
-        out_path = DATA_DIR / "npb_pitchers_2015_2025.csv"
+        out_path = DATA_DIR / f"npb_pitchers_2015_{DATA_END_YEAR}.csv"
         df_pitchers.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path} ({len(df_pitchers)} rows)")
         print(f"Columns: {list(df_pitchers.columns)}")

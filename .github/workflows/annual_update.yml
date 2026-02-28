@@ -1,0 +1,77 @@
+name: Annual NPB Update
+
+on:
+  schedule:
+    - cron: '0 9 1 11 *'   # 毎年11月1日 9:00 UTC（NPBシーズン終了後）
+  workflow_dispatch:
+    inputs:
+      data_end_year:
+        description: 'Last season year (e.g., 2026). Leave blank for current year.'
+        required: false
+        default: ''
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost
+
+      - name: Set DATA_END_YEAR
+        run: |
+          if [ -n "${{ github.event.inputs.data_end_year }}" ]; then
+            echo "NPB_DATA_END_YEAR=${{ github.event.inputs.data_end_year }}" >> $GITHUB_ENV
+          else
+            echo "NPB_DATA_END_YEAR=$(date +'%Y')" >> $GITHUB_ENV
+          fi
+
+      - name: 1. Fetch hitter/pitcher stats
+        run: python fetch_npb_data.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 2. Fetch detailed batting stats
+        run: python fetch_npb_detailed.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 3. Fetch standings + Pythagorean
+        run: python pythagorean.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 4. Calculate wOBA/wRC+ (sabermetrics)
+        run: python sabermetrics.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 5. Marcel projections
+        run: python marcel_projection.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 6. ML projections (LightGBM/XGBoost)
+        run: python ml_projection.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: Commit and push updated data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "auto: update NPB data to ${NPB_DATA_END_YEAR} ($(date +'%Y-%m-%d'))"
+            git push
+          fi

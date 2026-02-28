@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from config import DATA_END_YEAR, TARGET_YEAR
 from translations import TEXTS
 
 
@@ -160,15 +161,15 @@ def load_csv(path: str) -> pd.DataFrame:
 
 
 def load_all():
-    from roster_2026 import get_all_roster_names, get_team_for_player
+    from roster_current import get_all_roster_names, get_team_for_player
 
     result = {
-        "marcel_hitters": load_csv("data/projections/marcel_hitters_2026.csv"),
-        "marcel_pitchers": load_csv("data/projections/marcel_pitchers_2026.csv"),
-        "sabermetrics": load_csv("data/projections/npb_sabermetrics_2015_2025.csv"),
-        "pythagorean": load_csv("data/projections/pythagorean_2015_2025.csv"),
+        "marcel_hitters": load_csv(f"data/projections/marcel_hitters_{TARGET_YEAR}.csv"),
+        "marcel_pitchers": load_csv(f"data/projections/marcel_pitchers_{TARGET_YEAR}.csv"),
+        "sabermetrics": load_csv(f"data/projections/npb_sabermetrics_2015_{DATA_END_YEAR}.csv"),
+        "pythagorean": load_csv(f"data/projections/pythagorean_2015_{DATA_END_YEAR}.csv"),
     }
-    # NPB公式2026ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
+    # NPB公式ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
     roster_names = get_all_roster_names()
     for key in ("marcel_hitters", "marcel_pitchers"):
         df = result[key]
@@ -273,7 +274,7 @@ def _get_missing_players(data: dict) -> dict:
     """ロースター登録済みだがMarcel予測対象外の選手をチーム別に返す。
     返り値: {team: [{"name": str, "kind": "外国人" | "新人/データなし"}, ...]}
     """
-    from roster_2026 import ROSTER_2026
+    from roster_current import ROSTER_CURRENT
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
@@ -284,7 +285,7 @@ def _get_missing_players(data: dict) -> dict:
         | set(mp["player"].apply(_fuzzy))
     )
     result = {}
-    for team, players in ROSTER_2026.items():
+    for team, players in ROSTER_CURRENT.items():
         missing = []
         for p in players:
             if _fuzzy(p) not in calculated:

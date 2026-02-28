@@ -18,6 +18,7 @@ wRC+ = weighted Runs Created Plus
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from config import DATA_END_YEAR
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -169,7 +170,7 @@ def main():
     print("=" * 60)
 
     # 詳細打撃成績を読み込み
-    df = pd.read_csv(RAW_DIR / "npb_batting_detailed_2015_2025.csv")
+    df = pd.read_csv(RAW_DIR / f"npb_batting_detailed_2015_{DATA_END_YEAR}.csv")
     print(f"Input: {len(df)} rows, years={sorted(df['year'].unique())}")
 
     # 年度別にwOBA/wRC+を算出
@@ -182,13 +183,13 @@ def main():
     combined = pd.concat(results, ignore_index=True)
 
     # 保存
-    out_path = OUT_DIR / "npb_sabermetrics_2015_2025.csv"
+    out_path = OUT_DIR / f"npb_sabermetrics_2015_{DATA_END_YEAR}.csv"
     combined.to_csv(out_path, index=False, encoding="utf-8-sig")
     print(f"\nSaved: {out_path} ({len(combined)} rows)")
 
-    # 2024年の規定打席以上（443PA）のwOBA/wRC+ Top10
-    print("\n--- 2024 wRC+ Top 10 (PA >= 443) ---")
-    q = combined[(combined["year"] == 2024) & (combined["PA"] >= 443)]
+    # 直近年の規定打席以上（443PA）のwOBA/wRC+ Top10
+    print(f"\n--- {DATA_END_YEAR} wRC+ Top 10 (PA >= 443) ---")
+    q = combined[(combined["year"] == DATA_END_YEAR) & (combined["PA"] >= 443)]
     top = q.nlargest(10, "wRC+")
     print(top[["player", "team", "PA", "AVG", "OBP", "SLG", "wOBA", "wRC+", "wRAA"]].to_string(
         index=False, float_format="%.3f"))

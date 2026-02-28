@@ -11,6 +11,7 @@ wOBA/wRC+算出に使う。
 import pandas as pd
 import time
 from pathlib import Path
+from config import DATA_END_YEAR, YEARS
 
 DATA_DIR = Path(__file__).parent / "data" / "raw"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -25,9 +26,7 @@ TEAM_CODES = {
 }
 
 # オリックスの年度別コード（2015-2017は"bs"、2018以降は"b"）
-ORIX_CODE_BY_YEAR = {y: "bs" if y <= 2017 else "b" for y in range(2015, 2026)}
-
-YEARS = list(range(2015, 2026))
+ORIX_CODE_BY_YEAR = {y: "bs" if y <= 2017 else "b" for y in range(2015, DATA_END_YEAR + 1)}
 
 # 2025年はカラム数が異なる（23列: flag列なし）
 COL_NAMES_2025 = [
@@ -124,7 +123,7 @@ def main():
 
     df = fetch_all_batting()
     if len(df) > 0:
-        out_path = DATA_DIR / "npb_batting_detailed_2015_2025.csv"
+        out_path = DATA_DIR / f"npb_batting_detailed_2015_{DATA_END_YEAR}.csv"
         df.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
         print(f"  Rows: {len(df)}")

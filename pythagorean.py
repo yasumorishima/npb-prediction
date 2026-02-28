@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import time
+from config import DATA_END_YEAR, YEARS
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -24,8 +25,6 @@ BASE_URL = "https://baseball-data.com"
 # NPB最適指数
 NPB_EXPONENT = 1.72
 MLB_EXPONENT = 1.83
-
-YEARS = list(range(2015, 2026))
 
 # 順位表カラムの正規化マッピング
 STANDINGS_COLS = {
@@ -49,7 +48,7 @@ STANDINGS_COLS = {
 
 
 def build_standings_url(year: int) -> str:
-    current_year = 2026
+    current_year = DATA_END_YEAR
     yy = str(year)[2:]
     if year == current_year:
         return f"{BASE_URL}/team/standings.html"
@@ -167,7 +166,7 @@ def main():
     print("=" * 60)
 
     # データ取得
-    csv_path = RAW_DIR / "npb_standings_2015_2025.csv"
+    csv_path = RAW_DIR / f"npb_standings_2015_{DATA_END_YEAR}.csv"
     if csv_path.exists():
         print(f"\nLoading cached: {csv_path}")
         df = pd.read_csv(csv_path)
@@ -205,22 +204,16 @@ def main():
         mae_m = (yr_data["pyth_W_mlb"] - yr_data["W"]).abs().mean()
         print(f"  {year:>6} {mae_n:>12.2f} {mae_m:>12.2f} {len(yr_data):>6}")
 
-    # 2024年の詳細
-    print(f"\n--- 2024年 詳細 ---")
-    yr_2024 = result[result["year"] == 2024].sort_values("W", ascending=False)
-    if len(yr_2024) > 0:
-        print(yr_2024[["league", "team", "W", "L", "RS", "RA",
-                        "actual_WPCT", "pyth_WPCT_npb", "pyth_W_npb", "diff_W_npb"]].to_string(index=False))
-
-    # 2025年詳細
-    print(f"\n--- 2025年 詳細 ---")
-    yr_2025 = result[result["year"] == 2025].sort_values("W", ascending=False)
-    if len(yr_2025) > 0:
-        print(yr_2025[["league", "team", "W", "L", "RS", "RA",
-                        "actual_WPCT", "pyth_WPCT_npb", "pyth_W_npb", "diff_W_npb"]].to_string(index=False))
+    # 直近2年の詳細
+    for disp_year in [DATA_END_YEAR - 1, DATA_END_YEAR]:
+        print(f"\n--- {disp_year}年 詳細 ---")
+        yr = result[result["year"] == disp_year].sort_values("W", ascending=False)
+        if len(yr) > 0:
+            print(yr[["league", "team", "W", "L", "RS", "RA",
+                       "actual_WPCT", "pyth_WPCT_npb", "pyth_W_npb", "diff_W_npb"]].to_string(index=False))
 
     # CSV出力
-    out_path = OUT_DIR / "pythagorean_2015_2025.csv"
+    out_path = OUT_DIR / f"pythagorean_2015_{DATA_END_YEAR}.csv"
     result.to_csv(out_path, index=False, encoding="utf-8-sig")
     print(f"\nSaved: {out_path}")
 

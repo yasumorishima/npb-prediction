@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query
+from config import DATA_END_YEAR, TARGET_YEAR
 
 app = FastAPI(
     title="NPB 成績予測 API",
@@ -67,12 +68,12 @@ def _load_csv(filename: str) -> pd.DataFrame:
 
 
 # --- 起動時にCSVをメモリに読み込み ---
-marcel_hitters = _load_csv("marcel_hitters_2026.csv")
-marcel_pitchers = _load_csv("marcel_pitchers_2026.csv")
-ml_hitters = _load_csv("ml_hitters_2026.csv")
-ml_pitchers = _load_csv("ml_pitchers_2026.csv")
-sabermetrics = _load_csv("npb_sabermetrics_2015_2025.csv")
-pythagorean = _load_csv("pythagorean_2015_2025.csv")
+marcel_hitters = _load_csv(f"marcel_hitters_{TARGET_YEAR}.csv")
+marcel_pitchers = _load_csv(f"marcel_pitchers_{TARGET_YEAR}.csv")
+ml_hitters = _load_csv(f"ml_hitters_{TARGET_YEAR}.csv")
+ml_pitchers = _load_csv(f"ml_pitchers_{TARGET_YEAR}.csv")
+sabermetrics = _load_csv(f"npb_sabermetrics_2015_{DATA_END_YEAR}.csv")
+pythagorean = _load_csv(f"pythagorean_2015_{DATA_END_YEAR}.csv")
 
 
 def _search_player(df: pd.DataFrame, name: str) -> pd.DataFrame:
