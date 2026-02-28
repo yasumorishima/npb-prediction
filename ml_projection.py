@@ -17,6 +17,9 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from marcel_projection import load_birthdays, calc_age
 from config import DATA_END_YEAR, TARGET_YEAR
+import json
+import joblib
+from datetime import datetime
 
 try:
     import lightgbm as lgb
@@ -36,6 +39,10 @@ DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = DATA_DIR / "projections"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+MODELS_DIR = DATA_DIR / "models"
+METRICS_DIR = DATA_DIR / "metrics"
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+METRICS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _norm_name(name: str) -> str:
@@ -402,6 +409,15 @@ def main():
     h_results, X_test_h, y_test_h, feat_test_h = train_and_evaluate(
         feat_h, "target_OPS", "打者 OPS")
 
+    # metrics 初期化（打者）
+    metrics = {
+        "year": TARGET_YEAR,
+        "data_end_year": DATA_END_YEAR,
+        "generated_at": datetime.utcnow().isoformat(),
+        "hitter": {k: round(v["mae"], 4) for k, v in h_results.items() if "mae" in v},
+        "pitcher": {},
+    }
+
     # Marcel法の2025予測を再生成して比較
     from marcel_projection import marcel_hitter, load_hitters as marcel_load_h
     df_h_marcel = marcel_load_h()
@@ -411,6 +427,7 @@ def main():
         merged = test_players.merge(proj_h_2025[["player", "OPS"]], on="player", how="inner")
         if len(merged) > 0:
             marcel_mae = mean_absolute_error(merged["target_OPS"], merged["OPS"])
+            metrics["hitter"]["marcel"] = round(marcel_mae, 4)
             print(f"\n--- Marcel法との直接比較（共通 {len(merged)} 選手、PA>=100）---")
             print(f"Marcel:    MAE={marcel_mae:.4f}")
             common_players = set(merged["player"])
@@ -431,6 +448,8 @@ def main():
     p_results, X_test_p, y_test_p, feat_test_p = train_and_evaluate(
         feat_p, "target_ERA", "投手 ERA")
 
+    metrics["pitcher"] = {k: round(v["mae"], 4) for k, v in p_results.items() if "mae" in v}
+
     # Marcel比較（投手）
     from marcel_projection import marcel_pitcher, load_pitchers as marcel_load_p
     df_p_marcel = marcel_load_p()
@@ -440,6 +459,7 @@ def main():
         merged_p = test_players_p.merge(proj_p_2025[["player", "ERA"]], on="player", how="inner")
         if len(merged_p) > 0:
             marcel_mae_p = mean_absolute_error(merged_p["target_ERA"], merged_p["ERA"])
+            metrics["pitcher"]["marcel"] = round(marcel_mae_p, 4)
             print(f"\n--- Marcel法との直接比較（共通 {len(merged_p)} 選手、IP>=30）---")
             print(f"Marcel:    MAE={marcel_mae_p:.4f}")
             common_players_p = set(merged_p["player"])
@@ -477,6 +497,11 @@ def main():
             out_path = OUT_DIR / f"ml_hitters_{TARGET_YEAR}.csv"
             feat_h_2026[["player", "team", "pred_OPS"]].to_csv(out_path, index=False, encoding="utf-8-sig")
             print(f"Saved: {out_path}")
+            for model_name, res in h_results.items():
+                if "model" in res:
+                    pkl_path = MODELS_DIR / f"{model_name}_hitters_{TARGET_YEAR}.pkl"
+                    joblib.dump(res["model"], pkl_path)
+                    print(f"Saved model: {pkl_path}")
 
     # 投手予測
     feat_p_2026 = build_pitcher_features_for_prediction(df_p, TARGET_YEAR)
@@ -497,6 +522,17 @@ def main():
             out_path = OUT_DIR / f"ml_pitchers_{TARGET_YEAR}.csv"
             feat_p_2026[["player", "team", "pred_ERA"]].to_csv(out_path, index=False, encoding="utf-8-sig")
             print(f"Saved: {out_path}")
+            for model_name, res in p_results.items():
+                if "model" in res:
+                    pkl_path = MODELS_DIR / f"{model_name}_pitchers_{TARGET_YEAR}.pkl"
+                    joblib.dump(res["model"], pkl_path)
+                    print(f"Saved model: {pkl_path}")
+
+    metrics_path = METRICS_DIR / f"metrics_{TARGET_YEAR}.json"
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, ensure_ascii=False, indent=2)
+    print(f"\nSaved metrics: {metrics_path}")
+    print(json.dumps(metrics, ensure_ascii=False, indent=2))
 
 
 def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> pd.DataFrame:

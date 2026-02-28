@@ -8,6 +8,7 @@ Data sources:
 - 日本野球機構 NPB (https://npb.jp)
 """
 
+import json
 from enum import Enum
 from pathlib import Path
 
@@ -28,7 +29,7 @@ app = FastAPI(
         "- [プロ野球データFreak](https://baseball-data.com)\n"
         "- [日本野球機構 NPB](https://npb.jp)\n"
     ),
-    version="0.3.0",
+    version="0.4.0",
 )
 
 
@@ -48,6 +49,7 @@ class TeamName(str, Enum):
     西武 = "西武"
 
 PROJ_DIR = Path(__file__).parent / "data" / "projections"
+METRICS_DIR = Path(__file__).parent / "data" / "metrics"
 
 
 def _norm(name: str) -> str:
@@ -76,6 +78,20 @@ sabermetrics = _load_csv(f"npb_sabermetrics_2015_{DATA_END_YEAR}.csv")
 pythagorean = _load_csv(f"pythagorean_2015_{DATA_END_YEAR}.csv")
 
 
+def _load_all_metrics() -> list[dict]:
+    """data/metrics/ 配下の metrics_*.json を年度順に返す"""
+    if not METRICS_DIR.exists():
+        return []
+    result = []
+    for p in sorted(METRICS_DIR.glob("metrics_*.json")):
+        with open(p, encoding="utf-8") as f:
+            result.append(json.load(f))
+    return sorted(result, key=lambda x: x.get("year", 0))
+
+
+all_metrics = _load_all_metrics()
+
+
 def _search_player(df: pd.DataFrame, name: str) -> pd.DataFrame:
     """部分一致で選手を検索"""
     q = _norm(name)
@@ -102,6 +118,7 @@ def root():
             "/rankings/pitchers",
             "/pythagorean",
             "/simulate/team/{team}",
+            "/metrics",
         ],
     }
 
@@ -475,3 +492,20 @@ def pythagorean_all(
         })
 
     return {"年度": year, "件数": len(results), "順位表": results}
+
+
+@app.get(
+    "/metrics",
+    summary="モデル精度推移（年次メトリクス）",
+    description=(
+        "年次再学習ごとに記録したMAEの推移を返します。\n\n"
+        "- **hitter**: 打者OPS予測のMAE（Marcel法・LightGBM・XGBoost・Ensemble）\n"
+        "- **pitcher**: 投手ERA予測のMAE（同上）\n\n"
+        "値が小さいほど精度が高い。Marcel法より低い値のモデルが有効と判断。"
+    ),
+)
+def get_metrics():
+    """モデル精度推移（年次メトリクス）"""
+    if not all_metrics:
+        raise HTTPException(503, "メトリクスデータがありません（annual_update 実行後に利用可能）")
+    return {"件数": len(all_metrics), "メトリクス": all_metrics}

@@ -24,7 +24,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost
+        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost joblib
 
       - name: Set DATA_END_YEAR
         run: |
