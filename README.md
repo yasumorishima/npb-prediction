@@ -138,6 +138,57 @@ NPB公式データ（npb.jp）からリーグ環境に合わせた係数でwOBA/
 
 > 予測手法: wOBA回帰（R²=0.9954）→ wRAA → チーム得点推定 → ピタゴラス勝率（k=1.72）
 
+## MLOps 構成
+
+「予測スクリプトを作る」から「予測システムを運用する」への3本柱。
+
+| 仕組み | 実装 | 効果 |
+|---|---|---|
+| **モデル保存** | `joblib` → `data/models/*.pkl` | 年度ごとのモデルを永続化。過去のモデルで再予測可能 |
+| **精度記録** | `data/metrics/metrics_{year}.json` | Marcel vs ML のMAE推移を記録。「今年は改善したか」が分かる |
+| **自動実行** | GitHub Actions（毎年11月1日 + 手動） | データ取得→学習→保存→Gitコミットが全自動 |
+
+### CI/CD パイプライン（`annual_update.yml`）
+
+```
+Step 1: fetch_npb_data.py       → 打者/投手成績スクレイプ
+Step 2: fetch_npb_detailed.py   → 詳細打撃成績（wOBA算出用）
+Step 3: pythagorean.py          → 順位表・ピタゴラス勝率
+Step 4: sabermetrics.py         → wOBA/wRC+/wRAA算出
+Step 5: marcel_projection.py    → Marcel法予測
+Step 6: ml_projection.py        → ML予測 + モデル保存 + メトリクスJSON出力
+Step 7: git commit & push       → data/ を自動コミット（models/*.pkl / metrics/*.json 含む）
+```
+
+スケジュール: 毎年11月1日（NPBシーズン終了後）+ `workflow_dispatch`（手動実行）
+
+### `/metrics` エンドポイント
+
+年次再学習のたびに記録される MAE 推移を返します。
+
+```bash
+curl https://raspberrypi.tailb303d6.ts.net/metrics
+```
+
+```json
+{
+  "件数": 1,
+  "メトリクス": [{
+    "year": 2026,
+    "data_end_year": 2025,
+    "generated_at": "2026-11-01T09:30:00",
+    "hitter": {"lgb": 0.031, "xgb": 0.033, "ensemble": 0.030, "marcel": 0.048},
+    "pitcher": {"lgb": 0.58, "xgb": 0.61, "ensemble": 0.57, "marcel": 0.63}
+  }]
+}
+```
+
+`hitter.lgb < hitter.marcel` ならMLがMarcelを上回っている。そうでなければMarcelを採用。
+
+> **Note**: 現在の `metrics_2026.json` は `hitter`/`pitcher` が空（`{}`）。2025年の holdout データが NaN OPS の除外により 0 件になったため MAE を算出できなかった。2027年の年次実行（2026シーズンデータ）で初めて数値が埋まる。
+
+---
+
 ## 使い方
 
 ```bash
@@ -184,6 +235,7 @@ APIが起動したら http://localhost:8000/docs でSwagger UIを確認できま
 | GET | `/rankings/hitters?top=10&sort_by=OPS` | 打者ランキング |
 | GET | `/rankings/pitchers?top=10&sort_by=ERA` | 投手ランキング |
 | GET | `/pythagorean?year=2024` | 全チームのピタゴラス勝率 |
+| GET | `/metrics` | 年次MAE推移（Marcel vs ML） |
 
 ### レスポンス例
 
@@ -226,7 +278,11 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] 打者レーダーチャート6軸化（HR/AVG/OBP/SLG/wOBA/wRC+）
 - [x] 投手レーダーチャート6軸化（ERA/WHIP/奪三振/K9/BB9/HR9）
 - [x] K/9・BB/9・HR/9にリーグ平均との差分表示追加
+- [x] CI/CD自動再学習（GitHub Actions 毎年11月1日）
+- [x] モデルアーティファクト保存（`data/models/*.pkl`）
+- [x] 精度メトリクス記録・API公開（`/metrics`）
 - [ ] 計算対象外選手への初期値定義（歴代NPB外国人初年度実績・出身リーグ変換係数）
+- [ ] 精度が悪化したときの自動アラート
 - [ ] 精度改善（特徴量追加・アンサンブル等）
 
 ### 予測幅（信頼区間）の考え方
