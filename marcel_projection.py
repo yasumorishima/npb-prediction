@@ -71,8 +71,7 @@ def load_hitters() -> pd.DataFrame:
 
 def load_pitchers() -> pd.DataFrame:
     df = pd.read_csv(RAW_DIR / f"npb_pitchers_2015_{DATA_END_YEAR}.csv")
-    # 数値型に変換
-    for col in ["ERA", "WHIP", "DIPS", "IP", "BB", "HBP", "HRA", "BF"]:
+    for col in ["ERA", "WHIP", "DIPS", "IP", "ER", "HA", "W", "L", "SV", "SO", "BB", "HBP", "HRA", "BF", "G"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
