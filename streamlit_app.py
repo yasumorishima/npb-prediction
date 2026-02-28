@@ -570,6 +570,11 @@ def page_top(data: dict):
             st.info(t("no_data_pa").format(team=selected_team))
         else:
             display_h = team_hitters[["player", "AVG", "HR", "RBI", "H", "BB", "SB", "OBP", "SLG", "OPS"]].copy()
+            if "data_years" in team_hitters.columns:
+                display_h["player"] = team_hitters.apply(
+                    lambda r: ("⚠️ " if r["data_years"] == 1 else ("📊 " if r["data_years"] == 2 else "")) + r["player"],
+                    axis=1
+                )
             display_h.columns = [
                 t("col_player"), t("col_avg"), t("col_hr"), t("col_rbi"), t("col_h"),
                 t("col_bb"), t("col_sb"), t("col_obp"), t("col_slg"), "OPS",
@@ -597,6 +602,11 @@ def page_top(data: dict):
             st.info(t("no_data_ip").format(team=selected_team))
         else:
             display_p = team_pitchers[["player", "ERA", "W", "SO", "IP", "WHIP"]].copy()
+            if "data_years" in team_pitchers.columns:
+                display_p["player"] = team_pitchers.apply(
+                    lambda r: ("⚠️ " if r["data_years"] == 1 else ("📊 " if r["data_years"] == 2 else "")) + r["player"],
+                    axis=1
+                )
             display_p.columns = [t("col_player"), t("col_era"), t("col_w"), t("col_so"), t("col_ip"), "WHIP"]
             display_p["防御率"] = display_p["防御率"].apply(lambda x: f"{x:.2f}")
             display_p["勝利"] = display_p["勝利"].apply(lambda x: f"{x:.0f}")
@@ -681,7 +691,7 @@ def page_hitter_prediction(data: dict):
         dy = int(row.get("data_years", 3))
         if dy <= 2:
             note_key = "data_years_note_1" if dy == 1 else "data_years_note_2"
-            st.caption(t(note_key))
+            st.warning(t(note_key))
 
         components.html(render_hitter_card(row, glow=glow), height=280)
         st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
@@ -758,7 +768,7 @@ def page_pitcher_prediction(data: dict):
         dy = int(row.get("data_years", 3))
         if dy <= 2:
             note_key = "data_years_note_1" if dy == 1 else "data_years_note_2"
-            st.caption(t(note_key))
+            st.warning(t(note_key))
 
         components.html(render_pitcher_card(row, glow=glow), height=280)
         st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
