@@ -62,7 +62,7 @@ def load_sabermetrics() -> pd.DataFrame:
 
 def load_hitters() -> pd.DataFrame:
     df = pd.read_csv(RAW_DIR / f"npb_hitters_2015_{DATA_END_YEAR}.csv")
-    for col in ["RC27", "XR27"]:
+    for col in ["AVG", "OBP", "SLG", "OPS", "PA", "G", "HR", "RBI", "SB", "BB", "SO", "H", "RC27", "XR27"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
@@ -70,7 +70,7 @@ def load_hitters() -> pd.DataFrame:
 
 def load_pitchers() -> pd.DataFrame:
     df = pd.read_csv(RAW_DIR / f"npb_pitchers_2015_{DATA_END_YEAR}.csv")
-    for col in ["ERA", "WHIP", "DIPS", "IP"]:
+    for col in ["ERA", "WHIP", "DIPS", "IP", "ER", "HA", "W", "L", "SV", "SO", "BB", "HBP", "HRA", "BF", "G"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     # 投球回を数値化
