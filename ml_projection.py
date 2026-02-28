@@ -292,12 +292,22 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
     X_train, y_train = X[mask_train], y[mask_train]
     X_test, y_test = X[mask_test], y[mask_test]
 
+    # NaN ターゲットを除外（学習・テスト両方）
+    valid_train = y_train.notna()
+    X_train, y_train = X_train[valid_train], y_train[valid_train]
+    valid_test = y_test.notna()
+    X_test, y_test = X_test[valid_test], y_test[valid_test]
+    feat_df_test = feat_df[mask_test][valid_test.values]
+
     print(f"\n{'=' * 60}")
     print(f"{label} 予測")
     print(f"{'=' * 60}")
     print(f"Train: {len(X_train)} samples (up to {DATA_END_YEAR - 1} target years)")
     print(f"Test:  {len(X_test)} samples ({DATA_END_YEAR} target year)")
     print(f"Features: {len(feature_cols)}")
+
+    if len(X_test) == 0:
+        print(f"WARNING: テストデータが空（{DATA_END_YEAR}年データ未確定の可能性）。学習のみ実施。")
 
     results = {}
 
@@ -319,11 +329,14 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
         }
         model_lgb = lgb.LGBMRegressor(**lgb_params)
         model_lgb.fit(X_train, y_train)
-        pred_lgb = model_lgb.predict(X_test)
-        mae_lgb = mean_absolute_error(y_test, pred_lgb)
-        rmse_lgb = np.sqrt(mean_squared_error(y_test, pred_lgb))
-        print(f"\nLightGBM:  MAE={mae_lgb:.4f}  RMSE={rmse_lgb:.4f}")
-        results["lgb"] = {"model": model_lgb, "pred": pred_lgb, "mae": mae_lgb, "rmse": rmse_lgb}
+        if len(X_test) > 0:
+            pred_lgb = model_lgb.predict(X_test)
+            mae_lgb = mean_absolute_error(y_test, pred_lgb)
+            rmse_lgb = np.sqrt(mean_squared_error(y_test, pred_lgb))
+            print(f"\nLightGBM:  MAE={mae_lgb:.4f}  RMSE={rmse_lgb:.4f}")
+            results["lgb"] = {"model": model_lgb, "pred": pred_lgb, "mae": mae_lgb, "rmse": rmse_lgb}
+        else:
+            results["lgb"] = {"model": model_lgb}
 
         # 特徴量重要度 top10
         imp = pd.Series(model_lgb.feature_importances_, index=feature_cols).sort_values(ascending=False)
@@ -348,21 +361,24 @@ def train_and_evaluate(feat_df: pd.DataFrame, target_col: str, label: str):
         }
         model_xgb = xgb.XGBRegressor(**xgb_params)
         model_xgb.fit(X_train, y_train)
-        pred_xgb = model_xgb.predict(X_test)
-        mae_xgb = mean_absolute_error(y_test, pred_xgb)
-        rmse_xgb = np.sqrt(mean_squared_error(y_test, pred_xgb))
-        print(f"\nXGBoost:   MAE={mae_xgb:.4f}  RMSE={rmse_xgb:.4f}")
-        results["xgb"] = {"model": model_xgb, "pred": pred_xgb, "mae": mae_xgb, "rmse": rmse_xgb}
+        if len(X_test) > 0:
+            pred_xgb = model_xgb.predict(X_test)
+            mae_xgb = mean_absolute_error(y_test, pred_xgb)
+            rmse_xgb = np.sqrt(mean_squared_error(y_test, pred_xgb))
+            print(f"\nXGBoost:   MAE={mae_xgb:.4f}  RMSE={rmse_xgb:.4f}")
+            results["xgb"] = {"model": model_xgb, "pred": pred_xgb, "mae": mae_xgb, "rmse": rmse_xgb}
+        else:
+            results["xgb"] = {"model": model_xgb}
 
     # アンサンブル
-    if "lgb" in results and "xgb" in results:
+    if "lgb" in results and "xgb" in results and len(X_test) > 0:
         pred_ens = (results["lgb"]["pred"] + results["xgb"]["pred"]) / 2
         mae_ens = mean_absolute_error(y_test, pred_ens)
         rmse_ens = np.sqrt(mean_squared_error(y_test, pred_ens))
         print(f"\nEnsemble:  MAE={mae_ens:.4f}  RMSE={rmse_ens:.4f}")
         results["ensemble"] = {"pred": pred_ens, "mae": mae_ens, "rmse": rmse_ens}
 
-    return results, X_test, y_test, feat_df[mask_test]
+    return results, X_test, y_test, feat_df_test
 
 
 def compare_with_marcel(ml_results: dict, feat_test: pd.DataFrame,
