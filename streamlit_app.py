@@ -698,9 +698,10 @@ def page_hitter_prediction(data: dict):
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
         dy = int(row.get("data_years", 3))
-        if dy <= 2:
-            note_key = "data_years_note_1" if dy == 1 else "data_years_note_2"
-            st.warning(t(note_key))
+        if dy == 1:
+            st.warning(t("data_years_note_1") or "⚠️ NPBデータが1年のみのため、予測値はリーグ平均に強く補正されています。")
+        elif dy == 2:
+            st.warning(t("data_years_note_2") or "📊 NPBデータが2年のみのため、予測値はリーグ平均にやや補正されています。")
 
         components.html(render_hitter_card(row, glow=glow), height=280)
         st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
@@ -775,9 +776,10 @@ def page_pitcher_prediction(data: dict):
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
         dy = int(row.get("data_years", 3))
-        if dy <= 2:
-            note_key = "data_years_note_1" if dy == 1 else "data_years_note_2"
-            st.warning(t(note_key))
+        if dy == 1:
+            st.warning(t("data_years_note_1") or "⚠️ NPBデータが1年のみのため、予測値はリーグ平均に強く補正されています。")
+        elif dy == 2:
+            st.warning(t("data_years_note_2") or "📊 NPBデータが2年のみのため、予測値はリーグ平均にやや補正されています。")
 
         components.html(render_pitcher_card(row, glow=glow), height=280)
         st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
