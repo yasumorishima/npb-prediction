@@ -1295,7 +1295,7 @@ def page_pythagorean_standings(data: dict):
             glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
             rank = i + 1
             medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
-            diff = row["diff_W_npb"]
+            diff = -row["diff_W_npb"]  # 実際 - 期待値（+が上振れ、-が下振れ）
             diff_color = "#4CAF50" if diff >= 0 else "#ff4466"
             cards += f"""
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px 0;">
