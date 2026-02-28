@@ -593,6 +593,8 @@ def page_top(data: dict):
             display_h = display_h.reset_index(drop=True)
             display_h.index = display_h.index + 1
             st.dataframe(display_h, use_container_width=True, height=min(400, len(display_h) * 40 + 60))
+            if "data_years" in team_hitters.columns and (team_hitters["data_years"] <= 2).any():
+                st.caption(t("data_years_legend"))
             with st.expander(t("how_to_read")):
                 st.markdown(t("batter_stats_help"))
 
@@ -621,6 +623,8 @@ def page_top(data: dict):
             display_p = display_p.reset_index(drop=True)
             display_p.index = display_p.index + 1
             st.dataframe(display_p, use_container_width=True, height=min(400, len(display_p) * 40 + 60))
+            if "data_years" in team_pitchers.columns and (team_pitchers["data_years"] <= 2).any():
+                st.caption(t("data_years_legend"))
             with st.expander(t("how_to_read")):
                 st.markdown(t("pitcher_stats_help"))
 
