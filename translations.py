@@ -136,12 +136,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "no_data_ip": "{team}の投手データがありません（IP >= 30）",
         "top3_batters": "打者 TOP3（wRC+ 順）",
         "top3_batters_caption": "wRC+（Weighted Runs Created Plus）= リーグ平均を100とした打撃力。高いほど優秀",
-        "top3_pitchers": "先発投手 TOP3（FIP 順 / IP 100以上）",
+        "top3_pitchers": "先発投手 TOP3（FIP 順 / 投球回 100以上）",
         "top3_pitchers_caption": "FIP（Fielding Independent Pitching）= 守備の影響を除いた防御率。被本塁打・四球・奪三振のみで算出",
-        "top3_relievers": "主にリリーフ TOP3（FIP 順 / IP 20〜99）",
-        "top3_relievers_caption": "IP 20〜99 の投手を対象にFIP順で表示。※ 怪我等でIPが少ない先発投手も含まれる場合があります",
-        "reliever_rank_title": "主にリリーフのランキング（IP 20〜99）",
-        "reliever_rank_caption": "IP 20〜99 の投手が対象。※ 怪我等でIPが少ない先発投手も含まれる場合があります",
+        "top3_relievers": "主にリリーフ TOP3（FIP 順 / 投球回 20〜99）",
+        "top3_relievers_caption": "投球回（IP）20〜99 の投手を対象にFIP順で表示。※ 怪我等で投球回が少ない先発投手も含まれる場合があります",
+        "reliever_rank_title": "主にリリーフのランキング（投球回 20〜99）",
+        "reliever_rank_caption": "投球回（IP）20〜99 の投手が対象。※ 怪我等で投球回が少ない先発投手も含まれる場合があります",
         "featured_matchup": "注目対決",
 
         # --- Hitter prediction ---
