@@ -541,6 +541,24 @@ def page_top(data: dict):
 
     st.warning(t("top_warning"))
 
+    with st.expander(t("glossary")):
+        st.markdown(
+            f"**{t('top_glossary_batters')}**\n"
+            f"- {t('glossary_ops')}\n"
+            f"- {t('glossary_woba')}\n"
+            f"- {t('glossary_wrcplus')}\n\n"
+            f"**{t('top_glossary_pitchers')}**\n"
+            f"- {t('glossary_era')}\n"
+            f"- {t('glossary_whip')}\n"
+            f"- {t('fip_value_desc')}\n"
+            f"- {t('k_pct_desc')}\n"
+            f"- {t('bb_pct_desc')}\n"
+            f"- {t('k_bb_pct_desc')}\n"
+            f"- {t('k9_desc')}\n"
+            f"- {t('bb9_desc')}\n"
+            f"- {t('hr9_desc')}"
+        )
+
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
 
