@@ -21,7 +21,7 @@ Tom Tangoが考案した成績予測手法。過去3年の成績を **5/4/3** �
 
 Raspberry Pi 5 + Docker で常時稼働中。Tailscale Funnelで外部公開しています。全エンドポイントをSwagger UIから直接試せます（止まっている場合はご容赦ください）。
 
-- **トップページ**: TOP3打者/投手 + レーダーチャート（入力不要）
+- **トップページ**: 打者 TOP3（wRC+順）+ 先発投手 TOP3（FIP順/投球回100以上）+ リリーフ投手 TOP3（FIP順/投球回20〜99）+ レーダーチャート + 用語説明（入力不要）
 - **順位表**: セ・パ両リーグの予測順位（ピタゴラス勝率ベース）
 - **打者ランキング**: OPS/AVG/HR/RBI/wOBA/wRC+ でソート
 - **投手ランキング**: ERA/WHIP/SO/W/FIP/K%/BB%/K-BB%/K9/BB9/HR9 でソート
@@ -279,8 +279,11 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] 全指標に計算式expander（式 + 基準値の解説）
 - [x] NPBデータ年数バッジ表示（1年/2年の選手は予測精度に注意書き）
 - [x] 打者レーダーチャート6軸化（HR/AVG/OBP/SLG/wOBA/wRC+）
-- [x] 投手レーダーチャート6軸化（ERA/WHIP/奪三振/K9/BB9/HR9）
+- [x] 投手レーダーチャート7軸化（ERA/WHIP/奪三振/K9/BB9/HR9/FIP）
 - [x] K/9・BB/9・HR/9にリーグ平均との差分表示追加
+- [x] 打者TOP3のソートをwRC+順に変更（OPSから変更）
+- [x] 投手TOP3を先発（投球回100以上）・リリーフ（20〜99）に分離しFIP順で表示
+- [x] 棒グラフとレーダーチャートの指標を統一（打者: wOBA/wRC+、投手: FIP/K9/BB9/HR9）
 - [x] CI/CD自動再学習（GitHub Actions 毎年11月1日）
 - [x] モデルアーティファクト保存（`data/models/*.pkl`）
 - [x] 精度メトリクス記録・API公開（`/metrics`）
