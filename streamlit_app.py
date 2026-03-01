@@ -1097,7 +1097,7 @@ def page_pitcher_rankings(data: dict):
     sort_by = sort_labels[sort_label]
 
     ascending = sort_by in ("ERA", "WHIP", "FIP", "BB_pct", "BB9", "HR9")
-    df = mp[mp["IP"] >= 50].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
+    df = mp[mp["IP"] >= 100].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
 
     fmt_map = {"ERA": ".2f", "WHIP": ".2f", "SO": ".0f", "W": ".0f",
                "FIP": ".2f", "K_pct": ".1f", "BB_pct": ".1f", "K_BB_pct": ".1f",
