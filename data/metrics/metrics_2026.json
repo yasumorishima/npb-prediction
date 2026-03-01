@@ -1,7 +1,17 @@
 {
   "year": 2026,
   "data_end_year": 2025,
-  "generated_at": "2026-02-28T08:09:43.282813",
-  "hitter": {},
-  "pitcher": {}
+  "generated_at": "2026-03-01T04:52:38.800498",
+  "hitter": {
+    "lgb": 0.0663,
+    "xgb": 0.0628,
+    "ensemble": 0.0641,
+    "marcel": 0.0627
+  },
+  "pitcher": {
+    "lgb": 0.9166,
+    "xgb": 0.9296,
+    "ensemble": 0.9198,
+    "marcel": 0.7757
+  }
 }
