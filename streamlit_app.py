@@ -472,7 +472,7 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
     layout_kwargs = dict(
         polar=dict(
             bgcolor="#0d0d24",
-            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333", fixedrange=True),
+            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
             angularaxis=dict(gridcolor="#333", linecolor="#444"),
         ),
         showlegend=True,
@@ -529,7 +529,7 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
     layout_kwargs = dict(
         polar=dict(
             bgcolor="#0d0d24",
-            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333", fixedrange=True),
+            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False, gridcolor="#333"),
             angularaxis=dict(gridcolor="#333", linecolor="#444"),
         ),
         showlegend=True,
