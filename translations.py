@@ -138,10 +138,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "top3_batters_caption": "wRC+（Weighted Runs Created Plus）= リーグ平均を100とした打撃力。高いほど優秀",
         "top3_pitchers": "投手 TOP3（FIP 予測）",
         "top3_pitchers_caption": "FIP（Fielding Independent Pitching）= 守備の影響を除いた防御率。被本塁打・四球・奪三振のみで算出（対象: IP 100以上の先発投手）",
-        "top3_relievers": "リリーフ投手 TOP3（FIP 予測）",
-        "top3_relievers_caption": "FIP順。中継ぎ・抑えを含む（対象: IP 20〜99）",
-        "reliever_rank_title": "リリーフ投手ランキング（IP 20〜99）",
-        "reliever_rank_caption": "中継ぎ・抑えを含む。IP 20〜99 の投手が対象",
+        "top3_relievers": "投手 TOP3 ／ IP 20〜99（FIP 予測）",
+        "top3_relievers_caption": "FIP順。IP 20〜99 の投手が対象（主にリリーフ想定）。※ 怪我等でIPが少ない先発投手も含まれる場合があります",
+        "reliever_rank_title": "投手ランキング ／ IP 20〜99",
+        "reliever_rank_caption": "IP 20〜99 の投手が対象（主にリリーフ想定）。※ 怪我等でIPが少ない先発投手も含まれる場合があります",
         "featured_matchup": "注目対決",
 
         # --- Hitter prediction ---
@@ -476,10 +476,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "top3_batters_caption": "wRC+ (Weighted Runs Created Plus) = Batting performance normalized to league average of 100. Higher is better",
         "top3_pitchers": "Top 3 Pitchers (FIP Projection)",
         "top3_pitchers_caption": "FIP (Fielding Independent Pitching) = Defense-independent ERA based solely on HR, BB, and K (Starters: IP ≥ 100)",
-        "top3_relievers": "Top 3 Relievers (FIP Projection)",
-        "top3_relievers_caption": "Ranked by FIP. Includes middle relievers and closers (IP 20–99)",
-        "reliever_rank_title": "Reliever Rankings (IP 20–99)",
-        "reliever_rank_caption": "Includes middle relievers and closers. Pitchers with 20 ≤ IP < 100",
+        "top3_relievers": "Pitchers TOP3 / IP 20–99 (FIP Projection)",
+        "top3_relievers_caption": "Ranked by FIP. Pitchers with IP 20–99 (mainly relievers). ※ Starters with limited innings due to injury may also appear.",
+        "reliever_rank_title": "Pitcher Rankings / IP 20–99",
+        "reliever_rank_caption": "Pitchers with IP 20–99 (mainly relievers). ※ Starters with limited innings due to injury may also appear.",
         "featured_matchup": "Featured Matchup",
 
         # --- Hitter prediction ---
