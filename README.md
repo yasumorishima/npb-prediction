@@ -35,8 +35,10 @@ Raspberry Pi 5 + Docker で常時稼働中。Tailscale Funnelで外部公開し�
 |---|---|
 | `fetch_npb_data.py` | baseball-data.com から NPB成績を取得（2015-2025、打者+投手） |
 | `fetch_npb_detailed.py` | npb.jp から詳細打撃成績を取得（2B/3B/SF含む、wOBA算出用） |
+| `fetch_rosters.py` | baseball-data.com から年別NPB支配下登録選手一覧を取得（2018-2025） |
 | `sabermetrics.py` | wOBA/wRC+/wRAA算出（NPBリーグ環境に合わせた係数） |
 | `marcel_projection.py` | Marcel法による翌年成績予測（年齢調整付き） |
+| `generate_historical_projections.py` | 過去年（2018-2025）のMarcel→ピタゴラス予測勝利数を生成（選手名鑑フィルタ適用済み） |
 | `ml_projection.py` | XGBoost/LightGBM による成績予測（年齢+wOBA/wRC+特徴量付き） |
 | `pythagorean.py` | ピタゴラス勝率によるチーム勝率予測（NPB最適指数 k=1.72） |
 | `api.py` | FastAPI 推論API（全予測をREST APIで提供） |
@@ -53,6 +55,7 @@ Raspberry Pi 5 + Docker で常時稼働中。Tailscale Funnelで外部公開し�
 | `data/raw/npb_standings_2015_2025.csv` | 順位表 132行（12球団×11年） |
 | `data/raw/npb_player_birthdays.csv` | 生年月日 2,479人 |
 | `data/raw/npb_batting_detailed_2015_2025.csv` | 詳細打撃成績 4,538行（npb.jp、2B/3B/SF含む） |
+| `data/raw/npb_rosters_2018_2025.csv` | 年別支配下登録選手名鑑 7,866行（MLB移籍・退団選手の除外フィルタ用） |
 | `data/projections/npb_sabermetrics_2015_2025.csv` | wOBA/wRC+/wRAA算出結果 |
 | `data/projections/` | 予測結果CSV（Marcel法・ML・ピタゴラス勝率・セイバー） |
 
@@ -281,6 +284,7 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] モデルアーティファクト保存（`data/models/*.pkl`）
 - [x] 精度メトリクス記録・API公開（`/metrics`）
 - [x] 歴史的バックテストのチーム割り当てバグ修正（FA・移籍選手が前年チームに計上されていた問題）
+- [x] 選手名鑑フィルタ追加（退団・MLB移籍・引退選手を予測から除外、`npb_rosters_2018_2025.csv` 参照）
 - [ ] 計算対象外選手への初期値定義（歴代NPB外国人初年度実績・出身リーグ変換係数）
 - [ ] 精度が悪化したときの自動アラート
 - [ ] 精度改善（特徴量追加・アンサンブル等）
