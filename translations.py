@@ -160,11 +160,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "player2_label": "プレイヤー2",
 
         # --- Team Wpct ---
-        "team_wpct_title": "チーム勝率予測",
+        "team_wpct_title": "チーム勝率分析",
         "actual_wpct": "実際の勝率",
-        "pred_wpct": "予測勝率",
+        "pred_wpct": "ピタゴラス期待勝率（実績RS/RA）",
         "actual_record": "実際の成績",
-        "expected_wins": "期待勝数",
+        "expected_wins": "ピタゴラス期待勝数",
         "record_fmt": "{w}勝{l}敗",
 
         # --- Sabermetrics ---
@@ -500,11 +500,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "player2_label": "Player 2",
 
         # --- Team Wpct ---
-        "team_wpct_title": "Team Win% Prediction",
+        "team_wpct_title": "Team Win% Analysis",
         "actual_wpct": "Actual Win%",
-        "pred_wpct": "Predicted Win%",
+        "pred_wpct": "Pythagorean Expected Win% (Actual RS/RA)",
         "actual_record": "Actual Record",
-        "expected_wins": "Expected Wins",
+        "expected_wins": "Pythagorean Expected Wins",
         "record_fmt": "{w}W {l}L",
 
         # --- Sabermetrics ---
