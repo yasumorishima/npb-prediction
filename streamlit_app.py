@@ -643,7 +643,7 @@ def page_top(data: dict):
             display_h = team_hitters[["player", "AVG", "HR", "RBI", "H", "BB", "SB", "OBP", "SLG", "OPS"]].copy()
             if "data_years" in team_hitters.columns:
                 display_h["注"] = team_hitters["data_years"].apply(
-                    lambda v: "⚠️1年" if int(v) == 1 else ("📊2年" if int(v) == 2 else "")
+                    lambda v: "⚠️直近1年のみ" if int(v) == 1 else ("📊直近2年のみ" if int(v) == 2 else "")
                 ).values
             display_h.columns = (
                 [t("col_player"), t("col_avg"), t("col_hr"), t("col_rbi"), t("col_h"),
@@ -679,7 +679,7 @@ def page_top(data: dict):
             display_p = team_pitchers[["player", "ERA", "W", "SO", "IP", "WHIP"]].copy()
             if "data_years" in team_pitchers.columns:
                 display_p["注"] = team_pitchers["data_years"].apply(
-                    lambda v: "⚠️1年" if int(v) == 1 else ("📊2年" if int(v) == 2 else "")
+                    lambda v: "⚠️直近1年のみ" if int(v) == 1 else ("📊直近2年のみ" if int(v) == 2 else "")
                 ).values
             display_p.columns = (
                 [t("col_player"), t("col_era"), t("col_w"), t("col_so"), t("col_ip"), "WHIP", "注"]
