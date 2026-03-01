@@ -2,11 +2,11 @@ name: Annual NPB Update
 
 on:
   schedule:
-    - cron: '0 9 1 11 *'   # 毎年11月1日 9:00 UTC（NPBシーズン終了後）
+    - cron: '0 9 1 3 *'   # 毎年3月1日 9:00 UTC（FA・移籍確定後、開幕前）
   workflow_dispatch:
     inputs:
       data_end_year:
-        description: 'Last season year (e.g., 2026). Leave blank for current year.'
+        description: 'Last season year (e.g., 2025). Leave blank for previous year.'
         required: false
         default: ''
 
@@ -34,7 +34,8 @@ jobs:
           if [ -n "${{ github.event.inputs.data_end_year }}" ]; then
             echo "NPB_DATA_END_YEAR=${{ github.event.inputs.data_end_year }}" >> $GITHUB_ENV
           else
-            echo "NPB_DATA_END_YEAR=$(date +'%Y')" >> $GITHUB_ENV
+            # 3月実行: 前年シーズンのデータを対象にする
+            echo "NPB_DATA_END_YEAR=$(($(date +'%Y') - 1))" >> $GITHUB_ENV
           fi
 
       - name: 1. Fetch hitter/pitcher stats
@@ -47,22 +48,27 @@ jobs:
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
 
-      - name: 3. Fetch standings + Pythagorean
+      - name: 3. Fetch NPB registered player roster (FA・移籍確定後)
+        run: python fetch_rosters.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 4. Fetch standings + Pythagorean
         run: python pythagorean.py
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
 
-      - name: 4. Calculate wOBA/wRC+ (sabermetrics)
+      - name: 5. Calculate wOBA/wRC+ (sabermetrics)
         run: python sabermetrics.py
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
 
-      - name: 5. Marcel projections
+      - name: 6. Marcel projections
         run: python marcel_projection.py
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
 
-      - name: 6. ML projections (LightGBM/XGBoost)
+      - name: 7. ML projections (LightGBM/XGBoost)
         run: python ml_projection.py
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
@@ -75,6 +81,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No data changes to commit"
           else
-            git commit -m "auto: update NPB data to ${NPB_DATA_END_YEAR} ($(date +'%Y-%m-%d'))"
+            git commit -m "auto: update NPB data and projections for ${NPB_DATA_END_YEAR} season ($(date +'%Y-%m-%d'))"
             git push
           fi
