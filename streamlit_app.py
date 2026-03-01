@@ -825,16 +825,21 @@ def page_hitter_prediction(data: dict):
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(
                         x=trend["year"], y=trend["wRC+"],
+                        name=player_name,
                         mode="lines+markers", line=dict(color=glow, width=2),
                         marker=dict(size=8, color=glow),
                     ))
-                    fig.add_hline(y=100, line_dash="dash", line_color="#666",
-                                  annotation_text=t("league_average"), annotation_font_color="#888")
+                    fig.add_trace(go.Scatter(
+                        x=trend["year"], y=[100] * len(trend),
+                        name=t("league_average"),
+                        mode="lines", line=dict(color="#aaaaaa", width=1, dash="dash"),
+                    ))
                     fig.update_layout(
                         height=300, xaxis_title=t("year_axis"), yaxis_title="wRC+",
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                         font=dict(color="#e0e0e0"),
                         xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                     )
                     st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
