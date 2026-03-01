@@ -9,6 +9,7 @@ Marcel予測フィルタ用: target_yearの選手名鑑に存在しない選手�
 """
 
 import io
+import os
 import time
 import pandas as pd
 import urllib.request
@@ -33,7 +34,7 @@ TEAM_CODES = {
 }
 
 START_YEAR = 2018
-END_YEAR = 2025
+END_YEAR = int(os.environ.get("NPB_DATA_END_YEAR", 2025))
 
 
 def fetch_team_roster(year: int, team: str, code: str) -> list[str]:

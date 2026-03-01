@@ -47,6 +47,11 @@ jobs:
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
 
+      - name: 2b. Fetch NPB registered player roster (Marcel filter)
+        run: python fetch_rosters.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
       - name: 3. Fetch standings + Pythagorean
         run: python pythagorean.py
         env:
