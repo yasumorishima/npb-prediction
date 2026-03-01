@@ -33,19 +33,15 @@ TEAM_CODES = {
 
 
 def build_url(year: int, stat_type: str) -> str:
-    """年度別URL生成"""
-    current_year = DATA_END_YEAR
+    """年度別URL生成（常に年ありURLを使用）"""
     yy = str(year)[2:]  # "15", "16", ...
 
     if stat_type == "hitter":
-        path = f"stats/hitter-all/tpa-1.html"
+        path = "stats/hitter-all/tpa-1.html"
     else:
-        path = f"stats/pitcher-all/era-1.html"
+        path = "stats/pitcher-all/era-1.html"
 
-    if year == current_year:
-        return f"{BASE_URL}/{path}"
-    else:
-        return f"{BASE_URL}/{yy}/{path}"
+    return f"{BASE_URL}/{yy}/{path}"
 
 
 def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
