@@ -32,6 +32,20 @@ def build_team_projections(target_year, df_h, df_p, df_pyth, df_saber):
     if mh.empty or mp.empty:
         return pd.DataFrame()
 
+    # チーム割り当てを target_year の実データで上書き（歴史的バックテスト用）
+    # Marcel は前年チームを使うため、シーズン前移籍が反映されない問題を修正
+    # 同一選手の重複（シーズン途中移籍）は最後のチームを採用
+    actual_h = (df_h[df_h["year"] == target_year]
+                .drop_duplicates(subset="player", keep="last")
+                .set_index("player")["team"])
+    actual_p = (df_p[df_p["year"] == target_year]
+                .drop_duplicates(subset="player", keep="last")
+                .set_index("player")["team"])
+    mh = mh.copy()
+    mp = mp.copy()
+    mh["team"] = mh["player"].map(actual_h).fillna(mh["team"])
+    mp["team"] = mp["player"].map(actual_p).fillna(mp["team"])
+
     # リーグ平均RS/RA: target_year より前の3年分
     ref_years = list(range(target_year - 3, target_year))
     recent_p = df_pyth[df_pyth["year"].isin(ref_years)]
