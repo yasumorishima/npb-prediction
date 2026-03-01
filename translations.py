@@ -137,7 +137,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "top3_batters": "打者 TOP3（wRC+ 予測）",
         "top3_batters_caption": "wRC+（Weighted Runs Created Plus）= リーグ平均を100とした打撃力。高いほど優秀",
         "top3_pitchers": "投手 TOP3（FIP 予測）",
-        "top3_pitchers_caption": "FIP（Fielding Independent Pitching）= 守備の影響を除いた防御率。被本塁打・四球・奪三振のみで算出",
+        "top3_pitchers_caption": "FIP（Fielding Independent Pitching）= 守備の影響を除いた防御率。被本塁打・四球・奪三振のみで算出（対象: IP 100以上の先発投手）",
+        "top3_relievers": "リリーフ投手 TOP3（FIP 予測）",
+        "top3_relievers_caption": "FIP順。中継ぎ・抑えを含む（対象: IP 20〜99）",
+        "reliever_rank_title": "リリーフ投手ランキング（IP 20〜99）",
+        "reliever_rank_caption": "中継ぎ・抑えを含む。IP 20〜99 の投手が対象",
         "featured_matchup": "注目対決",
 
         # --- Hitter prediction ---
@@ -471,7 +475,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "top3_batters": "Top 3 Batters (wRC+ Projection)",
         "top3_batters_caption": "wRC+ (Weighted Runs Created Plus) = Batting performance normalized to league average of 100. Higher is better",
         "top3_pitchers": "Top 3 Pitchers (FIP Projection)",
-        "top3_pitchers_caption": "FIP (Fielding Independent Pitching) = Defense-independent ERA based solely on HR, BB, and K",
+        "top3_pitchers_caption": "FIP (Fielding Independent Pitching) = Defense-independent ERA based solely on HR, BB, and K (Starters: IP ≥ 100)",
+        "top3_relievers": "Top 3 Relievers (FIP Projection)",
+        "top3_relievers_caption": "Ranked by FIP. Includes middle relievers and closers (IP 20–99)",
+        "reliever_rank_title": "Reliever Rankings (IP 20–99)",
+        "reliever_rank_caption": "Includes middle relievers and closers. Pitchers with 20 ≤ IP < 100",
         "featured_matchup": "Featured Matchup",
 
         # --- Hitter prediction ---

@@ -718,7 +718,7 @@ def page_top(data: dict):
             glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
             st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                         unsafe_allow_html=True)
-            components.html(render_hitter_card(row, glow=glow), height=260)
+            components.html(render_hitter_card(row, glow=glow), height=310)
             st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow), use_container_width=True, config={"staticPlot": True})
 
         # TOP3 投手
@@ -731,7 +731,18 @@ def page_top(data: dict):
             glow = NPB_TEAM_GLOW.get(row.get("team", ""), "#00e5ff")
             st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                         unsafe_allow_html=True)
-            components.html(render_pitcher_card(row, glow=glow), height=260)
+            components.html(render_pitcher_card(row, glow=glow), height=360)
+            st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True, config={"staticPlot": True})
+
+        # リリーフ投手 TOP3
+        st.markdown(f"### {t('top3_relievers')}")
+        st.caption(t("top3_relievers_caption"))
+        top_relievers = mp_saber[(mp_saber["IP"] >= 20) & (mp_saber["IP"] < 100)].nsmallest(3, "FIP")
+        for i, (_, row) in enumerate(top_relievers.iterrows()):
+            glow = NPB_TEAM_GLOW.get(row.get("team", ""), "#00e5ff")
+            st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
+                        unsafe_allow_html=True)
+            components.html(render_pitcher_card(row, glow=glow), height=360)
             st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow), use_container_width=True, config={"staticPlot": True})
 
 
@@ -776,7 +787,7 @@ def page_hitter_prediction(data: dict):
         elif dy == 2:
             st.warning(t("data_years_note_2") or "📊 NPBデータが2年のみのため、予測値はリーグ平均にやや補正されています。")
 
-        components.html(render_hitter_card(row, glow=glow), height=280)
+        components.html(render_hitter_card(row, glow=glow), height=310)
         st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
                         use_container_width=True)
 
@@ -854,7 +865,7 @@ def page_pitcher_prediction(data: dict):
         elif dy == 2:
             st.warning(t("data_years_note_2") or "📊 NPBデータが2年のみのため、予測値はリーグ平均にやや補正されています。")
 
-        components.html(render_pitcher_card(row, glow=glow), height=280)
+        components.html(render_pitcher_card(row, glow=glow), height=360)
         st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
                         use_container_width=True)
 
@@ -1117,6 +1128,19 @@ def page_pitcher_rankings(data: dict):
     <div style="max-height:600px;overflow-y:auto;padding:4px;">
       {cards}
     </div>""", height=min(650, top_n * 50 + 20))
+
+    st.markdown("---")
+    with st.expander(t("reliever_rank_title")):
+        st.caption(t("reliever_rank_caption"))
+        df_rel = mp[(mp["IP"] >= 20) & (mp["IP"] < 100)].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
+        cards_rel = ""
+        for i, (_, row) in enumerate(df_rel.iterrows()):
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            cards_rel += _leaderboard_card(i + 1, row, sort_by, fmt, glow)
+        components.html(f"""
+        <div style="max-height:600px;overflow-y:auto;padding:4px;">
+          {cards_rel}
+        </div>""", height=min(650, top_n * 50 + 20))
 
 
 def _build_2026_standings(data: dict) -> pd.DataFrame:
