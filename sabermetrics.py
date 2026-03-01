@@ -25,6 +25,14 @@ RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = DATA_DIR / "projections"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# 異体字統一マップ（streamlit_app.py の _VARIANT_MAP と同じ）
+_VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
+
+
+def normalize_player_name(name: str) -> str:
+    """全角スペース→半角、先頭の * を除去、異体字を統一"""
+    return str(name).replace("\u3000", " ").strip().lstrip("*").strip().translate(_VARIANT_MAP)
+
 # --- wOBA得点価値係数（MLB標準値をベースにNPBリーグ環境でスケーリング） ---
 # MLB標準: BB=0.69, HBP=0.72, 1B=0.88, 2B=1.27, 3B=1.62, HR=2.10
 # NPBは得点環境が年度で変動するため、リーグ平均wOBAが.320になるようスケーリングする
@@ -171,6 +179,7 @@ def main():
 
     # 詳細打撃成績を読み込み
     df = pd.read_csv(RAW_DIR / f"npb_batting_detailed_2015_{DATA_END_YEAR}.csv")
+    df["player"] = df["player"].apply(normalize_player_name)
     print(f"Input: {len(df)} rows, years={sorted(df['year'].unique())}")
 
     # 年度別にwOBA/wRC+を算出
