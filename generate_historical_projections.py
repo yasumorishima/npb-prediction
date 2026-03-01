@@ -25,7 +25,7 @@ def pyth_wpct(rs, ra, k=PYTH_K):
     return rs**k / (rs**k + ra**k)
 
 
-def build_team_projections(target_year, df_h, df_p, df_pyth, df_saber):
+def build_team_projections(target_year, df_h, df_p, df_pyth, df_saber, df_roster=None):
     mh = marcel_hitter(df_h, target_year)
     mp = marcel_pitcher(df_p, target_year)
 
@@ -45,6 +45,19 @@ def build_team_projections(target_year, df_h, df_p, df_pyth, df_saber):
     mp = mp.copy()
     mh["team"] = mh["player"].map(actual_h).fillna(mh["team"])
     mp["team"] = mp["player"].map(actual_p).fillna(mp["team"])
+
+    # 選手名鑑フィルタ: target_year の NPB 登録選手のみ残す
+    # 退団・MLB移籍・引退選手を Marcel 予測から除外する
+    if df_roster is not None:
+        roster_names = set(df_roster[df_roster["year"] == target_year]["player"])
+        if roster_names:
+            before_h, before_p = len(mh), len(mp)
+            mh = mh[mh["player"].isin(roster_names)].copy()
+            mp = mp[mp["player"].isin(roster_names)].copy()
+            removed_h = before_h - len(mh)
+            removed_p = before_p - len(mp)
+            if removed_h + removed_p > 0:
+                print(f"    名鑑フィルタ: 打者{removed_h}人・投手{removed_p}人除外", end=" ")
 
     # リーグ平均RS/RA: target_year より前の3年分
     ref_years = list(range(target_year - 3, target_year))
@@ -105,11 +118,16 @@ def main():
     df_pyth = pd.read_csv("data/projections/pythagorean_2015_2025.csv")
     df_saber = pd.read_csv("data/projections/npb_sabermetrics_2015_2025.csv")
 
+    roster_path = "data/raw/npb_rosters_2018_2025.csv"
+    df_roster = pd.read_csv(roster_path) if pd.io.common.file_exists(roster_path) else None
+    if df_roster is not None:
+        print(f"選手名鑑ロード完了: {len(df_roster)}行 ({df_roster['year'].min()}-{df_roster['year'].max()}年)")
+
     all_rows = []
     # 2018から（Marcel は3年分必要なので2015データから計算可能）
     for yr in range(2018, 2026):
         print(f"  {yr}年予測を計算中...", end=" ", flush=True)
-        df_yr = build_team_projections(yr, df_h, df_p, df_pyth, df_saber)
+        df_yr = build_team_projections(yr, df_h, df_p, df_pyth, df_saber, df_roster)
         if not df_yr.empty:
             all_rows.append(df_yr)
             print(f"{len(df_yr)}チーム完了")
