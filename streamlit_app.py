@@ -15,7 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from config import DATA_END_YEAR, TARGET_YEAR
-from translations import TEXTS
+from translations import TEAM_NAME_EN, TEXTS
 
 
 def t(key: str) -> str:
@@ -23,6 +23,13 @@ def t(key: str) -> str:
     lang = st.session_state.get("lang", "日本語")
     dict_key = "en" if lang == "English" else "ja"
     return TEXTS.get(dict_key, TEXTS["ja"]).get(key, key)
+
+
+def team_disp(team_ja: str) -> str:
+    """Return English team name when in English mode, Japanese otherwise."""
+    if st.session_state.get("lang", "日本語") == "English":
+        return TEAM_NAME_EN.get(team_ja, team_ja)
+    return team_ja
 
 
 BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main/"
@@ -340,7 +347,7 @@ def _bar_html(label: str, value: float, max_val: float, display: str, color: str
 
 def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = "#00e5ff") -> str:
     """打者ステータスカードをHTMLで生成"""
-    team = row.get("team", "")
+    team = team_disp(row.get("team", ""))
     dy_badge = _data_years_badge(int(row.get("data_years", 3)))
 
     ha = HITTER_AVG
@@ -375,7 +382,7 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
 
 def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str = "#00e5ff") -> str:
     """投手ステータスカードをHTMLで生成"""
-    team = row.get("team", "")
+    team = team_disp(row.get("team", ""))
     dy_badge = _data_years_badge(int(row.get("data_years", 3)))
 
     pa = PITCHER_AVG
@@ -599,14 +606,14 @@ def page_top(data: dict):
     cl_row1 = st.columns(3)
     for i, team in enumerate(CENTRAL_TEAMS[:3]):
         is_selected = st.session_state.get("selected_team") == team
-        if cl_row1[i].button(team, key=f"team_{team}",
+        if cl_row1[i].button(team_disp(team), key=f"team_{team}",
                              type="primary" if is_selected else "secondary"):
             st.session_state["selected_team"] = team
             st.rerun()
     cl_row2 = st.columns(3)
     for i, team in enumerate(CENTRAL_TEAMS[3:]):
         is_selected = st.session_state.get("selected_team") == team
-        if cl_row2[i].button(team, key=f"team_{team}",
+        if cl_row2[i].button(team_disp(team), key=f"team_{team}",
                              type="primary" if is_selected else "secondary"):
             st.session_state["selected_team"] = team
             st.rerun()
@@ -616,14 +623,14 @@ def page_top(data: dict):
     pl_row1 = st.columns(3)
     for i, team in enumerate(PACIFIC_TEAMS[:3]):
         is_selected = st.session_state.get("selected_team") == team
-        if pl_row1[i].button(team, key=f"team_{team}",
+        if pl_row1[i].button(team_disp(team), key=f"team_{team}",
                              type="primary" if is_selected else "secondary"):
             st.session_state["selected_team"] = team
             st.rerun()
     pl_row2 = st.columns(3)
     for i, team in enumerate(PACIFIC_TEAMS[3:]):
         is_selected = st.session_state.get("selected_team") == team
-        if pl_row2[i].button(team, key=f"team_{team}",
+        if pl_row2[i].button(team_disp(team), key=f"team_{team}",
                              type="primary" if is_selected else "secondary"):
             st.session_state["selected_team"] = team
             st.rerun()
@@ -986,13 +993,13 @@ def page_team_wpct(data: dict):
         return
 
     col1, col2 = st.columns(2)
-    team = col1.selectbox(t("team_label"), TEAMS, key="team_wpct")
+    team = col1.selectbox(t("team_label"), TEAMS, key="team_wpct", format_func=team_disp)
     year = col2.slider(t("year_label"), 2015, 2025, 2025, key="team_year")
 
     mask = pyth["team"].str.contains(_norm(team), na=False) & (pyth["year"] == year)
     matched = pyth[mask]
     if matched.empty:
-        st.warning(t("no_data_team_year").format(team=team, year=year))
+        st.warning(t("no_data_team_year").format(team=team_disp(team), year=year))
         return
 
     row = matched.iloc[0]
@@ -1358,7 +1365,7 @@ def page_pythagorean_standings(data: dict):
                               background:#0d0d24;border-left:4px solid {glow};border-radius:6px;
                               font-family:'Segoe UI',sans-serif;min-width:max-content;">
                     <span style="min-width:24px;font-size:16px;text-align:center;">{medal or rank}</span>
-                    <span style="min-width:70px;color:{glow};font-weight:bold;font-size:15px;">{row['team']}</span>
+                    <span style="min-width:70px;color:{glow};font-weight:bold;font-size:15px;">{team_disp(row['team'])}</span>
                     {w_cell}
                     <span style="color:#888;font-size:13px;white-space:nowrap;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
                     <span style="color:#aaa;font-size:11px;white-space:nowrap;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
@@ -1371,9 +1378,10 @@ def page_pythagorean_standings(data: dict):
             fig = go.Figure()
             err_plus  = (lg["pred_W_high"] - lg["pred_W"]).tolist() if "pred_W_high" in lg else None
             err_minus = (lg["pred_W"] - lg["pred_W_low"]).tolist()  if "pred_W_low"  in lg else None
-            teams_reversed = lg["team"].tolist()[::-1]
+            teams_ja_reversed = lg["team"].tolist()[::-1]
+            teams_reversed = [team_disp(t) for t in teams_ja_reversed]
             wins_reversed = lg["pred_W"].tolist()[::-1]
-            colors_reversed = [NPB_TEAM_COLORS.get(t, "#333") for t in teams_reversed]
+            colors_reversed = [NPB_TEAM_COLORS.get(t, "#333") for t in teams_ja_reversed]
             err_plus_r = err_plus[::-1] if err_plus else None
             err_minus_r = err_minus[::-1] if err_minus else None
             fig.add_trace(go.Bar(
@@ -1412,7 +1420,7 @@ def page_pythagorean_standings(data: dict):
                     mc = len(missing)
                     unc = mc * 1.5
                     if not missing:
-                        st.markdown(f"- **{team}**: {t('all_projected')}")
+                        st.markdown(f"- **{team_disp(team)}**: {t('all_projected')}")
                     else:
                         sep = " / " if st.session_state.get("lang") == "English" else "、"
                         names_str = sep.join(
@@ -1483,7 +1491,7 @@ def page_pythagorean_standings(data: dict):
                           background:#0d0d24;border-left:3px solid {glow};border-radius:6px;
                           font-family:'Segoe UI',sans-serif;min-width:max-content;">
                 <span style="min-width:25px;font-size:14px;text-align:center;">{medal or rank}</span>
-                <span style="min-width:90px;color:{glow};font-weight:bold;white-space:nowrap;">{row['team']}</span>
+                <span style="min-width:90px;color:{glow};font-weight:bold;white-space:nowrap;">{team_disp(row['team'])}</span>
                 <span style="color:#e0e0e0;white-space:nowrap;">{t("record_fmt").format(w=int(row['W']), l=int(row['L']))}</span>
                 <span style="color:#888;font-size:12px;white-space:nowrap;">{row['actual_WPCT']:.3f}</span>
                 {pred_cell}
@@ -1493,11 +1501,12 @@ def page_pythagorean_standings(data: dict):
         components.html(f"<div>{cards}</div>", height=len(lg) * 50 + 10)
 
         fig = go.Figure()
-        teams_rev = lg["team"].tolist()[::-1]
+        teams_ja_rev = lg["team"].tolist()[::-1]
+        teams_rev = [team_disp(t) for t in teams_ja_rev]
         fig.add_trace(go.Bar(
             name=t("actual_wins_bar"), y=teams_rev, x=lg["W"].tolist()[::-1],
             orientation="h",
-            marker_color=[NPB_TEAM_COLORS.get(tn, "#333") for tn in teams_rev],
+            marker_color=[NPB_TEAM_COLORS.get(tn, "#333") for tn in teams_ja_rev],
         ))
         pred_x = lg["pred_W"].tolist()[::-1] if has_marcel else lg["pyth_W_npb"].tolist()[::-1]
         pred_name = t("expected_wins_bar") if has_marcel else t("pyth_wins_bar")
@@ -1562,6 +1571,9 @@ def main():
         unsafe_allow_html=True,
     )
     st.sidebar.radio("Language / 言語", ["日本語", "English"], key="lang", horizontal=True, label_visibility="collapsed")
+
+    if st.session_state.get("lang") == "English":
+        st.sidebar.caption(t("player_name_note"))
 
     st.sidebar.markdown(f"""
     <div style="text-align:center;padding:10px 0;">

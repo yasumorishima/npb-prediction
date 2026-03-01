@@ -681,5 +681,22 @@ TEXTS: dict[str, dict[str, str]] = {
         "wins_y": "Wins",
         "expected_prefix": "Marcel",
         "pyth_prefix": "Expected",
+        "player_name_note": "ℹ️ Player names are shown in Japanese (kanji), as used in official NPB records.",
     },
+}
+
+# English team name mapping (Japanese key → English short name)
+TEAM_NAME_EN: dict[str, str] = {
+    "DeNA": "BayStars",
+    "巨人": "Giants",
+    "阪神": "Tigers",
+    "広島": "Carp",
+    "中日": "Dragons",
+    "ヤクルト": "Swallows",
+    "ソフトバンク": "Hawks",
+    "日本ハム": "Fighters",
+    "楽天": "Eagles",
+    "ロッテ": "Marines",
+    "オリックス": "Buffaloes",
+    "西武": "Lions",
 }
