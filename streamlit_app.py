@@ -130,13 +130,18 @@ def _norm_hr9_r(hr9: float) -> float:
     return max(0.0, min(100.0, (2.0 - hr9) / 1.8 * 100.0))
 
 
+def _norm_fip_r(fip: float) -> float:
+    """FIP → 0-100 (低いほど高スコア: 1.0→100, 5.0→0)"""
+    return max(0.0, min(100.0, (5.0 - fip) / 4.0 * 100.0))
+
+
 # --- リーグ平均 ---
 
 # NPBリーグ平均（規定打席以上の代表的な水準）
 HITTER_AVG = {"HR": 15, "AVG": 0.260, "OBP": 0.320, "SLG": 0.400, "OPS": 0.720,
               "wOBA": 0.320, "wRC_plus": 100}
 PITCHER_AVG = {"ERA": 3.50, "WHIP": 1.30, "SO": 120, "IP": 140, "W": 9,
-               "K9": 7.5, "BB9": 3.2, "HR9": 1.0}
+               "K9": 7.5, "BB9": 3.2, "HR9": 1.0, "FIP": 3.80}
 
 
 # --- データ読み込み ---
@@ -343,6 +348,10 @@ def render_hitter_card(row: pd.Series, ml_ops: float | None = None, glow: str = 
     bars += _bar_html(t("bar_obp"), row["OBP"], 0.450, f"{row['OBP']:.3f}", "#44aaff", avg_val=ha["OBP"])
     bars += _bar_html(t("bar_slg"), row["SLG"], 0.650, f"{row['SLG']:.3f}", "#ffaa44", avg_val=ha["SLG"])
     bars += _bar_html("OPS", row["OPS"], 1.100, f"{row['OPS']:.3f}", "#00e5ff", avg_val=ha["OPS"])
+    if not pd.isna(row.get("wOBA", float("nan"))):
+        bars += _bar_html("wOBA", float(row["wOBA"]), 0.450, f"{float(row['wOBA']):.3f}", "#cc44ff", avg_val=ha["wOBA"])
+    if not pd.isna(row.get("wRC+", float("nan"))):
+        bars += _bar_html("wRC+", float(row["wRC+"]), 200.0, f"{int(row['wRC+'])}", "#ffcc00", avg_val=ha["wRC_plus"])
 
     avg_legend = t("avg_legend")
     return f"""
@@ -385,6 +394,17 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
       </div>
       <span style="width:50px;text-align:right;font-size:13px;font-weight:bold;color:#e0e0e0;">{row['ERA']:.2f}</span>
     </div>"""
+    if not pd.isna(row.get("FIP", float("nan"))):
+        bars += _bar_html("FIP", max(0.0, 6.0 - float(row["FIP"])), 5.0, f"{float(row['FIP']):.2f}", "#ff88cc",
+                          avg_val=max(0.0, 6.0 - pa["FIP"]))
+    if not pd.isna(row.get("K9", float("nan"))):
+        bars += _bar_html("K/9", float(row["K9"]), 11.0, f"{float(row['K9']):.2f}", "#44ddff", avg_val=pa["K9"])
+    if not pd.isna(row.get("BB9", float("nan"))):
+        bars += _bar_html("BB/9", max(0.0, 5.0 - float(row["BB9"])), 3.5, f"{float(row['BB9']):.2f}", "#88aaff",
+                          avg_val=max(0.0, 5.0 - pa["BB9"]))
+    if not pd.isna(row.get("HR9", float("nan"))):
+        bars += _bar_html("HR/9", max(0.0, 2.0 - float(row["HR9"])), 1.8, f"{float(row['HR9']):.2f}", "#ffaa66",
+                          avg_val=max(0.0, 2.0 - pa["HR9"]))
 
     avg_legend = t("avg_legend")
     return f"""
@@ -468,8 +488,8 @@ def render_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") 
 
 
 def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#00e5ff") -> go.Figure:
-    """投手レーダーチャート（6軸: 防御率・WHIP・奪三振・K/9・BB/9・HR/9）+ リーグ平均"""
-    categories = [t("radar_era"), "WHIP", t("radar_so"), "K/9", "BB/9", "HR/9"]
+    """投手レーダーチャート（7軸: 防御率・WHIP・奪三振・K/9・BB/9・HR/9・FIP）+ リーグ平均"""
+    categories = [t("radar_era"), "WHIP", t("radar_so"), "K/9", "BB/9", "HR/9", "FIP"]
     values = [
         _norm_era_r(_safe_float(row["ERA"])),
         _norm_whip_r(_safe_float(row["WHIP"])),
@@ -477,11 +497,13 @@ def render_pitcher_radar_chart(row: pd.Series, title: str = "", color: str = "#0
         _norm_k9(_safe_float(row.get("K9", 7.5))),
         _norm_bb9_r(_safe_float(row.get("BB9", 3.2))),
         _norm_hr9_r(_safe_float(row.get("HR9", 1.0))),
+        _norm_fip_r(_safe_float(row.get("FIP", 3.80))),
     ]
     pa = PITCHER_AVG
     avg_values = [
         _norm_era_r(pa["ERA"]), _norm_whip_r(pa["WHIP"]), _norm_so_p(pa["SO"]),
         _norm_k9(pa["K9"]), _norm_bb9_r(pa["BB9"]), _norm_hr9_r(pa["HR9"]),
+        _norm_fip_r(pa["FIP"]),
     ]
 
     r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
