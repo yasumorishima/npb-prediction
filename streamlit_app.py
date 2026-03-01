@@ -811,9 +811,17 @@ def page_hitter_prediction(data: dict):
             player_saber = _search(saber, row["player"])
             if len(player_saber) > 1:
                 player_name = player_saber.iloc[0]["player"]
-                trend = player_saber[player_saber["player"] == player_name].sort_values("year")
+                all_trend = player_saber[player_saber["player"] == player_name].sort_values("year")
+                MIN_PA = 30
+                excluded = all_trend[all_trend["PA"] < MIN_PA]
+                trend = all_trend[all_trend["PA"] >= MIN_PA]
                 if len(trend) > 1:
                     st.markdown(f"**{t('wrc_trend_title').format(player=player_name)}**")
+                    if not excluded.empty:
+                        yrs = ", ".join(str(y) for y in sorted(excluded["year"].tolist()))
+                        is_ja = st.session_state.get("lang", "日本語") != "English"
+                        caption = f"※ PA < {MIN_PA} のシーズンは非表示（{yrs}年）" if is_ja else f"* Seasons with PA < {MIN_PA} hidden ({yrs})"
+                        st.caption(caption)
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(
                         x=trend["year"], y=trend["wRC+"],
