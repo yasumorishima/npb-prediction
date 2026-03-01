@@ -688,7 +688,7 @@ def page_top(data: dict):
         # デフォルト: TOP3表示
         # TOP3 打者
         st.markdown(f"### {t('top3_batters')}")
-        top_hitters = mh[mh["PA"] >= 200].nlargest(3, "OPS")
+        top_hitters = mh[mh["PA"] >= 200].nlargest(3, "wRC+")
 
         medals = ["🥇", "🥈", "🥉"]
         for i, (_, row) in enumerate(top_hitters.iterrows()):

@@ -134,7 +134,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "missing_caption_team": "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です（リーグ平均の貢献として計算）。",
         "no_data_pa": "{team}の打者データがありません（PA >= 100）",
         "no_data_ip": "{team}の投手データがありません（IP >= 30）",
-        "top3_batters": "打者 TOP3（総合打撃力予測）",
+        "top3_batters": "打者 TOP3（wRC+ 予測）",
         "top3_pitchers": "投手 TOP3（総合投球力予測）",
         "featured_matchup": "注目対決",
 
@@ -466,7 +466,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "missing_caption_team": "These players lack 3 years of NPB data and are excluded from Marcel projections (treated as league-average contribution).",
         "no_data_pa": "No batter data for {team} (PA ≥ 100)",
         "no_data_ip": "No pitcher data for {team} (IP ≥ 30)",
-        "top3_batters": "Top 3 Batters (Overall Batting Projections)",
+        "top3_batters": "Top 3 Batters (wRC+ Projection)",
         "top3_pitchers": "Top 3 Pitchers (Overall Pitching Projections)",
         "featured_matchup": "Featured Matchup",
 
