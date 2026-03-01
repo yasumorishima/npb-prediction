@@ -1304,7 +1304,7 @@ def page_pythagorean_standings(data: dict):
     df = pyth[pyth["year"] == year].copy()
 
     for league, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
-        lg = df[df["league"] == league].sort_values("pyth_WPCT_npb", ascending=False).reset_index(drop=True)
+        lg = df[df["league"] == league].sort_values("actual_WPCT", ascending=False).reset_index(drop=True)
         if lg.empty:
             continue
 
