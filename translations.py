@@ -332,11 +332,13 @@ TEXTS: dict[str, dict[str, str]] = {
             "23〜26歳の選手がブレイクするケースでは、過去3年の平均に引き戻されるため実際を大きく下回る予測になります。\n"
             "「殻を破りかけている若手が多いチーム」の実力はモデルが示す数字より高い可能性があります。"
         ),
-        "historical_title": "過去の順位表（実績 vs ピタゴラス期待値）",
+        "historical_title": "過去の順位表（実績 vs Marcel予測）",
         "actual_wins_bar": "実際の勝数",
-        "expected_wins_bar": "期待勝数",
+        "expected_wins_bar": "Marcel予測勝数",
+        "pyth_wins_bar": "ピタゴラス期待値（実績RS/RA）",
         "wins_y": "勝数",
-        "expected_prefix": "期待",
+        "expected_prefix": "Marcel予測",
+        "pyth_prefix": "期待値",
     },
 
     "en": {
@@ -672,10 +674,12 @@ TEXTS: dict[str, dict[str, str]] = {
             "When players aged 23–26 break out, Marcel is anchored to the 3-year average and will significantly "
             "underestimate their performance. Teams with potential breakout youngsters may be stronger than the model suggests."
         ),
-        "historical_title": "Historical Standings (Actual vs. Expected Wins)",
+        "historical_title": "Historical Standings (Actual vs. Marcel Prediction)",
         "actual_wins_bar": "Actual Wins",
-        "expected_wins_bar": "Expected Wins",
+        "expected_wins_bar": "Marcel Predicted Wins",
+        "pyth_wins_bar": "Pythagorean Expected (Actual RS/RA)",
         "wins_y": "Wins",
-        "expected_prefix": "Exp.",
+        "expected_prefix": "Marcel",
+        "pyth_prefix": "Expected",
     },
 }

@@ -174,6 +174,7 @@ def load_all():
         "sabermetrics": load_csv(f"data/projections/npb_sabermetrics_2015_{DATA_END_YEAR}.csv"),
         "pitcher_history": load_csv(f"data/raw/npb_pitchers_2015_{DATA_END_YEAR}.csv"),
         "pythagorean": load_csv(f"data/projections/pythagorean_2015_{DATA_END_YEAR}.csv"),
+        "marcel_team_historical": load_csv("data/projections/marcel_team_historical.csv"),
     }
     # NPB公式ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
     roster_names = get_all_roster_names()
@@ -1436,6 +1437,17 @@ def page_pythagorean_standings(data: dict):
     year = st.selectbox(t("year_label"), [int(y) for y in years], index=len(years) - 1, key="pyth_year")
     df = pyth[pyth["year"] == year].copy()
 
+    # Marcel事前予測データ（2018年以降のみ存在）
+    mth = data.get("marcel_team_historical", pd.DataFrame())
+    df_marcel = mth[mth["year"] == year] if not mth.empty else pd.DataFrame()
+    has_marcel = not df_marcel.empty
+
+    # Marcel予測をpythデータにマージ
+    if has_marcel:
+        df = df.merge(df_marcel[["team", "pred_W"]], on="team", how="left")
+    else:
+        df["pred_W"] = np.nan
+
     for league, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
         lg = df[df["league"] == league].sort_values("actual_WPCT", ascending=False).reset_index(drop=True)
         if lg.empty:
@@ -1447,8 +1459,24 @@ def page_pythagorean_standings(data: dict):
             glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
             rank = i + 1
             medal = {1: "👑", 2: "🥈", 3: "🥉"}.get(rank, "")
-            diff = -row["diff_W_npb"]  # 実際 - 期待値（+が上振れ、-が下振れ）
-            diff_color = "#4CAF50" if diff >= 0 else "#ff4466"
+            if has_marcel and not pd.isna(row["pred_W"]):
+                pred_w = row["pred_W"]
+                diff = row["W"] - pred_w
+                diff_color = "#4CAF50" if diff >= 0 else "#ff4466"
+                pred_cell = (
+                    f'<span style="color:#00e5ff;font-size:12px;white-space:nowrap;">'
+                    f'{t("expected_prefix")} {pred_w:.1f}{t("wins_suffix")}</span>'
+                    f'<span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>'
+                )
+            else:
+                # 2017年以前はMarcel予測なし → ピタゴラス期待値で代替
+                diff = -row["diff_W_npb"]
+                diff_color = "#4CAF50" if diff >= 0 else "#ff4466"
+                pred_cell = (
+                    f'<span style="color:#888;font-size:12px;white-space:nowrap;">'
+                    f'{t("pyth_prefix")} {row["pyth_W_npb"]:.1f}{t("wins_suffix")}</span>'
+                    f'<span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>'
+                )
             cards += f"""
             <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px 0;">
               <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;
@@ -1458,8 +1486,7 @@ def page_pythagorean_standings(data: dict):
                 <span style="min-width:90px;color:{glow};font-weight:bold;white-space:nowrap;">{row['team']}</span>
                 <span style="color:#e0e0e0;white-space:nowrap;">{t("record_fmt").format(w=int(row['W']), l=int(row['L']))}</span>
                 <span style="color:#888;font-size:12px;white-space:nowrap;">{row['actual_WPCT']:.3f}</span>
-                <span style="color:#00e5ff;font-size:12px;white-space:nowrap;">{t("expected_prefix")}{row['pyth_W_npb']:.1f}{t("wins_suffix")}</span>
-                <span style="color:{diff_color};font-size:12px;font-weight:bold;">{diff:+.1f}</span>
+                {pred_cell}
               </div>
             </div>"""
 
@@ -1472,10 +1499,12 @@ def page_pythagorean_standings(data: dict):
             orientation="h",
             marker_color=[NPB_TEAM_COLORS.get(tn, "#333") for tn in teams_rev],
         ))
+        pred_x = lg["pred_W"].tolist()[::-1] if has_marcel else lg["pyth_W_npb"].tolist()[::-1]
+        pred_name = t("expected_wins_bar") if has_marcel else t("pyth_wins_bar")
         fig.add_trace(go.Bar(
-            name=t("expected_wins_bar"), y=teams_rev, x=lg["pyth_W_npb"].tolist()[::-1],
+            name=pred_name, y=teams_rev, x=pred_x,
             orientation="h",
-            marker_color="#555",
+            marker_color="#336699",
         ))
         fig.update_layout(
             barmode="group", height=350, xaxis_title=t("wins_y"),
