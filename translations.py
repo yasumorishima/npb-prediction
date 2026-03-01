@@ -135,7 +135,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "no_data_pa": "{team}の打者データがありません（PA >= 100）",
         "no_data_ip": "{team}の投手データがありません（IP >= 30）",
         "top3_batters": "打者 TOP3（wRC+ 予測）",
-        "top3_pitchers": "投手 TOP3（総合投球力予測）",
+        "top3_batters_caption": "wRC+（Weighted Runs Created Plus）= リーグ平均を100とした打撃力。高いほど優秀",
+        "top3_pitchers": "投手 TOP3（FIP 予測）",
+        "top3_pitchers_caption": "FIP（Fielding Independent Pitching）= 守備の影響を除いた防御率。被本塁打・四球・奪三振のみで算出",
         "featured_matchup": "注目対決",
 
         # --- Hitter prediction ---
@@ -467,7 +469,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "no_data_pa": "No batter data for {team} (PA ≥ 100)",
         "no_data_ip": "No pitcher data for {team} (IP ≥ 30)",
         "top3_batters": "Top 3 Batters (wRC+ Projection)",
-        "top3_pitchers": "Top 3 Pitchers (Overall Pitching Projections)",
+        "top3_batters_caption": "wRC+ (Weighted Runs Created Plus) = Batting performance normalized to league average of 100. Higher is better",
+        "top3_pitchers": "Top 3 Pitchers (FIP Projection)",
+        "top3_pitchers_caption": "FIP (Fielding Independent Pitching) = Defense-independent ERA based solely on HR, BB, and K",
         "featured_matchup": "Featured Matchup",
 
         # --- Hitter prediction ---

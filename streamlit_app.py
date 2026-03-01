@@ -688,6 +688,7 @@ def page_top(data: dict):
         # デフォルト: TOP3表示
         # TOP3 打者
         st.markdown(f"### {t('top3_batters')}")
+        st.caption(t("top3_batters_caption"))
         top_hitters = mh[mh["PA"] >= 200].nlargest(3, "wRC+")
 
         medals = ["🥇", "🥈", "🥉"]
@@ -700,10 +701,12 @@ def page_top(data: dict):
 
         # TOP3 投手
         st.markdown(f"### {t('top3_pitchers')}")
-        top_pitchers = mp[mp["IP"] >= 100].nsmallest(3, "ERA")
+        st.caption(t("top3_pitchers_caption"))
+        mp_saber = _ensure_pitcher_saber(mp)
+        top_pitchers = mp_saber[mp_saber["IP"] >= 100].nsmallest(3, "FIP")
 
         for i, (_, row) in enumerate(top_pitchers.iterrows()):
-            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            glow = NPB_TEAM_GLOW.get(row.get("team", ""), "#00e5ff")
             st.markdown(f"<div style='text-align:center;font-size:24px;'>{medals[i]}</div>",
                         unsafe_allow_html=True)
             components.html(render_pitcher_card(row, glow=glow), height=260)
