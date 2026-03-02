@@ -798,7 +798,7 @@ def page_hitter_prediction(data: dict):
 
         components.html(render_hitter_card(row, glow=glow), height=310)
         st.plotly_chart(render_radar_chart(row, title=row["player"], color=glow),
-                        use_container_width=True, config={"scrollZoom": False})
+                        use_container_width=True, config={"staticPlot": True})
 
         # wOBA / wRC+ / wRAA カード（2列+単独行）
         if "wOBA" in row.index and not pd.isna(row.get("wOBA")):
@@ -889,7 +889,7 @@ def page_pitcher_prediction(data: dict):
 
         components.html(render_pitcher_card(row, glow=glow), height=360)
         st.plotly_chart(render_pitcher_radar_chart(row, title=row["player"], color=glow),
-                        use_container_width=True, config={"scrollZoom": False})
+                        use_container_width=True, config={"staticPlot": True})
 
         # FIP / K% / BB% / K-BB% カード（2列×2行）
         has_fip = "FIP" in row.index and not pd.isna(row.get("FIP"))
