@@ -330,11 +330,12 @@ def _get_missing_players(data: dict) -> dict:
                             bayes = bpred
                             break
                     if bayes is None:
-                        # No prev stats in CSV → league average with wider uncertainty
+                        # No prev stats in CSV → historical foreign avg
+                        pred = predict_no_prev_stats("hitter", lg_woba, lg_era)
                         bayes = {
-                            "pred": predict_no_prev_stats("hitter", lg_woba, lg_era),
-                            "wraa_est": 0.0, "unc_wins": 1.5,
+                            "pred": pred, "wraa_est": 0.0, "unc_wins": 1.5,
                             "type": "unknown", "has_prev": False,
+                            "has_historical": True,
                             "stat_label": "", "stat_value": 0, "stat_range": (0, 0),
                         }
                 missing.append({"name": display, "kind": kind, "bayes": bayes})
@@ -753,7 +754,7 @@ def page_top(data: dict):
                         )
                         st.markdown(f"- **{m['name']}** — {t('foreign_player')}（{detail}）")
                     elif m["kind"] == "foreign":
-                        st.markdown(f"- **{m['name']}** — {t('foreign_player')}（{t('no_prev_stats')}）")
+                        st.markdown(f"- **{m['name']}** — {t('foreign_player')}（{t('historical_foreign_note')}）")
                     else:
                         st.markdown(f"- **{m['name']}** — {t('rookie_no_data')}（{t('wraa_zero_note')}）")
     else:
@@ -1506,7 +1507,7 @@ def page_pythagorean_standings(data: dict):
                                 )
                                 parts.append(f"{m['name']}（{t('foreign_player')}, {detail}）")
                             elif m["kind"] == "foreign":
-                                parts.append(f"{m['name']}（{t('foreign_player')}, {t('no_prev_stats')}）")
+                                parts.append(f"{m['name']}（{t('foreign_player')}, {t('historical_foreign_note')}）")
                             else:
                                 parts.append(f"{m['name']}（{t('rookie_no_data')}, {t('wraa_zero_inline')}）")
                         names_str = sep.join(parts)

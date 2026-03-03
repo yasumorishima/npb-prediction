@@ -91,6 +91,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "bayes_pred_hitter": "予測wOBA {val:.3f} [{lo:.3f}–{hi:.3f}]",
         "bayes_pred_pitcher": "予測ERA {val:.2f} [{lo:.2f}–{hi:.2f}]",
         "no_prev_stats": "前リーグ成績なし → リーグ平均",
+        "historical_foreign_note": "歴代外国人初年度平均を基準に計算",
 
         # --- Top page ---
         "top_title": "NPB 2026 予測",
@@ -134,7 +135,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "- **WHIP** — 1イニングに許した走者数。1.00以下ならエース級"
         ),
         "missing_expander_team": "⚠️ {team}の計算対象外選手 ({n}名)",
-        "missing_caption_team": "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です（リーグ平均の貢献として計算）。",
+        "missing_caption_team": "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です（外国人選手は歴代初年度平均、新人はリーグ平均を基準に計算）。",
         "no_data_pa": "{team}の打者データがありません（PA >= 100）",
         "no_data_ip": "{team}の投手データがありません（IP >= 30）",
         "top3_batters": "打者 TOP3（wRC+ 順）",
@@ -317,7 +318,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "missing_expander_content": (
             "**以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。**\n\n"
             "- **前リーグ成績あり**: ベイズ推定で予測値と信頼区間を算出し、予測得点・失点に反映\n"
-            "- **前リーグ成績なし / 新人**: リーグ平均（wRAA=0）として計算\n\n"
+            "- **前リーグ成績なし（外国人）**: 歴代NPB外国人選手の初年度平均（打者wOBA=.318 / 投手ERA=3.41）を基準に計算\n"
+            "- **新人**: リーグ平均（wRAA=0）として計算\n\n"
             "予測幅（グラフのオレンジ縦線）はMonte Carloシミュレーションで算出。独立な不確実性の相殺を反映しています"
         ),
         "all_projected": "全員Marcel予測対象 ✅",
@@ -438,6 +440,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "bayes_pred_hitter": "Proj. wOBA {val:.3f} [{lo:.3f}–{hi:.3f}]",
         "bayes_pred_pitcher": "Proj. ERA {val:.2f} [{lo:.2f}–{hi:.2f}]",
         "no_prev_stats": "No prior league stats → league avg",
+        "historical_foreign_note": "Based on historical foreign 1st-year average",
 
         # --- Top page ---
         "top_title": "NPB 2026 Predictions",
@@ -481,7 +484,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "- **WHIP** — Baserunners per inning. Under 1.00 is ace-level"
         ),
         "missing_expander_team": "⚠️ {team}: Players Not Projected ({n})",
-        "missing_caption_team": "These players lack 3 years of NPB data and are excluded from Marcel projections (treated as league-average contribution).",
+        "missing_caption_team": "These players lack 3 years of NPB data and are excluded from Marcel projections (foreign players use historical 1st-year average; rookies use league average).",
         "no_data_pa": "No batter data for {team} (PA ≥ 100)",
         "no_data_ip": "No pitcher data for {team} (IP ≥ 30)",
         "top3_batters": "Top 3 Batters (by wRC+)",
@@ -668,7 +671,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "missing_expander_content": (
             "**These players lack 3 years of NPB data and are excluded from Marcel projections.**\n\n"
             "- **With prior league stats**: Bayesian prediction with credible interval, reflected in projected runs\n"
-            "- **Without prior stats / rookies**: Treated as league-average (wRAA=0)\n\n"
+            "- **Without prior stats (foreign)**: Based on historical NPB foreign player 1st-year averages (hitter wOBA=.318 / pitcher ERA=3.41)\n"
+            "- **Rookies**: Treated as league-average (wRAA=0)\n\n"
             "Orange bars show Monte Carlo–derived prediction ranges that reflect the diversification of independent uncertainties"
         ),
         "all_projected": "All players projected ✅",

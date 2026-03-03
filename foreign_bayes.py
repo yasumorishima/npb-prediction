@@ -30,6 +30,14 @@ PITCHER_PARAMS = {
     "sigma_obs": (1.11, 0.135),  # observation noise (ERA scale)
 }
 
+# Historical NPB foreign player first-year averages
+# Source: npb-bayes-projection foreign_players_master.csv (367 players, 2015-2025)
+# Hitter: PA≥50, Pitcher: IP≥20
+HISTORICAL_FOREIGN_DEFAULTS = {
+    "hitter": {"mean_woba": 0.318, "std_woba": 0.053, "n": 117},
+    "pitcher": {"mean_era": 3.412, "std_era": 1.436, "n": 151},
+}
+
 _N_SAMPLES = 5000
 _RNG = np.random.default_rng(42)
 
@@ -85,13 +93,15 @@ def predict_no_prev_stats(player_type: str,
                           n_samples: int = _N_SAMPLES) -> dict:
     """Predict for a foreign player with no previous league stats.
 
-    w=0 (no individual data) → league average + sigma_obs uncertainty.
+    Uses historical foreign player first-year averages as center
+    (better than league average since NPB teams recruit above-average foreigners).
     """
+    hist = _get_historical()
     if player_type == "hitter":
-        center = league_avg_woba
+        center = hist["hitter"]["mean_woba"]
         sigma = HITTER_PARAMS["sigma_obs"]
     else:
-        center = league_avg_era
+        center = hist["pitcher"]["mean_era"]
         sigma = PITCHER_PARAMS["sigma_obs"]
 
     sigma_s = np.abs(_RNG.normal(sigma[0], sigma[1], n_samples))
@@ -131,12 +141,16 @@ def _sample_pitcher_era(prev_era: float, lg_era: float,
 
 def _sample_no_prev(player_type: str, lg_woba: float, lg_era: float,
                     n: int, rng: np.random.Generator) -> np.ndarray:
-    """Sample for a foreign player with no previous league stats."""
+    """Sample for a foreign player with no previous league stats.
+
+    Uses historical foreign player first-year averages as center.
+    """
+    hist = _get_historical()
     if player_type == "hitter":
-        center = lg_woba
+        center = hist["hitter"]["mean_woba"]
         sigma = HITTER_PARAMS["sigma_obs"]
     else:
-        center = lg_era
+        center = hist["pitcher"]["mean_era"]
         sigma = PITCHER_PARAMS["sigma_obs"]
     sigma_s = np.abs(rng.normal(sigma[0], sigma[1], n))
     samples = center + rng.normal(0, sigma_s)
@@ -261,6 +275,81 @@ def load_foreign_2026() -> list[dict]:
     return rows
 
 
+def load_foreign_historical() -> dict:
+    """Load historical foreign player first-year stats from CSV.
+
+    Returns dict with 'hitter' and 'pitcher' sub-dicts containing
+    mean, std, and n for wOBA (hitter) / ERA (pitcher).
+    Falls back to HISTORICAL_FOREIGN_DEFAULTS if CSV not found.
+    """
+    csv_path = Path(__file__).parent / "data" / "foreign_historical.csv"
+    if not csv_path.exists():
+        return HISTORICAL_FOREIGN_DEFAULTS
+
+    hitter_wobas = []
+    pitcher_eras = []
+    with open(csv_path, encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            ptype = row.get("player_type", "").strip()
+            if ptype == "hitter":
+                pa_str = row.get("npb_first_year_PA", "")
+                woba_str = row.get("npb_first_year_wOBA", "")
+                if pa_str and woba_str:
+                    try:
+                        pa = float(pa_str)
+                        woba = float(woba_str)
+                        if pa >= 50:
+                            hitter_wobas.append(woba)
+                    except ValueError:
+                        pass
+            elif ptype == "pitcher":
+                ip_str = row.get("npb_first_year_IP", "")
+                era_str = row.get("npb_first_year_ERA", "")
+                if ip_str and era_str:
+                    try:
+                        ip = float(ip_str)
+                        era = float(era_str)
+                        if ip >= 20:
+                            pitcher_eras.append(era)
+                    except ValueError:
+                        pass
+
+    result = {}
+    if hitter_wobas:
+        arr = np.array(hitter_wobas)
+        result["hitter"] = {
+            "mean_woba": float(np.mean(arr)),
+            "std_woba": float(np.std(arr)),
+            "n": len(arr),
+        }
+    else:
+        result["hitter"] = HISTORICAL_FOREIGN_DEFAULTS["hitter"]
+
+    if pitcher_eras:
+        arr = np.array(pitcher_eras)
+        result["pitcher"] = {
+            "mean_era": float(np.mean(arr)),
+            "std_era": float(np.std(arr)),
+            "n": len(arr),
+        }
+    else:
+        result["pitcher"] = HISTORICAL_FOREIGN_DEFAULTS["pitcher"]
+
+    return result
+
+
+_historical_cache: dict | None = None
+
+
+def _get_historical() -> dict:
+    """Return cached historical foreign player stats."""
+    global _historical_cache
+    if _historical_cache is None:
+        _historical_cache = load_foreign_historical()
+    return _historical_cache
+
+
 def get_foreign_predictions(lg_woba: float = 0.310,
                             lg_era: float = 3.50,
                             woba_scale: float = 1.15) -> dict[str, dict]:
@@ -289,15 +378,17 @@ def get_foreign_predictions(lg_woba: float = 0.310,
                 expected_pt = pa
             else:
                 pred = predict_no_prev_stats("hitter", lg_woba, lg_era)
-                wraa = 0.0
+                expected_pt = 400
+                wraa = woba_to_wraa(pred["mean"], lg_woba, woba_scale,
+                                    expected_pt)
                 unc_wins = 1.5
                 has_prev = False
                 prev_stat = None
-                expected_pt = 400
 
             results[name] = {
                 "pred": pred, "wraa_est": wraa, "unc_wins": unc_wins,
                 "type": ptype, "has_prev": has_prev,
+                "has_historical": not has_prev,
                 "prev_stat": prev_stat, "expected_pt": expected_pt,
                 "stat_label": "wOBA",
                 "stat_value": pred["mean"],
@@ -316,15 +407,17 @@ def get_foreign_predictions(lg_woba: float = 0.310,
                 expected_pt = ip
             else:
                 pred = predict_no_prev_stats("pitcher", lg_woba, lg_era)
-                ra_above = 0.0
+                expected_pt = 100
+                ra_above = era_to_ra_above_avg(pred["mean"], lg_era,
+                                               expected_pt)
                 unc_wins = 1.5
                 has_prev = False
                 prev_stat = None
-                expected_pt = 100
 
             results[name] = {
                 "pred": pred, "ra_above_avg": ra_above, "unc_wins": unc_wins,
                 "type": ptype, "has_prev": has_prev,
+                "has_historical": not has_prev,
                 "prev_stat": prev_stat, "expected_pt": expected_pt,
                 "stat_label": "ERA",
                 "stat_value": pred["mean"],
