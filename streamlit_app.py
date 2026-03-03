@@ -1298,6 +1298,13 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     # Marcel投手全体の加重平均ERA（リーグ基準ERA）
     lg_era = (mp["ERA"] * mp["IP"]).sum() / mp["IP"].sum() if mp["IP"].sum() > 0 else 3.5
 
+    # --- lg_woba（MC simulationでも使用）---
+    recent_s = saber[saber["year"] >= 2022]
+    if not recent_s.empty and "wOBA" in saber.columns:
+        lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+    else:
+        lg_woba = 0.310
+
     # --- 選手ごとのwOBA・wRAA推定 ---
     mh = mh.copy()
     if "wOBA" in mh.columns and "wRAA" in mh.columns:
@@ -1309,8 +1316,6 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
         X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
         coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
         a_obp, b_slg, intercept_w = coeffs
-        recent_s = saber[saber["year"] >= 2022]
-        lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
         woba_scale = 1.15
         mh["wOBA_est"] = a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w
         mh["wRAA_est"] = (mh["wOBA_est"] - lg_woba) / woba_scale * mh["PA"]
@@ -1331,9 +1336,8 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
         rs_raw = lg_avg_rs + (h["wRAA_est"].sum() if not h.empty else 0)
         ra_raw = lg_avg_ra + ((p["era_above_avg"] * p["IP"] / 9.0).sum() if not p.empty else 0)
 
-        # Bayes foreign player contributions + data-driven uncertainty
+        # Bayes foreign player contributions (center estimate)
         team_missing = missing_all.get(team, [])
-        team_unc = 0.0
         for m in team_missing:
             b = m.get("bayes")
             if b and b.get("has_prev"):
@@ -1341,14 +1345,11 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
                     rs_raw += b.get("wraa_est", 0)
                 else:  # pitcher
                     ra_raw += b.get("ra_above_avg", 0)
-                team_unc += b.get("unc_wins", 1.5)
-            else:
-                team_unc += 1.5  # no prev stats / rookie
 
         league = "CL" if team in CENTRAL_TEAMS else "PL"
         rows.append({
             "league": league, "team": team, "rs_raw": rs_raw, "ra_raw": ra_raw,
-            "missing_count": len(team_missing), "team_unc": team_unc,
+            "missing_count": len(team_missing),
         })
 
     df = pd.DataFrame(rows)
@@ -1365,9 +1366,22 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     df["pred_W"] = df["pred_WPCT"] * 143
     df["pred_L"] = 143 - df["pred_W"]
 
-    # 予測幅: 前リーグ成績ありはデータ駆動の不確実性、なしは±1.5勝/人
-    df["pred_W_low"]  = (df["pred_W"] - df["team_unc"]).clip(lower=0)
-    df["pred_W_high"] = (df["pred_W"] + df["team_unc"]).clip(upper=143)
+    # 予測幅: Monte Carlo simulation で算出（多様化効果を反映）
+    from foreign_bayes import simulate_team_wins_mc
+    for i, row in df.iterrows():
+        team_missing = missing_all.get(row["team"], [])
+        if team_missing:
+            mc = simulate_team_wins_mc(
+                pred_rs=row["pred_RS"], pred_ra=row["pred_RA"],
+                missing_players=team_missing,
+                rs_scale=rs_scale, ra_scale=ra_scale,
+                lg_woba=lg_woba, lg_era=lg_era,
+            )
+            df.at[i, "pred_W_low"] = mc["pred_W_low"]
+            df.at[i, "pred_W_high"] = mc["pred_W_high"]
+        else:
+            df.at[i, "pred_W_low"] = row["pred_W"]
+            df.at[i, "pred_W_high"] = row["pred_W"]
 
     return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT",
                "pred_W", "pred_L", "missing_count", "pred_W_low", "pred_W_high"]]

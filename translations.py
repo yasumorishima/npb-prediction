@@ -297,24 +297,28 @@ TEXTS: dict[str, dict[str, str]] = {
         "wpct_prefix": "勝率 ",
         "pred_wins_label": "予測勝数",
         "chart_annotation": "オレンジの縦線 = 計算外選手による予測幅",
-        "pred_range_brief": "オレンジの縦線 = 予測幅。前リーグ成績がある外国人にはベイズ推定を適用し、それ以外は1人あたり±1.5勝で計算しています",
+        "pred_range_brief": "オレンジの縦線 = 予測幅。計算対象外選手の事後分布からMonte Carloシミュレーション（5,000回）で算出。独立な不確実性の相殺（多様化効果）を反映しています",
         "pred_range_explain_title": "予測幅（オレンジの縦線）の詳しい説明",
         "pred_range_explain": (
             "新外国人・新人などNPBデータが3年未満の選手は、Marcel法では予測できません。\n\n"
+            "**予測幅の算出方法（Monte Carloシミュレーション）**\n"
+            "- 各計算外選手の事後分布から5,000回同時にサンプリング\n"
+            "- サンプルごとにチームの得点・失点を計算 → ピタゴラス勝率で勝数に変換\n"
+            "- 結果の80%区間（10〜90パーセンタイル）を予測幅として表示\n\n"
             "**前リーグ成績がある外国人選手**にはベイズ推定（Shrinkageモデル）を適用しています。\n"
             "- 前リーグの成績（wOBA/ERA）をNPBスケールに変換\n"
-            "- 個人データの重み（w≈0.14）＋リーグ平均への回帰で予測\n"
-            "- 予測の不確実性（80%信頼区間）から個別の予測幅を算出\n\n"
+            "- 個人データの重み（w≈0.14）＋リーグ平均への回帰で予測\n\n"
             "**前リーグ成績がない選手・新人**はリーグ平均（wRAA=0）として計算し、"
-            "1人あたり ±1.5勝の不確実性を適用しています。\n\n"
-            "例: 計算外3名（うち1名にベイズ予測あり）→ 個別の予測幅を合計してチーム全体の予測幅を算出"
+            "勝数空間で直接不確実性を加えています。\n\n"
+            "**多様化効果**: 複数選手の不確実性を単純に足し合わせると過大評価になります。"
+            "MCシミュレーションでは独立な不確実性が部分的に相殺されるため、より現実的な予測幅が得られます。"
         ),
         "missing_expander_all": "⚠️ チームごとの計算対象外選手（新人・新外国人等）",
         "missing_expander_content": (
             "**以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。**\n\n"
             "- **前リーグ成績あり**: ベイズ推定で予測値と信頼区間を算出し、予測得点・失点に反映\n"
-            "- **前リーグ成績なし / 新人**: リーグ平均（wRAA=0）として計算（1人あたり±1.5勝の不確実性）\n\n"
-            "予測幅（グラフのオレンジ縦線）は各選手の不確実性を合計した値です"
+            "- **前リーグ成績なし / 新人**: リーグ平均（wRAA=0）として計算\n\n"
+            "予測幅（グラフのオレンジ縦線）はMonte Carloシミュレーションで算出。独立な不確実性の相殺を反映しています"
         ),
         "all_projected": "全員Marcel予測対象 ✅",
         "missing_team_detail": "{n}名 → 予測幅 **±{unc:.0f}勝**: {names}",
@@ -326,9 +330,10 @@ TEXTS: dict[str, dict[str, str]] = {
             "- **試合数**: 143試合（NPBレギュラーシーズン）\n"
             "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく\n\n"
             "**予測幅（信頼区間）の考え方**\n\n"
-            "- 前リーグ成績がある外国人: ベイズ推定（Shrinkageモデル）で予測値と80%信頼区間を算出し、個別の予測幅を決定\n"
-            "- 前リーグ成績がない外国人・新人: wRAA=0（リーグ平均貢献）と仮定し、1人あたり ±1.5勝 の不確実性\n"
-            "- グラフのオレンジ縦線が予測幅。各選手の不確実性を合計した値\n\n"
+            "- 各計算外選手の事後分布からMonte Carloシミュレーション（5,000回）で勝数分布を直接算出\n"
+            "- 前リーグ成績がある外国人: ベイズ推定（Shrinkageモデル）の事後分布からサンプリング\n"
+            "- 前リーグ成績がない外国人・新人: 勝数空間で直接不確実性を加算\n"
+            "- グラフのオレンジ縦線が予測幅（80%区間）。独立な不確実性の相殺を反映\n\n"
             "**若手の急成長について（Marcel法の構造的な限界）**\n\n"
             "Marcel法の年齢調整は「27歳基準で±0.3%/年」と非常に小さく、急激な成長は捉えられません。\n"
             "23〜26歳の選手がブレイクするケースでは、過去3年の平均に引き戻されるため実際を大きく下回る予測になります。\n"
@@ -642,24 +647,29 @@ TEXTS: dict[str, dict[str, str]] = {
         "wpct_prefix": "Win% ",
         "pred_wins_label": "Projected Wins",
         "chart_annotation": "Orange bars = uncertainty from untracked players",
-        "pred_range_brief": "Orange bars = prediction range. Foreign players with prior league stats use Bayesian estimates; others add ±1.5W per player",
+        "pred_range_brief": "Orange bars = prediction range. Computed via Monte Carlo simulation (5,000 draws) from each untracked player's posterior, reflecting diversification of independent uncertainties",
         "pred_range_explain_title": "How prediction ranges (orange bars) work",
         "pred_range_explain": (
             "New foreign players, rookies, and others with less than 3 years of NPB data cannot be projected by Marcel.\n\n"
+            "**How prediction ranges are calculated (Monte Carlo simulation)**\n"
+            "- 5,000 simultaneous samples are drawn from each untracked player's posterior distribution\n"
+            "- For each sample, team RS/RA are computed and converted to wins via Pythagorean formula\n"
+            "- The 80% interval (10th–90th percentile) of the resulting distribution is shown as the range\n\n"
             "**Foreign players with prior league stats** use Bayesian estimation (Shrinkage model).\n"
             "- Prior league stats (wOBA/ERA) are converted to NPB scale\n"
-            "- Individual weight (w≈0.14) + regression to league mean for prediction\n"
-            "- Prediction uncertainty (80% credible interval) determines individual range\n\n"
+            "- Individual weight (w≈0.14) + regression to league mean for prediction\n\n"
             "**Players without prior stats / rookies** are treated as league-average (wRAA=0) "
-            "with ±1.5 wins of uncertainty per player.\n\n"
-            "Example: 3 untracked players (1 with Bayesian estimate) → team range is the sum of individual uncertainties"
+            "with uncertainty added directly in the wins space.\n\n"
+            "**Diversification effect**: Simply summing individual uncertainties overestimates the range. "
+            "MC simulation naturally captures the partial cancellation of independent uncertainties, "
+            "yielding more realistic prediction intervals."
         ),
         "missing_expander_all": "⚠️ Players Not Projected by Team (rookies/new imports)",
         "missing_expander_content": (
             "**These players lack 3 years of NPB data and are excluded from Marcel projections.**\n\n"
             "- **With prior league stats**: Bayesian prediction with credible interval, reflected in projected runs\n"
-            "- **Without prior stats / rookies**: Treated as league-average (wRAA=0) with ±1.5W uncertainty\n\n"
-            "Orange bars show the total uncertainty from all untracked players on each team"
+            "- **Without prior stats / rookies**: Treated as league-average (wRAA=0)\n\n"
+            "Orange bars show Monte Carlo–derived prediction ranges that reflect the diversification of independent uncertainties"
         ),
         "all_projected": "All players projected ✅",
         "missing_team_detail": "{n} players → Range **±{unc:.0f}W**: {names}",
@@ -671,9 +681,10 @@ TEXTS: dict[str, dict[str, str]] = {
             "- **Games**: 143 (NPB regular season)\n"
             "- Player projections use Marcel method (3-year weighted average with age adjustment)\n\n"
             "**Prediction Range (Uncertainty)**\n\n"
-            "- Foreign players with prior stats: Bayesian Shrinkage model estimates prediction + 80% credible interval for individual range\n"
-            "- Foreign players without prior stats / rookies: set to wRAA=0 (league-average) with ±1.5W per player\n"
-            "- Orange bars show total uncertainty from all untracked players per team\n\n"
+            "- Monte Carlo simulation (5,000 draws) from each untracked player's posterior → team wins distribution\n"
+            "- Foreign players with prior stats: Bayesian Shrinkage model posterior sampling\n"
+            "- Foreign players without prior stats / rookies: uncertainty added directly in wins space\n"
+            "- Orange bars show the 80% interval, reflecting diversification of independent uncertainties\n\n"
             "**Young Player Breakouts (Marcel Limitation)**\n\n"
             "Marcel's age adjustment (+0.3%/year from age 27) is very small and cannot capture rapid improvement. "
             "When players aged 23–26 break out, Marcel is anchored to the 3-year average and will significantly "

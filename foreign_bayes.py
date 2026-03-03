@@ -101,6 +101,130 @@ def predict_no_prev_stats(player_type: str,
     return _summarize(samples)
 
 
+def _sample_hitter_woba(prev_woba: float, lg_woba: float,
+                        n: int, rng: np.random.Generator) -> np.ndarray:
+    """Sample n wOBA values from posterior for a foreign hitter."""
+    p = HITTER_PARAMS
+    w = np.clip(rng.normal(p["w"][0], p["w"][1], n), 0, 1)
+    cf_mu = rng.normal(p["cf_mu"][0], p["cf_mu"][1], n)
+    cf_sigma = np.abs(rng.normal(p["cf_sigma"][0], p["cf_sigma"][1], n))
+    cf_i = rng.normal(cf_mu, cf_sigma)
+    sigma_obs = np.abs(rng.normal(p["sigma_obs"][0], p["sigma_obs"][1], n))
+    npb_woba = w * (prev_woba * cf_i) + (1 - w) * lg_woba
+    npb_woba += rng.normal(0, sigma_obs)
+    return npb_woba
+
+
+def _sample_pitcher_era(prev_era: float, lg_era: float,
+                        n: int, rng: np.random.Generator) -> np.ndarray:
+    """Sample n ERA values from posterior for a foreign pitcher."""
+    p = PITCHER_PARAMS
+    w = np.clip(rng.normal(p["w"][0], p["w"][1], n), 0, 1)
+    cf_mu = rng.normal(p["cf_mu"][0], p["cf_mu"][1], n)
+    cf_sigma = np.abs(rng.normal(p["cf_sigma"][0], p["cf_sigma"][1], n))
+    cf_i = rng.normal(cf_mu, cf_sigma)
+    sigma_obs = np.abs(rng.normal(p["sigma_obs"][0], p["sigma_obs"][1], n))
+    npb_era = w * (prev_era * cf_i) + (1 - w) * lg_era
+    npb_era += rng.normal(0, sigma_obs)
+    return np.clip(npb_era, 0, None)
+
+
+def _sample_no_prev(player_type: str, lg_woba: float, lg_era: float,
+                    n: int, rng: np.random.Generator) -> np.ndarray:
+    """Sample for a foreign player with no previous league stats."""
+    if player_type == "hitter":
+        center = lg_woba
+        sigma = HITTER_PARAMS["sigma_obs"]
+    else:
+        center = lg_era
+        sigma = PITCHER_PARAMS["sigma_obs"]
+    sigma_s = np.abs(rng.normal(sigma[0], sigma[1], n))
+    samples = center + rng.normal(0, sigma_s)
+    if player_type != "hitter":
+        samples = np.clip(samples, 0, None)
+    return samples
+
+
+def simulate_team_wins_mc(
+    pred_rs: float,
+    pred_ra: float,
+    missing_players: list,
+    rs_scale: float,
+    ra_scale: float,
+    lg_woba: float,
+    lg_era: float,
+    woba_scale: float = 1.15,
+    k: float = 1.72,
+    n_samples: int = 5000,
+) -> dict:
+    """Monte Carlo simulation: posterior samples → team wins distribution.
+
+    Perturbs the center estimate (pred_rs, pred_ra) by sampling from each
+    missing player's posterior, then applies the Pythagorean formula to get
+    the full wins distribution.  Diversification effect is captured naturally.
+    """
+    rng = np.random.default_rng(42)
+
+    delta_rs = np.zeros(n_samples)
+    delta_ra = np.zeros(n_samples)
+    delta_wins = np.zeros(n_samples)
+
+    for m in missing_players:
+        b = m.get("bayes")
+        kind = m.get("kind", "rookie")
+
+        if kind == "rookie" or b is None:
+            # Rookie: perturb directly in wins space (σ = 1.5 / 1.28 ≈ 1.17)
+            delta_wins += rng.normal(0, 1.17, n_samples)
+            continue
+
+        if b.get("has_prev"):
+            if b["type"] == "hitter":
+                prev_stat = b.get("prev_stat")
+                expected_pt = b.get("expected_pt", 400)
+                woba_samples = _sample_hitter_woba(prev_stat, lg_woba,
+                                                   n_samples, rng)
+                wraa_samples = (woba_samples - lg_woba) / woba_scale * expected_pt
+                wraa_mean = b.get("wraa_est", 0)
+                delta_rs += (wraa_samples - wraa_mean) * rs_scale
+            else:  # pitcher
+                prev_stat = b.get("prev_stat")
+                expected_pt = b.get("expected_pt", 100)
+                era_samples = _sample_pitcher_era(prev_stat, lg_era,
+                                                  n_samples, rng)
+                ra_samples = (era_samples - lg_era) * expected_pt / 9.0
+                ra_mean = b.get("ra_above_avg", 0)
+                delta_ra += (ra_samples - ra_mean) * ra_scale
+        else:
+            # Foreign without prev stats
+            if b["type"] == "hitter":
+                woba_samples = _sample_no_prev("hitter", lg_woba, lg_era,
+                                               n_samples, rng)
+                expected_pt = b.get("expected_pt", 400)
+                wraa_samples = (woba_samples - lg_woba) / woba_scale * expected_pt
+                delta_rs += wraa_samples * rs_scale  # mean ≈ 0
+            elif b["type"] == "pitcher":
+                era_samples = _sample_no_prev("pitcher", lg_woba, lg_era,
+                                              n_samples, rng)
+                expected_pt = b.get("expected_pt", 100)
+                ra_samples = (era_samples - lg_era) * expected_pt / 9.0
+                delta_ra += ra_samples * ra_scale  # mean ≈ 0
+            else:
+                # unknown type → treat as rookie-like uncertainty
+                delta_wins += rng.normal(0, 1.17, n_samples)
+
+    sim_rs = pred_rs + delta_rs
+    sim_ra = pred_ra + delta_ra
+    sim_wpct = sim_rs**k / (sim_rs**k + sim_ra**k)
+    sim_wins = np.clip(sim_wpct * 143 + delta_wins, 0, 143)
+
+    return {
+        "pred_W_low": float(np.percentile(sim_wins, 10)),
+        "pred_W_high": float(np.percentile(sim_wins, 90)),
+        "std_W": float(np.std(sim_wins)),
+    }
+
+
 def woba_to_wraa(pred_woba: float, lg_woba: float,
                  woba_scale: float = 1.15, pa: float = 400) -> float:
     """Convert predicted wOBA to wRAA estimate."""
@@ -161,15 +285,20 @@ def get_foreign_predictions(lg_woba: float = 0.310,
                 wraa_lo = woba_to_wraa(pred["hdi_80"][0], lg_woba, woba_scale, pa)
                 unc_wins = (wraa_hi - wraa_lo) / 10.0 / 2
                 has_prev = True
+                prev_stat = row["prev_wOBA"]
+                expected_pt = pa
             else:
                 pred = predict_no_prev_stats("hitter", lg_woba, lg_era)
                 wraa = 0.0
                 unc_wins = 1.5
                 has_prev = False
+                prev_stat = None
+                expected_pt = 400
 
             results[name] = {
                 "pred": pred, "wraa_est": wraa, "unc_wins": unc_wins,
                 "type": ptype, "has_prev": has_prev,
+                "prev_stat": prev_stat, "expected_pt": expected_pt,
                 "stat_label": "wOBA",
                 "stat_value": pred["mean"],
                 "stat_range": pred["hdi_80"],
@@ -183,15 +312,20 @@ def get_foreign_predictions(lg_woba: float = 0.310,
                 ra_lo = era_to_ra_above_avg(pred["hdi_80"][0], lg_era, ip)
                 unc_wins = abs(ra_hi - ra_lo) / 10.0 / 2
                 has_prev = True
+                prev_stat = row["prev_ERA"]
+                expected_pt = ip
             else:
                 pred = predict_no_prev_stats("pitcher", lg_woba, lg_era)
                 ra_above = 0.0
                 unc_wins = 1.5
                 has_prev = False
+                prev_stat = None
+                expected_pt = 100
 
             results[name] = {
                 "pred": pred, "ra_above_avg": ra_above, "unc_wins": unc_wins,
                 "type": ptype, "has_prev": has_prev,
+                "prev_stat": prev_stat, "expected_pt": expected_pt,
                 "stat_label": "ERA",
                 "stat_value": pred["mean"],
                 "stat_range": pred["hdi_80"],
