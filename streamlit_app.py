@@ -286,9 +286,10 @@ def _data_years_badge(years: int) -> str:
 
 def _get_missing_players(data: dict) -> dict:
     """ロースター登録済みだがMarcel予測対象外の選手をチーム別に返す。
-    返り値: {team: [{"name": str, "kind": "外国人" | "新人/データなし"}, ...]}
+    返り値: {team: [{"name": str, "kind": "foreign"|"rookie", "bayes": dict|None}, ...]}
     """
     from roster_current import ROSTER_CURRENT
+    from foreign_bayes import get_foreign_predictions, predict_no_prev_stats
 
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
@@ -298,6 +299,22 @@ def _get_missing_players(data: dict) -> dict:
         set(mh["player"].apply(_fuzzy))
         | set(mp["player"].apply(_fuzzy))
     )
+
+    # League averages for Bayes predictions
+    saber = data.get("sabermetrics", pd.DataFrame())
+    if not saber.empty and "wOBA" in saber.columns:
+        recent_s = saber[saber["year"] >= 2022]
+        lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+    else:
+        lg_woba = 0.310
+    lg_era = (
+        (mp["ERA"] * mp["IP"]).sum() / mp["IP"].sum()
+        if mp["IP"].sum() > 0 else 3.5
+    )
+
+    # Bayes predictions for foreign players with prev stats (from CSV)
+    bayes_preds = get_foreign_predictions(lg_woba, lg_era)
+
     result = {}
     for team, players in ROSTER_CURRENT.items():
         missing = []
@@ -305,7 +322,22 @@ def _get_missing_players(data: dict) -> dict:
             if _fuzzy(p) not in calculated:
                 kind = "foreign" if _is_foreign_player(p) else "rookie"
                 display = p.replace("\u3000", " ").strip()
-                missing.append({"name": display, "kind": kind})
+                bayes = None
+                if kind == "foreign":
+                    # Look up by fuzzy name match
+                    for bname, bpred in bayes_preds.items():
+                        if _fuzzy(bname) == _fuzzy(p):
+                            bayes = bpred
+                            break
+                    if bayes is None:
+                        # No prev stats in CSV → league average with wider uncertainty
+                        bayes = {
+                            "pred": predict_no_prev_stats("hitter", lg_woba, lg_era),
+                            "wraa_est": 0.0, "unc_wins": 1.5,
+                            "type": "unknown", "has_prev": False,
+                            "stat_label": "", "stat_value": 0, "stat_range": (0, 0),
+                        }
+                missing.append({"name": display, "kind": kind, "bayes": bayes})
         result[team] = missing
     return result
 
@@ -713,8 +745,17 @@ def page_top(data: dict):
             with st.expander(t("missing_expander_team").format(team=selected_team, n=len(missing_for_team))):
                 st.caption(t("missing_caption_team"))
                 for m in missing_for_team:
-                    kind_label = t("foreign_player") if m["kind"] == "foreign" else t("rookie_no_data")
-                    st.markdown(f"- **{m['name']}** — {kind_label}（{t('wraa_zero_note')}）")
+                    b = m.get("bayes")
+                    if m["kind"] == "foreign" and b and b.get("has_prev"):
+                        key = "bayes_pred_hitter" if b["type"] == "hitter" else "bayes_pred_pitcher"
+                        detail = t(key).format(
+                            val=b["stat_value"], lo=b["stat_range"][0], hi=b["stat_range"][1],
+                        )
+                        st.markdown(f"- **{m['name']}** — {t('foreign_player')}（{detail}）")
+                    elif m["kind"] == "foreign":
+                        st.markdown(f"- **{m['name']}** — {t('foreign_player')}（{t('no_prev_stats')}）")
+                    else:
+                        st.markdown(f"- **{m['name']}** — {t('rookie_no_data')}（{t('wraa_zero_note')}）")
     else:
         # デフォルト: TOP3表示
         # TOP3 打者
@@ -1235,7 +1276,7 @@ def page_pitcher_rankings(data: dict):
         </div>""", height=min(650, top_n * 50 + 20))
 
 
-def _build_2026_standings(data: dict) -> pd.DataFrame:
+def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.DataFrame:
     """2026年の予測順位表。
 
     RS推定: wOBA = a×OBP + b×SLG の回帰 → wRAA → リーグ平均+wRAA合計
@@ -1279,19 +1320,35 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
 
     # --- チームごとにRS/RA算出 ---
     # ※ ロースター登録済みだがMarcel対象外の選手（新人・新外国人等）は
-    #    wRAA=0（リーグ平均貢献）として暗黙的に扱われる。
-    #    実際の戦力との差（過小/過大評価）は missing_count が多いほど不確実。
-    missing_all = _get_missing_players(data)
+    #    前リーグ成績がある外国人はベイズ推定で得点/失点に反映し、
+    #    それ以外はwRAA=0（リーグ平均貢献）として扱う。
+    if missing_all is None:
+        missing_all = _get_missing_players(data)
     rows = []
     for team in TEAMS:
         h = mh[mh["team"] == team]
         p = mp[mp["team"] == team]
         rs_raw = lg_avg_rs + (h["wRAA_est"].sum() if not h.empty else 0)
         ra_raw = lg_avg_ra + ((p["era_above_avg"] * p["IP"] / 9.0).sum() if not p.empty else 0)
+
+        # Bayes foreign player contributions + data-driven uncertainty
+        team_missing = missing_all.get(team, [])
+        team_unc = 0.0
+        for m in team_missing:
+            b = m.get("bayes")
+            if b and b.get("has_prev"):
+                if b["type"] == "hitter":
+                    rs_raw += b.get("wraa_est", 0)
+                else:  # pitcher
+                    ra_raw += b.get("ra_above_avg", 0)
+                team_unc += b.get("unc_wins", 1.5)
+            else:
+                team_unc += 1.5  # no prev stats / rookie
+
         league = "CL" if team in CENTRAL_TEAMS else "PL"
         rows.append({
             "league": league, "team": team, "rs_raw": rs_raw, "ra_raw": ra_raw,
-            "missing_count": len(missing_all.get(team, [])),
+            "missing_count": len(team_missing), "team_unc": team_unc,
         })
 
     df = pd.DataFrame(rows)
@@ -1308,12 +1365,9 @@ def _build_2026_standings(data: dict) -> pd.DataFrame:
     df["pred_W"] = df["pred_WPCT"] * 143
     df["pred_L"] = 143 - df["pred_W"]
 
-    # 予測幅: 計算外選手1人 ≈ ±1.5勝の不確実性（wRAA±15点 / 10点≒1勝）
-    # 根拠: NPB外国人選手の初年度wRAAは-15〜+25点のばらつきがあり、
-    #       リーグ平均（wRAA=0）との差が最大±15点程度と仮定。
-    _UNC = 1.5  # 1選手あたりの不確実性（勝）
-    df["pred_W_low"]  = (df["pred_W"] - df["missing_count"] * _UNC).clip(lower=0)
-    df["pred_W_high"] = (df["pred_W"] + df["missing_count"] * _UNC).clip(upper=143)
+    # 予測幅: 前リーグ成績ありはデータ駆動の不確実性、なしは±1.5勝/人
+    df["pred_W_low"]  = (df["pred_W"] - df["team_unc"]).clip(lower=0)
+    df["pred_W_high"] = (df["pred_W"] + df["team_unc"]).clip(upper=143)
 
     return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT",
                "pred_W", "pred_L", "missing_count", "pred_W_low", "pred_W_high"]]
@@ -1324,7 +1378,8 @@ def page_pythagorean_standings(data: dict):
     st.info(t("standings_info"), icon=None)
 
     # --- 2026年予測 ---
-    standings_2026 = _build_2026_standings(data)
+    missing_all = _get_missing_players(data)
+    standings_2026 = _build_2026_standings(data, missing_all)
     if not standings_2026.empty:
         st.markdown(f"## {t('standings_2026_title')}")
         st.caption(t("standings_2026_caption"))
@@ -1408,7 +1463,6 @@ def page_pythagorean_standings(data: dict):
         with st.expander(t("pred_range_explain_title")):
             st.markdown(t("pred_range_explain"))
 
-        missing_all = _get_missing_players(data)
         with st.expander(t("missing_expander_all")):
             st.markdown(t("missing_expander_content"))
             st.markdown("---")
@@ -1418,15 +1472,30 @@ def page_pythagorean_standings(data: dict):
                 for team in league_teams:
                     missing = missing_all.get(team, [])
                     mc = len(missing)
-                    unc = mc * 1.5
                     if not missing:
                         st.markdown(f"- **{team_disp(team)}**: {t('all_projected')}")
                     else:
                         sep = " / " if st.session_state.get("lang") == "English" else "、"
-                        names_str = sep.join(
-                            f"{m['name']}（{t('foreign_player') if m['kind'] == 'foreign' else t('rookie_no_data')}, {t('wraa_zero_inline')}）"
+                        unc = sum(
+                            m["bayes"]["unc_wins"] if m.get("bayes") else 1.5
                             for m in missing
                         )
+                        parts = []
+                        for m in missing:
+                            b = m.get("bayes")
+                            if m["kind"] == "foreign" and b and b.get("has_prev"):
+                                key = "bayes_pred_hitter" if b["type"] == "hitter" else "bayes_pred_pitcher"
+                                detail = t(key).format(
+                                    val=b["stat_value"],
+                                    lo=b["stat_range"][0],
+                                    hi=b["stat_range"][1],
+                                )
+                                parts.append(f"{m['name']}（{t('foreign_player')}, {detail}）")
+                            elif m["kind"] == "foreign":
+                                parts.append(f"{m['name']}（{t('foreign_player')}, {t('no_prev_stats')}）")
+                            else:
+                                parts.append(f"{m['name']}（{t('rookie_no_data')}, {t('wraa_zero_inline')}）")
+                        names_str = sep.join(parts)
                         st.markdown(
                             t("missing_team_detail").format(n=mc, unc=unc, names=names_str)
                         )
