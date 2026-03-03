@@ -88,10 +88,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "rookie_no_data": "データ不足",
         "wraa_zero_note": "リーグ平均の貢献として計算",
         "wraa_zero_inline": "wRAA=0で計算中",
-        "bayes_pred_hitter": "予測wOBA {val:.3f} [{lo:.3f}–{hi:.3f}]",
-        "bayes_pred_pitcher": "予測ERA {val:.2f} [{lo:.2f}–{hi:.2f}]",
         "no_prev_stats": "前リーグ成績なし → リーグ平均",
-        "historical_foreign_note": "歴代外国人初年度平均を基準に計算",
 
         # --- Top page ---
         "top_title": "NPB 2026 予測",
@@ -135,7 +132,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "- **WHIP** — 1イニングに許した走者数。1.00以下ならエース級"
         ),
         "missing_expander_team": "⚠️ {team}の計算対象外選手 ({n}名)",
-        "missing_caption_team": "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です（外国人選手は歴代初年度平均、新人はリーグ平均を基準に計算）。",
+        "missing_caption_team": "以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。リーグ平均（wRAA=0）として計算しています。",
         "no_data_pa": "{team}の打者データがありません（PA >= 100）",
         "no_data_ip": "{team}の投手データがありません（IP >= 30）",
         "top3_batters": "打者 TOP3（wRC+ 順）",
@@ -280,7 +277,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "⚠️ **これは統計モデルの自動計算結果です。作者の予想・応援とは無関係です。**\n\n"
             "Marcel法は「過去3年のNPBデータ」だけを見ています。"
             "つまり、**このモデルが知らないことが必ずあります**。\n\n"
-            "- **データなし選手**: 新外国人・新人・復帰選手の貢献は計算に含まれていません（wRAA=0として扱い、予測幅で可視化）\n"
+            "- **データなし選手**: 新外国人・新人・復帰選手の貢献は計算に含まれていません（wRAA=0＝リーグ平均として扱っています）\n"
             "- **NPB 1〜2年目選手**: データはあるが少ないため予測値がリーグ平均に強く補正されます。"
             "実力の過小/過大評価が起きやすく、特に2年目外国人選手の移籍初年度実績は参考程度にしてください（選手名横の「NPB1年/2年」バッジで確認できます）\n"
             "- **若手の急成長**: 23〜26歳の選手が殻を破るような場合、Marcel法は過去3年の平均に引っ張られ、"
@@ -294,48 +291,23 @@ TEXTS: dict[str, dict[str, str]] = {
         "data_years_note_1": "⚠️ 直近3年のうちNPBデータが1年のみのため、予測値はリーグ平均に強く補正されています（約2/3がリーグ平均寄り）。実力の過小/過大評価に注意してください。",
         "data_years_note_2": "📊 直近3年のうちNPBデータが2年のみのため、予測値はリーグ平均にやや補正されています。参考値としてご覧ください。",
         "data_years_legend": "注欄の見方：⚠️直近1年のみ＝直近3年中1年分のみデータあり（予測値はリーグ平均寄りになりやすい）　📊直近2年のみ＝直近3年中2年分のみデータあり（やや補正あり）",
-        "pred_range": "幅: {lo}〜{hi}勝",
         "wpct_prefix": "勝率 ",
         "pred_wins_label": "予測勝数",
-        "chart_annotation": "オレンジの縦線 = 計算外選手による予測幅",
-        "pred_range_brief": "オレンジの縦線 = 予測幅。計算対象外選手の事後分布からMonte Carloシミュレーション（5,000回）で算出。独立な不確実性の相殺（多様化効果）を反映しています",
-        "pred_range_explain_title": "予測幅（オレンジの縦線）の詳しい説明",
-        "pred_range_explain": (
-            "新外国人・新人などNPBデータが3年未満の選手は、Marcel法では予測できません。\n\n"
-            "**予測幅の算出方法（Monte Carloシミュレーション）**\n"
-            "- 各計算外選手の事後分布から5,000回同時にサンプリング\n"
-            "- サンプルごとにチームの得点・失点を計算 → ピタゴラス勝率で勝数に変換\n"
-            "- 結果の80%区間（10〜90パーセンタイル）を予測幅として表示\n\n"
-            "**前リーグ成績がある外国人選手**にはベイズ推定（Shrinkageモデル）を適用しています。\n"
-            "- 前リーグの成績（wOBA/ERA）をNPBスケールに変換\n"
-            "- 個人データの重み（w≈0.14）＋リーグ平均への回帰で予測\n\n"
-            "**前リーグ成績がない選手・新人**はリーグ平均（wRAA=0）として計算し、"
-            "勝数空間で直接不確実性を加えています。\n\n"
-            "**多様化効果**: 複数選手の不確実性を単純に足し合わせると過大評価になります。"
-            "MCシミュレーションでは独立な不確実性が部分的に相殺されるため、より現実的な予測幅が得られます。"
-        ),
         "missing_expander_all": "⚠️ チームごとの計算対象外選手（新人・新外国人等）",
         "missing_expander_content": (
             "**以下の選手はNPBでの過去3年データがないためMarcel予測の対象外です。**\n\n"
-            "- **前リーグ成績あり**: ベイズ推定で予測値と信頼区間を算出し、予測得点・失点に反映\n"
-            "- **前リーグ成績なし（外国人）**: 歴代NPB外国人選手の初年度平均（打者wOBA=.318 / 投手ERA=3.41）を基準に計算\n"
-            "- **新人**: リーグ平均（wRAA=0）として計算\n\n"
-            "予測幅（グラフのオレンジ縦線）はMonte Carloシミュレーションで算出。独立な不確実性の相殺を反映しています"
+            "全員リーグ平均（wRAA=0）として計算しています。"
         ),
         "all_projected": "全員Marcel予測対象 ✅",
-        "missing_team_detail": "{n}名 → 予測幅 **±{unc:.0f}勝**: {names}",
+        "missing_team_detail": "{n}名: {names}",
         "method_expander": "予測方法の説明",
         "method_content": (
             "- **得点の推定**: チーム所属打者の予測wRAA（打者の得点貢献）を合計し、リーグ平均得点に加算\n"
             "- **失点の推定**: チーム所属投手の予測ERA×投球回÷9でリーグ平均からの超過失点を算出\n"
             "- **勝率の計算**: ピタゴラス勝率（得点^1.72 ÷ (得点^1.72 + 失点^1.72)）\n"
             "- **試合数**: 143試合（NPBレギュラーシーズン）\n"
-            "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく\n\n"
-            "**予測幅（信頼区間）の考え方**\n\n"
-            "- 各計算外選手の事後分布からMonte Carloシミュレーション（5,000回）で勝数分布を直接算出\n"
-            "- 前リーグ成績がある外国人: ベイズ推定（Shrinkageモデル）の事後分布からサンプリング\n"
-            "- 前リーグ成績がない外国人・新人: 勝数空間で直接不確実性を加算\n"
-            "- グラフのオレンジ縦線が予測幅（80%区間）。独立な不確実性の相殺を反映\n\n"
+            "- 選手の予測はMarcel法（過去3年の成績を5:4:3で加重平均し、年齢で調整）に基づく\n"
+            "- NPBでの過去データがない選手（新外国人・新人等）はwRAA=0（リーグ平均）として扱う\n\n"
             "**若手の急成長について（Marcel法の構造的な限界）**\n\n"
             "Marcel法の年齢調整は「27歳基準で±0.3%/年」と非常に小さく、急激な成長は捉えられません。\n"
             "23〜26歳の選手がブレイクするケースでは、過去3年の平均に引き戻されるため実際を大きく下回る予測になります。\n"
@@ -437,10 +409,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "rookie_no_data": "Insufficient Data",
         "wraa_zero_note": "projected as league-average contribution",
         "wraa_zero_inline": "wRAA=0",
-        "bayes_pred_hitter": "Proj. wOBA {val:.3f} [{lo:.3f}–{hi:.3f}]",
-        "bayes_pred_pitcher": "Proj. ERA {val:.2f} [{lo:.2f}–{hi:.2f}]",
         "no_prev_stats": "No prior league stats → league avg",
-        "historical_foreign_note": "Based on historical foreign 1st-year average",
 
         # --- Top page ---
         "top_title": "NPB 2026 Predictions",
@@ -484,7 +453,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "- **WHIP** — Baserunners per inning. Under 1.00 is ace-level"
         ),
         "missing_expander_team": "⚠️ {team}: Players Not Projected ({n})",
-        "missing_caption_team": "These players lack 3 years of NPB data and are excluded from Marcel projections (foreign players use historical 1st-year average; rookies use league average).",
+        "missing_caption_team": "These players lack 3 years of NPB data and are excluded from Marcel projections. Treated as league-average (wRAA=0).",
         "no_data_pa": "No batter data for {team} (PA ≥ 100)",
         "no_data_ip": "No pitcher data for {team} (IP ≥ 30)",
         "top3_batters": "Top 3 Batters (by wRC+)",
@@ -630,7 +599,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "The Marcel method looks only at the past 3 years of NPB data. "
             "**There are things this model simply cannot know.**\n\n"
             "- **Players with no NPB data**: Contributions of new foreign players, rookies, and returning players "
-            "are excluded (set to wRAA=0, visualized as prediction ranges)\n"
+            "are excluded (treated as wRAA=0 = league average)\n"
             "- **Players with 1–2 years of NPB data**: These players appear in projections but their stats are "
             "heavily anchored to league average due to limited data. Projections may under- or over-estimate actual ability. "
             "Look for the 'NPB1yr / NPB2yr' badge next to player names\n"
@@ -646,49 +615,23 @@ TEXTS: dict[str, dict[str, str]] = {
         "data_years_note_1": "⚠️ Only 1 of the last 3 seasons has NPB data — projection is heavily anchored to league average (~2/3 regression). May under- or over-estimate actual ability.",
         "data_years_note_2": "📊 Only 2 of the last 3 seasons have NPB data — projection is moderately anchored to league average. Treat as a rough estimate.",
         "data_years_legend": "Column guide: ⚠️last 1yr only = data in only 1 of last 3 seasons (projection anchored to league avg)　📊last 2yrs only = data in only 2 of last 3 seasons (moderate regression)",
-        "pred_range": "Range: {lo}–{hi}W",
         "wpct_prefix": "Win% ",
         "pred_wins_label": "Projected Wins",
-        "chart_annotation": "Orange bars = uncertainty from untracked players",
-        "pred_range_brief": "Orange bars = prediction range. Computed via Monte Carlo simulation (5,000 draws) from each untracked player's posterior, reflecting diversification of independent uncertainties",
-        "pred_range_explain_title": "How prediction ranges (orange bars) work",
-        "pred_range_explain": (
-            "New foreign players, rookies, and others with less than 3 years of NPB data cannot be projected by Marcel.\n\n"
-            "**How prediction ranges are calculated (Monte Carlo simulation)**\n"
-            "- 5,000 simultaneous samples are drawn from each untracked player's posterior distribution\n"
-            "- For each sample, team RS/RA are computed and converted to wins via Pythagorean formula\n"
-            "- The 80% interval (10th–90th percentile) of the resulting distribution is shown as the range\n\n"
-            "**Foreign players with prior league stats** use Bayesian estimation (Shrinkage model).\n"
-            "- Prior league stats (wOBA/ERA) are converted to NPB scale\n"
-            "- Individual weight (w≈0.14) + regression to league mean for prediction\n\n"
-            "**Players without prior stats / rookies** are treated as league-average (wRAA=0) "
-            "with uncertainty added directly in the wins space.\n\n"
-            "**Diversification effect**: Simply summing individual uncertainties overestimates the range. "
-            "MC simulation naturally captures the partial cancellation of independent uncertainties, "
-            "yielding more realistic prediction intervals."
-        ),
         "missing_expander_all": "⚠️ Players Not Projected by Team (rookies/new imports)",
         "missing_expander_content": (
             "**These players lack 3 years of NPB data and are excluded from Marcel projections.**\n\n"
-            "- **With prior league stats**: Bayesian prediction with credible interval, reflected in projected runs\n"
-            "- **Without prior stats (foreign)**: Based on historical NPB foreign player 1st-year averages (hitter wOBA=.318 / pitcher ERA=3.41)\n"
-            "- **Rookies**: Treated as league-average (wRAA=0)\n\n"
-            "Orange bars show Monte Carlo–derived prediction ranges that reflect the diversification of independent uncertainties"
+            "All treated as league-average (wRAA=0)."
         ),
         "all_projected": "All players projected ✅",
-        "missing_team_detail": "{n} players → Range **±{unc:.0f}W**: {names}",
+        "missing_team_detail": "{n} players: {names}",
         "method_expander": "Methodology",
         "method_content": (
             "- **Runs Scored estimate**: Sum of projected wRAA for each team's batters, added to league-average RS\n"
             "- **Runs Allowed estimate**: Sum of each pitcher's ERA-vs-league × IP/9, added to league-average RA\n"
             "- **Win% calculation**: Pythagorean Win% (RS^1.72 / (RS^1.72 + RA^1.72))\n"
             "- **Games**: 143 (NPB regular season)\n"
-            "- Player projections use Marcel method (3-year weighted average with age adjustment)\n\n"
-            "**Prediction Range (Uncertainty)**\n\n"
-            "- Monte Carlo simulation (5,000 draws) from each untracked player's posterior → team wins distribution\n"
-            "- Foreign players with prior stats: Bayesian Shrinkage model posterior sampling\n"
-            "- Foreign players without prior stats / rookies: uncertainty added directly in wins space\n"
-            "- Orange bars show the 80% interval, reflecting diversification of independent uncertainties\n\n"
+            "- Player projections use Marcel method (3-year weighted average with age adjustment)\n"
+            "- Players without NPB history (new foreign players, rookies) are treated as wRAA=0 (league average)\n\n"
             "**Young Player Breakouts (Marcel Limitation)**\n\n"
             "Marcel's age adjustment (+0.3%/year from age 27) is very small and cannot capture rapid improvement. "
             "When players aged 23–26 break out, Marcel is anchored to the 3-year average and will significantly "
