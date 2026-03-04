@@ -320,6 +320,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "wins_y": "勝数",
         "expected_prefix": "Marcel予測",
         "pyth_prefix": "期待値",
+        # --- Stan correction ---
+        "stan_correction": "Stan/Ridge補正",
+        "stan_note": "K%/BB%/BABIP等のスキル指標による補正（8年間のLOO-CVで検証済み）",
+        "stan_standings_note": "※ 選手レベル予測にはStan/Ridge補正を適用しています。チーム順位予測はMarcel法を使用しています。",
     },
 
     "en": {
@@ -645,6 +649,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "expected_prefix": "Marcel",
         "pyth_prefix": "Expected",
         "player_name_note": "ℹ️ Player names are shown in Japanese (kanji), as used in official NPB records.",
+        # --- Stan correction ---
+        "stan_correction": "Stan/Ridge Correction",
+        "stan_note": "Correction based on skill metrics (K%, BB%, BABIP) — validated via 8-year LOO-CV",
+        "stan_standings_note": "* Player-level predictions include Stan/Ridge corrections. Team standings use Marcel projections.",
     },
 }
 

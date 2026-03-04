@@ -33,6 +33,7 @@ def team_disp(team_ja: str) -> str:
 
 
 BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main/"
+BAYES_URL = "https://raw.githubusercontent.com/yasumorishima/npb-bayes-projection/main/"
 
 NPB_TEAM_COLORS = {
     "DeNA": "#0055A5",
@@ -172,6 +173,19 @@ def load_csv(path: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=3600)
+def _load_stan_csv(path: str) -> pd.DataFrame | None:
+    """Load Stan CSV from npb-bayes-projection. Returns None on failure."""
+    url = BAYES_URL + path
+    try:
+        df = pd.read_csv(url, encoding="utf-8-sig")
+    except Exception:
+        return None
+    if "player" in df.columns:
+        df["player"] = df["player"].apply(_norm)
+    return df
+
+
 def load_all():
     from roster_current import get_all_roster_names, get_team_for_player
 
@@ -199,6 +213,7 @@ def load_all():
         result[key] = df
 
     _enrich_projections(result)
+    _merge_stan_projections(result)
     return result
 
 
@@ -248,6 +263,25 @@ def _enrich_projections(data: dict) -> None:
             lg_so = mp["SO"].sum()
             fip_c = lg_era - (13 * lg_hra + 3 * (lg_bb + lg_hbp) - 2 * lg_so) / lg_ip
             mp["FIP"] = ((13 * mp["HRA"] + 3 * (mp["BB"] + mp["HBP"]) - 2 * mp["SO"]) / mp["IP"] + fip_c).round(2)
+
+
+def _merge_stan_projections(data: dict) -> None:
+    """Stan CSV（npb-bayes-projection）から stan_wOBA / stan_ERA をマージ"""
+    stan_h = _load_stan_csv(f"data/projections/stan_hitters_{TARGET_YEAR}.csv")
+    stan_p = _load_stan_csv(f"data/projections/stan_pitchers_{TARGET_YEAR}.csv")
+
+    mh = data["marcel_hitters"]
+    mp = data["marcel_pitchers"]
+
+    if stan_h is not None and not mh.empty:
+        stan_cols = stan_h[["player", "stan_wOBA", "stan_delta_wOBA"]].drop_duplicates("player")
+        mh_merged = mh.merge(stan_cols, on="player", how="left")
+        data["marcel_hitters"] = mh_merged
+
+    if stan_p is not None and not mp.empty:
+        stan_cols = stan_p[["player", "stan_ERA", "stan_delta_ERA"]].drop_duplicates("player")
+        mp_merged = mp.merge(stan_cols, on="player", how="left")
+        data["marcel_pitchers"] = mp_merged
 
 
 _VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
@@ -814,6 +848,16 @@ def page_hitter_prediction(data: dict):
             st.metric("wRAA", f"{row['wRAA']:+.1f}", delta=f"{t('above_avg') if row['wRAA'] > 0 else t('below_avg')}")
             st.markdown(f"<span style='color:#888;font-size:11px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
 
+            # Stan補正
+            if "stan_wOBA" in row.index and not pd.isna(row.get("stan_wOBA")):
+                delta_w = float(row["stan_delta_wOBA"])
+                if abs(delta_w) > 0.0001:
+                    st.markdown(f"**{t('stan_correction')}**")
+                    st.markdown(
+                        f"wOBA: Marcel {row['wOBA']:.3f} → Stan **{row['stan_wOBA']:.3f}** ({delta_w:+.3f})"
+                    )
+                    st.caption(t("stan_note"))
+
             # 計算式の説明
             with st.expander(t("formula_hitter")):
                 st.markdown(t("formula_hitter_content"))
@@ -931,6 +975,16 @@ def page_pitcher_prediction(data: dict):
             st.metric("HR/9", f"{row['HR9']:.2f}",
                       delta=f"{row['HR9'] - hr9_avg:+.2f} vs {t('avg_short')}", delta_color="inverse")
             st.markdown(f"<span style='color:#888;font-size:11px;'>{t('hr9_desc')}</span>", unsafe_allow_html=True)
+
+        # Stan補正
+        if "stan_ERA" in row.index and not pd.isna(row.get("stan_ERA")):
+            delta_e = float(row["stan_delta_ERA"])
+            if abs(delta_e) > 0.0001:
+                st.markdown(f"**{t('stan_correction')}**")
+                st.markdown(
+                    f"ERA: Marcel {row['ERA']:.2f} → Stan **{row['stan_ERA']:.2f}** ({delta_e:+.2f})"
+                )
+                st.caption(t("stan_note"))
 
         # 計算式の説明
         with st.expander(t("formula_pitcher")):
@@ -1325,6 +1379,7 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
 def page_pythagorean_standings(data: dict):
     st.markdown(f"### {t('standings_title')}")
     st.info(t("standings_info"), icon=None)
+    st.caption(t("stan_standings_note"))
 
     # --- 2026年予測 ---
     missing_all = _get_missing_players(data)
