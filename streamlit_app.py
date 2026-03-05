@@ -196,6 +196,7 @@ def load_all():
         "pitcher_history": load_csv(f"data/raw/npb_pitchers_2015_{DATA_END_YEAR}.csv"),
         "pythagorean": load_csv(f"data/projections/pythagorean_2015_{DATA_END_YEAR}.csv"),
         "marcel_team_historical": load_csv("data/projections/marcel_team_historical.csv"),
+        "park_factors": load_csv("data/projections/npb_park_factors.csv"),
     }
     # NPB公式ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
     roster_names = get_all_roster_names()
@@ -354,6 +355,25 @@ def _pythagorean_wpct(rs: float, ra: float, k: float = 1.72) -> float:
     if ra == 0:
         return 1.0
     return rs**k / (rs**k + ra**k)
+
+
+def _pf_badge(pf: float, t_func) -> str:
+    """PF_5yr をカラーバッジとしてHTMLで返す。NaN なら空文字。"""
+    import math
+    if math.isnan(pf):
+        return ""
+    if pf >= 1.05:
+        color, bg = "#34d399", "#0a2e1e"  # 打者有利 = 緑
+    elif pf <= 0.95:
+        color, bg = "#f87171", "#2e0a0a"  # 投手有利 = 赤
+    else:
+        color, bg = "#9ca3af", "#1a1a1a"  # 中立 = グレー
+    label = t_func("pf_label")
+    return (
+        f'<span style="color:{color};font-size:11px;background:{bg};'
+        f'padding:2px 6px;border-radius:4px;white-space:nowrap;">'
+        f'{label}{pf:.3f}</span>'
+    )
 
 
 # --- HTML/CSSカード描画 ---
@@ -1303,6 +1323,7 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     mp = data["marcel_pitchers"]
     saber = data["sabermetrics"]
     pyth = data["pythagorean"]
+    pf_df = data.get("park_factors", pd.DataFrame())
     if mh.empty or mp.empty or saber.empty or pyth.empty:
         return pd.DataFrame()
 
@@ -1372,8 +1393,18 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     df["pred_W"] = df["pred_WPCT"] * 143
     df["pred_L"] = 143 - df["pred_W"]
 
+    # 最新年のPF_5yr をマージ（表示用）
+    if not pf_df.empty and "team" in pf_df.columns and "PF_5yr" in pf_df.columns:
+        latest_pf = (
+            pf_df[pf_df["year"] == pf_df["year"].max()][["team", "PF_5yr"]]
+            .rename(columns={"PF_5yr": "pf_5yr"})
+        )
+        df = df.merge(latest_pf, on="team", how="left")
+    else:
+        df["pf_5yr"] = float("nan")
+
     return df[["league", "team", "pred_RS", "pred_RA", "pred_WPCT",
-               "pred_W", "pred_L", "missing_count"]]
+               "pred_W", "pred_L", "missing_count", "pf_5yr"]]
 
 
 def page_pythagorean_standings(data: dict):
@@ -1417,7 +1448,8 @@ def page_pythagorean_standings(data: dict):
                     {w_cell}
                     <span style="color:#888;font-size:13px;white-space:nowrap;">{row['pred_L']:.0f}{t("losses_suffix")}</span>
                     <span style="color:#aaa;font-size:11px;white-space:nowrap;">{t("wpct_prefix")}{row['pred_WPCT']:.3f}</span>
-                    <span style="color:#666;font-size:11px;white-space:nowrap;">{t("rs_label")}{row['pred_RS']:.0f} / {t("ra_label")}{row['pred_RA']:.0f}</span>{badge}
+                    <span style="color:#666;font-size:11px;white-space:nowrap;">{t("rs_label")}{row['pred_RS']:.0f} / {t("ra_label")}{row['pred_RA']:.0f}</span>
+                    {_pf_badge(row.get("pf_5yr", float("nan")), t)}{badge}
                   </div>
                 </div>"""
 
