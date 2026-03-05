@@ -191,23 +191,13 @@ def fetch_games_npb_jp(year: int) -> pd.DataFrame:
                 print(f"  [npb.jp month={month}] HTTP {resp.status_code}")
                 continue
 
+            resp.encoding = "utf-8"
             soup = BeautifulSoup(resp.text, "html.parser")
 
             # id="date{MMDD}" を持つ tr が各試合に対応
             date_rows = [t for t in soup.find_all("tr") if t.get("id", "").startswith("date") and len(t.get("id", "")) == 8]
             print(f"  [npb.jp {year}/{month:02d}] HTTP 200, date rows: {len(date_rows)}", flush=True)
-            # DEBUG: 最初の行の内容確認
-            if date_rows and year == 2016 and month == 4:
-                r = date_rows[0]
-                t1 = r.find("div", class_="team1")
-                s1 = r.find("div", class_="score1")
-                s2 = r.find("div", class_="score2")
-                t2 = r.find("div", class_="team2")
-                t1_text = repr(t1.get_text(strip=True)) if t1 else "None"
-                s1_text = repr(s1.get_text(strip=True)) if s1 else "None"
-                s2_text = repr(s2.get_text(strip=True)) if s2 else "None"
-                t2_text = repr(t2.get_text(strip=True)) if t2 else "None"
-                print(f"  DEBUG team1={t1_text} score1={s1_text} score2={s2_text} team2={t2_text}", flush=True)
+
             for row in date_rows:
                 date_id = row["id"]  # 例: "date0402"
                 mm, dd = int(date_id[4:6]), int(date_id[6:8])
