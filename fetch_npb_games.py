@@ -4,7 +4,7 @@ NPB 試合別スコアデータ取得スクリプト
 
 試行するデータソース（優先順）:
 1. baseball-data.com  /{yy}/score/{team_code}/
-2. npb.jp             /games/{year}/schedule_{month:02d}.html
+2. npb.jp             /games/{year}/schedule_{month:02d}_detail.html
 
 出力: data/raw/npb_games_{year}.csv
   columns: year, date, home_team, away_team, home_score, away_score
@@ -171,18 +171,18 @@ def fetch_games_baseball_data(year: int) -> pd.DataFrame:
 
 
 # ==========================================================================
-# Source 2: npb.jp スケジュールページ
-# URL: https://npb.jp/games/{year}/schedule_{month:02d}.html
+# Source 2: npb.jp スケジュール詳細ページ
+# URL: https://npb.jp/games/{year}/schedule_{month:02d}_detail.html
+# 列構造: 日付 | チームA | スコア | チームB | 球場・時刻 | 投手成績
+# ホーム/アウェイ判定: 球場名を STADIUM_MAP と照合
 # ==========================================================================
 
-NPB_TEAM_RE = "|".join(NPB_TEAM_NAMES)
-
 def fetch_games_npb_jp(year: int) -> pd.DataFrame:
-    """npb.jp のスケジュールページから試合結果を取得"""
+    """npb.jp のスケジュール詳細ページから試合結果を取得"""
     records = []
 
     for month in range(3, 12):   # 3月〜11月
-        url = f"https://npb.jp/games/{year}/schedule_{month:02d}.html"
+        url = f"https://npb.jp/games/{year}/schedule_{month:02d}_detail.html"
         try:
             resp = requests.get(url, headers=HEADERS, timeout=15)
             if resp.status_code == 404:
@@ -193,56 +193,51 @@ def fetch_games_npb_jp(year: int) -> pd.DataFrame:
 
             soup = BeautifulSoup(resp.text, "lxml")
 
-            # 試合結果テーブルを探す
-            tables = soup.find_all("table")
-            for table in tables:
-                rows = table.find_all("tr")
-                for row in rows:
-                    cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
-                    if len(cells) < 4:
+            for table in soup.find_all("table"):
+                for row in table.find_all("tr"):
+                    cells = row.find_all(["td", "th"])
+                    if len(cells) < 5:
+                        continue
+                    texts = [c.get_text(strip=True) for c in cells]
+
+                    # 日付: texts[0] に "月/日" パターン（例: "4/2（火）"）
+                    date_m = re.match(r"(\d{1,2})/(\d{1,2})", texts[0])
+                    if not date_m:
+                        continue
+                    date = f"{year}/{int(date_m.group(1)):02d}/{int(date_m.group(2)):02d}"
+
+                    # チーム名: texts[1] と texts[3]
+                    team1 = next((t for t in NPB_TEAM_NAMES if t in texts[1]), None)
+                    team2 = next((t for t in NPB_TEAM_NAMES if t in texts[3]), None)
+                    if not team1 or not team2:
                         continue
 
-                    # スコアパターン: "3 - 1" or "3-1" を検出
-                    score_m = None
-                    score_idx = None
-                    for i, cell in enumerate(cells):
-                        m = re.search(r"(\d+)\s*[-−]\s*(\d+)", cell)
-                        if m:
-                            score_m = m
-                            score_idx = i
-                            break
-
-                    if score_m is None:
+                    # スコア: texts[2]（例: "4-3"）
+                    score_m = re.search(r"(\d+)[-−](\d+)", texts[2])
+                    if not score_m:
                         continue
+                    score_a, score_b = int(score_m.group(1)), int(score_m.group(2))
 
-                    home_score = int(score_m.group(1))
-                    away_score = int(score_m.group(2))
-
-                    # チーム名を前後のセルから推定
-                    home_team = away_team = None
-                    for cell in cells:
-                        for team in NPB_TEAM_NAMES:
-                            if team in cell:
-                                if home_team is None:
-                                    home_team = team
-                                elif away_team is None and team != home_team:
-                                    away_team = team
-
-                    # 日付
-                    date = None
-                    for cell in cells:
-                        m = re.match(r"(\d{1,2})月(\d{1,2})日", cell)
-                        if m:
-                            date = f"{year}/{int(m.group(1)):02d}/{int(m.group(2)):02d}"
+                    # 球場名からホームチームを判定（STADIUM_OVERRIDE優先）
+                    stadium_text = texts[4] if len(texts) > 4 else ""
+                    home_team = team1  # デフォルト: texts[1] をホームとみなす
+                    for team in [team1, team2]:
+                        expected = STADIUM_OVERRIDE.get((team, year), STADIUM_MAP.get(team, ""))
+                        if expected and expected in stadium_text:
+                            home_team = team
                             break
 
-                    if home_team and away_team and date:
-                        records.append({
-                            "year": year, "date": date,
-                            "home_team": home_team, "away_team": away_team,
-                            "home_score": home_score, "away_score": away_score,
-                            "stadium": get_home_stadium(home_team, year),
-                        })
+                    if home_team == team1:
+                        home_score, away_score, away_team = score_a, score_b, team2
+                    else:
+                        home_score, away_score, away_team = score_b, score_a, team1
+
+                    records.append({
+                        "year": year, "date": date,
+                        "home_team": home_team, "away_team": away_team,
+                        "home_score": home_score, "away_score": away_score,
+                        "stadium": get_home_stadium(home_team, year),
+                    })
 
             time.sleep(1.0)
 
