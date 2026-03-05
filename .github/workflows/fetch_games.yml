@@ -36,6 +36,41 @@ jobs:
             echo "NPB_DATA_END_YEAR=$(($(date +'%Y') - 1))" >> $GITHUB_ENV
           fi
 
+      - name: Debug BS4 parsing on npb.jp
+        run: |
+          python3 -c "
+import requests, re
+from bs4 import BeautifulSoup
+HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; research-bot/1.0)'}
+url = 'https://npb.jp/games/2024/schedule_04_detail.html'
+resp = requests.get(url, headers=HEADERS, timeout=15)
+print(f'Status: {resp.status_code}, Content-Length: {len(resp.text)}')
+soup = BeautifulSoup(resp.text, 'lxml')
+# 全tr要素数
+all_tr = soup.find_all('tr')
+print(f'Total tr elements: {len(all_tr)}')
+# id属性を持つtr
+tr_with_id = [t for t in all_tr if t.get('id')]
+print(f'TR with id: {len(tr_with_id)}')
+for t in tr_with_id[:5]:
+    print(f'  id={t.get(\"id\")}')
+# regexマッチ
+rows = soup.find_all('tr', id=re.compile(r'^date\d{4}\$'))
+print(f'Regex-matched rows: {len(rows)}')
+if rows:
+    r = rows[0]
+    t1 = r.find('div', class_='team1')
+    s1 = r.find('div', class_='score1')
+    print(f'team1={t1}, score1={s1}')
+else:
+    print('No rows matched regex ^date\d{4}\$')
+    # 別の方法を試す
+    rows2 = [t for t in all_tr if t.get('id','').startswith('date')]
+    print(f'startswith-date rows: {len(rows2)}')
+    for t in rows2[:3]:
+        print(f'  id={t.get(\"id\")}')
+"
+
       - name: Fetch game scores
         run: python fetch_npb_games.py
         env:
