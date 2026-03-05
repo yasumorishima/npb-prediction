@@ -12,7 +12,7 @@ fetch_npb_games.py で取得した試合別スコアから計算する
 出力:
   data/projections/npb_park_factors.csv
     columns: year, team, stadium, home_G, home_RS, home_RA,
-             away_G, away_RS, away_RA, PF, PF_5yr, renovation_year, PF_proj, PF_proj_note
+             away_G, away_RS, away_RA, PF, PF_5yr, renovation_year
 """
 
 from pathlib import Path
@@ -40,14 +40,6 @@ RENOVATION_BREAKS: dict[str, list[int]] = {
     "日本ハム":     [2023],        # エスコンフィールド移転（右中間▲6m、フェンス高▲2.95m）
     "楽天":         [2016, 2026],  # 2016: 天然芝化+左中間フェンス低下 / 2026: フェンス前方移設
     "中日":         [2026],        # HRウイング設置（左右中間▲6m、フェンス高▲1.2m）
-}
-
-# 2026年改修チームの推定 PF（実績データ未蓄積のため類似改修から推計）
-# ZOZOマリン2019改修（同規模）: 改修前PF≈0.90 → 改修後PF≈1.05〜1.10
-# 実績データが蓄積されたら実測値に置き換えること
-PROJECTED_PF_2026: dict[str, float] = {
-    "中日": 1.05,   # バンテリンドーム HRウイング ← ZOZOマリン型改修と同規模
-    "楽天": 1.05,   # 楽天モバイルパーク フェンス前方移設
 }
 
 
@@ -174,15 +166,6 @@ def main():
             reno = get_renovation_break(team, year)
             row["renovation_year"] = reno if reno else ""
 
-            # PF_proj: 予測アプリが使う推奨 PF
-            # 最新年度かつ 2026年改修チーム → 推定値を使用
-            if year == latest_year and team in PROJECTED_PF_2026:
-                row["PF_proj"] = PROJECTED_PF_2026[team]
-                row["PF_proj_note"] = "推定（2026年改修後の実績未蓄積）"
-            else:
-                row["PF_proj"] = pf_5yr
-                row["PF_proj_note"] = ""
-
             records.append(row)
 
     if not records:
@@ -191,9 +174,20 @@ def main():
 
     df = pd.DataFrame(records)
 
-    print("\n=== 最新年度 パークファクター（改修年補正済み）===")
-    latest = df[df["year"] == latest_year].sort_values("PF_proj", ascending=False)
-    print(latest[["team", "stadium", "PF", "PF_5yr", "PF_proj", "renovation_year", "PF_proj_note"]].to_string(index=False))
+    # 球場別・年度推移サマリー（改修年に * マーク）
+    print("\n=== 球場別 年度推移 ===")
+    for team in TEAMS:
+        t = df[df["team"] == team].sort_values("year")
+        if t.empty:
+            continue
+        reno_years = set(RENOVATION_BREAKS.get(team, []))
+        stadium_name = t.iloc[-1]["stadium"]
+        print(f"\n{team}（{stadium_name}）")
+        print(f"  {'year':>4}  {'PF':>6}  {'PF_5yr':>7}  {'note'}")
+        for _, r in t.iterrows():
+            mark = " ← 改修" if r["year"] in reno_years else ""
+            pf5 = f"{r['PF_5yr']:.3f}" if pd.notna(r["PF_5yr"]) else "  N/A"
+            print(f"  {int(r['year']):>4}  {r['PF']:.3f}  {pf5:>7}{mark}")
 
     out = PROJ_DIR / "npb_park_factors.csv"
     df.to_csv(out, index=False, encoding="utf-8-sig")
