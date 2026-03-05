@@ -173,8 +173,8 @@ def fetch_games_baseball_data(year: int) -> pd.DataFrame:
 # ==========================================================================
 # Source 2: npb.jp スケジュール詳細ページ
 # URL: https://npb.jp/games/{year}/schedule_{month:02d}_detail.html
-# 列構造: 日付 | チームA | スコア | チームB | 球場・時刻 | 投手成績
-# ホーム/アウェイ判定: 球場名を STADIUM_MAP と照合
+# 構造: <tr id="date{MMDD}"> で1試合1行。div.team1=ホーム, div.score1=ホーム得点
+#       div.score2=アウェイ得点, div.team2=アウェイ
 # ==========================================================================
 
 def fetch_games_npb_jp(year: int) -> pd.DataFrame:
@@ -193,51 +193,38 @@ def fetch_games_npb_jp(year: int) -> pd.DataFrame:
 
             soup = BeautifulSoup(resp.text, "lxml")
 
-            for table in soup.find_all("table"):
-                for row in table.find_all("tr"):
-                    cells = row.find_all(["td", "th"])
-                    if len(cells) < 5:
-                        continue
-                    texts = [c.get_text(strip=True) for c in cells]
+            # id="date{MMDD}" を持つ tr が各試合に対応
+            for row in soup.find_all("tr", id=re.compile(r"^date\d{4}$")):
+                date_id = row["id"]  # 例: "date0402"
+                mm, dd = int(date_id[4:6]), int(date_id[6:8])
+                date = f"{year}/{mm:02d}/{dd:02d}"
 
-                    # 日付: texts[0] に "月/日" パターン（例: "4/2（火）"）
-                    date_m = re.match(r"(\d{1,2})/(\d{1,2})", texts[0])
-                    if not date_m:
-                        continue
-                    date = f"{year}/{int(date_m.group(1)):02d}/{int(date_m.group(2)):02d}"
+                # team1=ホーム, score1=ホーム得点, score2=アウェイ得点, team2=アウェイ
+                t1_div = row.find("div", class_="team1")
+                s1_div = row.find("div", class_="score1")
+                s2_div = row.find("div", class_="score2")
+                t2_div = row.find("div", class_="team2")
 
-                    # チーム名: texts[1] と texts[3]
-                    team1 = next((t for t in NPB_TEAM_NAMES if t in texts[1]), None)
-                    team2 = next((t for t in NPB_TEAM_NAMES if t in texts[3]), None)
-                    if not team1 or not team2:
-                        continue
+                if not all([t1_div, s1_div, s2_div, t2_div]):
+                    continue
 
-                    # スコア: texts[2]（例: "4-3"）
-                    score_m = re.search(r"(\d+)[-−](\d+)", texts[2])
-                    if not score_m:
-                        continue
-                    score_a, score_b = int(score_m.group(1)), int(score_m.group(2))
+                home_team = next((t for t in NPB_TEAM_NAMES if t in t1_div.get_text(strip=True)), None)
+                away_team = next((t for t in NPB_TEAM_NAMES if t in t2_div.get_text(strip=True)), None)
+                if not home_team or not away_team:
+                    continue
 
-                    # 球場名からホームチームを判定（STADIUM_OVERRIDE優先）
-                    stadium_text = texts[4] if len(texts) > 4 else ""
-                    home_team = team1  # デフォルト: texts[1] をホームとみなす
-                    for team in [team1, team2]:
-                        expected = STADIUM_OVERRIDE.get((team, year), STADIUM_MAP.get(team, ""))
-                        if expected and expected in stadium_text:
-                            home_team = team
-                            break
+                try:
+                    home_score = int(s1_div.get_text(strip=True))
+                    away_score = int(s2_div.get_text(strip=True))
+                except ValueError:
+                    continue  # 未試合（"-"など）はスキップ
 
-                    if home_team == team1:
-                        home_score, away_score, away_team = score_a, score_b, team2
-                    else:
-                        home_score, away_score, away_team = score_b, score_a, team1
-
-                    records.append({
-                        "year": year, "date": date,
-                        "home_team": home_team, "away_team": away_team,
-                        "home_score": home_score, "away_score": away_score,
-                        "stadium": get_home_stadium(home_team, year),
-                    })
+                records.append({
+                    "year": year, "date": date,
+                    "home_team": home_team, "away_team": away_team,
+                    "home_score": home_score, "away_score": away_score,
+                    "stadium": get_home_stadium(home_team, year),
+                })
 
             time.sleep(1.0)
 
