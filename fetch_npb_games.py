@@ -191,10 +191,12 @@ def fetch_games_npb_jp(year: int) -> pd.DataFrame:
                 print(f"  [npb.jp month={month}] HTTP {resp.status_code}")
                 continue
 
-            soup = BeautifulSoup(resp.text, "lxml")
+            soup = BeautifulSoup(resp.text, "html.parser")
 
             # id="date{MMDD}" を持つ tr が各試合に対応
-            for row in soup.find_all("tr", id=re.compile(r"^date\d{4}$")):
+            date_rows = [t for t in soup.find_all("tr") if t.get("id", "").startswith("date") and len(t.get("id", "")) == 8]
+            print(f"  [npb.jp {year}/{month:02d}] HTTP 200, date rows: {len(date_rows)}", flush=True)
+            for row in date_rows:
                 date_id = row["id"]  # 例: "date0402"
                 mm, dd = int(date_id[4:6]), int(date_id[6:8])
                 date = f"{year}/{mm:02d}/{dd:02d}"
