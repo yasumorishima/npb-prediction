@@ -25,7 +25,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install pandas requests lxml beautifulsoup4
+        run: pip install pandas requests lxml beautifulsoup4 matplotlib japanize-matplotlib
 
       - name: Set target year(s) in config
         run: |
@@ -62,11 +62,21 @@ jobs:
             echo "試合データなし。パークファクター計算をスキップ。"
           fi
 
+      - name: Plot park factors
+        run: |
+          if [ -f data/projections/npb_park_factors.csv ]; then
+            python plot_park_factors.py
+            echo "=== 生成画像 ==="
+            ls -lh images/ 2>/dev/null || echo "imagesフォルダなし"
+          else
+            echo "パークファクターCSVなし。可視化をスキップ。"
+          fi
+
       - name: Commit and push
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data/raw/npb_games_*.csv data/projections/npb_park_factors.csv 2>/dev/null || true
+          git add data/raw/npb_games_*.csv data/projections/npb_park_factors.csv images/ 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "変更なし"
           else
