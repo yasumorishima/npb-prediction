@@ -38,18 +38,19 @@ jobs:
 
       - name: Debug npb.jp HTML structure
         run: |
-          echo "=== npb.jp 2024年4月 詳細ページ確認 ==="
           curl -s -o /tmp/npb_debug.html \
             -H "User-Agent: Mozilla/5.0 (compatible; research-bot/1.0)" \
             "https://npb.jp/games/2024/schedule_04_detail.html"
-          echo "HTTP取得完了。先頭100行:"
-          head -100 /tmp/npb_debug.html
-          echo "=== tableタグ数 ==="
-          grep -c "<table" /tmp/npb_debug.html || echo "0"
-          echo "=== trタグ数 ==="
-          grep -c "<tr" /tmp/npb_debug.html || echo "0"
-          echo "=== チーム名(中日)含む行 ==="
-          grep "中日" /tmp/npb_debug.html | head -5
+          echo "=== team1クラス周辺の構造(前後5行) ==="
+          grep -n "team1\|team2\|score\|stadium\|date\|schedule_game\|schd" /tmp/npb_debug.html | head -40
+          echo "=== 4/2付近のHTML(200行目付近) ==="
+          grep -n "4/2\|0402\|中日\|バンテリン" /tmp/npb_debug.html | head -20
+          echo "=== 実際の構造(team1を含む行の前後) ==="
+          grep -n "team1" /tmp/npb_debug.html | head -3 | awk -F: '{print $1}' | while read ln; do
+            start=$((ln-3)); end=$((ln+5))
+            sed -n "${start},${end}p" /tmp/npb_debug.html
+            echo "---"
+          done
 
       - name: Fetch game scores
         run: python fetch_npb_games.py
