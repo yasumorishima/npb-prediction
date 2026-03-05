@@ -328,11 +328,6 @@ Marcel法の年齢調整は **+0.3%/年（27歳ピーク基準）** と非常に
 
 23〜26歳の選手が「殻を破る」ような場合、モデルは過去3年の平均に引き戻すため、実際の成績を大幅に下回る予測になります。新外国人・新人と同様に、**若手ブレイク候補が多いチームほどモデルの予測は保守的に出る**傾向があります。
 
-## ブログ記事
-
-- [Last Place to Champions: What Marcel Projection Reveals About 2021 NPB Yakult and Orix (DEV.to)](https://dev.to/yasumorishima/last-place-to-champions-what-marcel-projection-reveals-about-2021-npb-yakult-and-orix-2eee)
-- [Marcel予測と実際の勝利数の乖離から見る2021年ヤクルト・オリックスの優勝要因（Zenn）](https://zenn.dev/shogaku/articles/npb-marcel-lastplace-to-champion)
-
 ## データソース
 
 **このプロジェクトのNPBデータは以下のサイトから取得しています：**
