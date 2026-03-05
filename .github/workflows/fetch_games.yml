@@ -1,0 +1,75 @@
+name: Fetch NPB Game Scores (Park Factors)
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: '取得年度（例: 2024）。空白なら直近3年。'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install pandas requests lxml beautifulsoup4
+
+      - name: Set target year(s) in config
+        run: |
+          if [ -n "${{ github.event.inputs.year }}" ]; then
+            echo "NPB_DATA_END_YEAR=${{ github.event.inputs.year }}" >> $GITHUB_ENV
+          else
+            # 空白なら前年を対象
+            echo "NPB_DATA_END_YEAR=$(($(date +'%Y') - 1))" >> $GITHUB_ENV
+          fi
+
+      - name: Fetch game scores
+        run: python fetch_npb_games.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: Show fetched files
+        run: |
+          echo "=== 取得ファイル ==="
+          ls -lh data/raw/npb_games_*.csv 2>/dev/null || echo "ファイルなし（取得失敗）"
+          echo ""
+          echo "=== 先頭5行（最新年） ==="
+          latest=$(ls data/raw/npb_games_*.csv 2>/dev/null | sort | tail -1)
+          if [ -n "$latest" ]; then
+            head -6 "$latest"
+            echo "..."
+            wc -l "$latest"
+          fi
+
+      - name: Calculate park factors (if game data exists)
+        run: |
+          if ls data/raw/npb_games_*.csv 1>/dev/null 2>&1; then
+            python calc_park_factors.py
+          else
+            echo "試合データなし。パークファクター計算をスキップ。"
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data/raw/npb_games_*.csv data/projections/npb_park_factors.csv 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "data: NPB試合別スコア + パークファクター更新 ($(date +'%Y-%m-%d'))"
+            git push
+          fi
