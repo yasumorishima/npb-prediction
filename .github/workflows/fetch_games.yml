@@ -36,6 +36,21 @@ jobs:
             echo "NPB_DATA_END_YEAR=$(($(date +'%Y') - 1))" >> $GITHUB_ENV
           fi
 
+      - name: Debug npb.jp HTML structure
+        run: |
+          echo "=== npb.jp 2024年4月 詳細ページ確認 ==="
+          curl -s -o /tmp/npb_debug.html \
+            -H "User-Agent: Mozilla/5.0 (compatible; research-bot/1.0)" \
+            "https://npb.jp/games/2024/schedule_04_detail.html"
+          echo "HTTP取得完了。先頭100行:"
+          head -100 /tmp/npb_debug.html
+          echo "=== tableタグ数 ==="
+          grep -c "<table" /tmp/npb_debug.html || echo "0"
+          echo "=== trタグ数 ==="
+          grep -c "<tr" /tmp/npb_debug.html || echo "0"
+          echo "=== チーム名(中日)含む行 ==="
+          grep "中日" /tmp/npb_debug.html | head -5
+
       - name: Fetch game scores
         run: python fetch_npb_games.py
         env:
