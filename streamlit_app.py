@@ -356,6 +356,29 @@ def _pythagorean_wpct(rs: float, ra: float, k: float = 1.72) -> float:
     return rs**k / (rs**k + ra**k)
 
 
+@st.cache_data(ttl=3600)
+def _load_park_factors() -> dict[str, float]:
+    """Load PF_5yr (latest year) per team."""
+    url = BASE_URL + "data/projections/npb_park_factors.csv"
+    try:
+        pf_df = pd.read_csv(url, encoding="utf-8-sig")
+    except Exception:
+        return {}
+    latest_year = pf_df["year"].max()
+    latest = pf_df[pf_df["year"] == latest_year][["team", "PF_5yr"]].copy()
+    return dict(zip(latest["team"], latest["PF_5yr"]))
+
+
+def _apply_park_factor(rs: float, ra: float, team: str,
+                       pf_map: dict[str, float]) -> tuple[float, float]:
+    """Remove park effect: divide RS/RA by (PF + 1) / 2."""
+    pf = pf_map.get(team)
+    if pf and pf > 0:
+        pf_factor = (pf + 1.0) / 2.0
+        return rs / pf_factor, ra / pf_factor
+    return rs, ra
+
+
 # --- HTML/CSSカード描画 ---
 
 
@@ -1344,12 +1367,14 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     #    wRAA=0（リーグ平均貢献）として扱う。
     if missing_all is None:
         missing_all = _get_missing_players(data)
+    pf_map = _load_park_factors()
     rows = []
     for team in TEAMS:
         h = mh[mh["team"] == team]
         p = mp[mp["team"] == team]
         rs_raw = lg_avg_rs + (h["wRAA_est"].sum() if not h.empty else 0)
         ra_raw = lg_avg_ra + ((p["era_above_avg"] * p["IP"] / 9.0).sum() if not p.empty else 0)
+        rs_raw, ra_raw = _apply_park_factor(rs_raw, ra_raw, team, pf_map)
 
         team_missing = missing_all.get(team, [])
         league = "CL" if team in CENTRAL_TEAMS else "PL"
