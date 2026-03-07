@@ -3,6 +3,10 @@ name: Fetch NPB Game Scores (Park Factors)
 on:
   workflow_dispatch:
     inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
       year:
         description: '取得年度（例: 2024）。空白なら直近3年。'
         required: false
