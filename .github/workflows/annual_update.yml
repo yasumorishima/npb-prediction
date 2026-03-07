@@ -27,7 +27,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost joblib
+        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost joblib wandb
 
       - name: Set DATA_END_YEAR
         run: |
@@ -72,6 +72,7 @@ jobs:
         run: python ml_projection.py
         env:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
 
       - name: Commit and push updated data
         run: |

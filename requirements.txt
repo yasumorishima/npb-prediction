@@ -13,3 +13,4 @@ lxml>=5.0
 streamlit>=1.30
 plotly>=5.18
 joblib>=1.3
+wandb>=0.16

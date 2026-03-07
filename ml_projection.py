@@ -22,6 +22,12 @@ import joblib
 from datetime import datetime
 
 try:
+    import wandb
+    HAS_WANDB = True
+except ImportError:
+    HAS_WANDB = False
+
+try:
     import lightgbm as lgb
     HAS_LGB = True
 except ImportError:
@@ -417,6 +423,21 @@ def main():
     print("XGBoost/LightGBM NPB成績予測")
     print("=" * 60)
 
+    if HAS_WANDB:
+        wandb.init(
+            project="npb-prediction",
+            name=f"ml_{TARGET_YEAR}",
+            config={
+                "target_year": TARGET_YEAR,
+                "data_end_year": DATA_END_YEAR,
+                "lgb_n_estimators": 300,
+                "lgb_learning_rate": 0.05,
+                "lgb_max_depth": 5,
+                "xgb_n_estimators": 300,
+                "xgb_learning_rate": 0.05,
+            },
+        )
+
     # 打者
     df_h = load_hitters()
     feat_h = build_hitter_features(df_h)
@@ -549,6 +570,29 @@ def main():
         json.dump(metrics, f, ensure_ascii=False, indent=2)
     print(f"\nSaved metrics: {metrics_path}")
     print(json.dumps(metrics, ensure_ascii=False, indent=2))
+
+    if HAS_WANDB:
+        log_dict = {}
+        for model_name, mae in metrics.get("hitter", {}).items():
+            log_dict[f"hitter_MAE/{model_name}"] = mae
+        for model_name, mae in metrics.get("pitcher", {}).items():
+            log_dict[f"pitcher_MAE/{model_name}"] = mae
+
+        # Marcel vs ML 比較サマリー
+        h = metrics.get("hitter", {})
+        p = metrics.get("pitcher", {})
+        if "marcel" in h and "lgb" in h:
+            log_dict["hitter_improvement_vs_marcel_pct"] = round(
+                (h["marcel"] - h["lgb"]) / h["marcel"] * 100, 2
+            )
+        if "marcel" in p and "lgb" in p:
+            log_dict["pitcher_improvement_vs_marcel_pct"] = round(
+                (p["marcel"] - p["lgb"]) / p["marcel"] * 100, 2
+            )
+
+        wandb.log(log_dict)
+        wandb.finish()
+        print("\nW&B: https://wandb.ai/fw_yasu11-personal/npb-prediction")
 
 
 def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> pd.DataFrame:
