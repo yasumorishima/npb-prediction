@@ -164,7 +164,8 @@ NPB公式データ（npb.jp）からリーグ環境に合わせた係数でwOBA/
 |---|---|---|
 | **モデル保存** | `joblib` → `data/models/*.pkl` | 年度ごとのモデルを永続化。過去のモデルで再予測可能 |
 | **精度記録** | `data/metrics/metrics_{year}.json` | Marcel vs ML のMAE推移を記録。「今年は改善したか」が分かる |
-| **自動実行** | GitHub Actions（毎年11月1日 + 手動） | データ取得→学習→保存→Gitコミットが全自動 |
+| **実験管理** | Weights & Biases (`npb-prediction` プロジェクト) | 毎年の学習ごとにMAE・特徴量重要度・Marcel比改善率を自動記録 |
+| **自動実行** | GitHub Actions（毎年11月1日 + 手動） | データ取得→学習→保存→W&B記録→Gitコミットが全自動 |
 
 ### CI/CD パイプライン（`annual_update.yml`）
 
@@ -304,6 +305,7 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] CI/CD自動再学習（GitHub Actions 毎年3月1日）
 - [x] モデルアーティファクト保存（`data/models/*.pkl`）
 - [x] 精度メトリクス記録・API公開（`/metrics`）
+- [x] W&B実験管理（毎年の学習ごとにMAE・Marcel比改善率を自動記録）
 - [x] 歴史的バックテストのチーム割り当てバグ修正（FA・移籍選手が前年チームに計上されていた問題）
 - [x] 選手名鑑フィルタ追加（退団・MLB移籍・引退選手を予測から除外、`npb_rosters_2018_2025.csv` 参照）
 ## 今後の予定
