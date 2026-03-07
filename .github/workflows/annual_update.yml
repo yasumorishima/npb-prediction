@@ -5,6 +5,10 @@ on:
     - cron: '0 9 1 3 *'   # 毎年3月1日 9:00 UTC（FA・移籍確定後、開幕前）
   workflow_dispatch:
     inputs:
+      memo:
+        description: 'この実行の意図'
+        required: false
+        type: string
       data_end_year:
         description: 'Last season year (e.g., 2025). Leave blank for previous year.'
         required: false
