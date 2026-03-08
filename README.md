@@ -310,6 +310,7 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] 選手名鑑フィルタ追加（退団・MLB移籍・引退選手を予測から除外、`npb_rosters_2018_2025.csv` 参照）
 ## 今後の予定
 
+- [ ] Marcel重みをNPBデータ最適化値に更新（打者 8/4/3・REG_PA=2000 / 投手 4/5/2・REG_IP=800、ブートストラップ p=0.003 で有意）→ [npb-marcel-weight-study](https://github.com/yasumorishima/npb-marcel-weight-study)
 - [ ] 精度が悪化したときの自動アラート
 - [ ] 精度改善（特徴量追加・アンサンブル等）
 
