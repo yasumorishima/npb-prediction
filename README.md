@@ -321,7 +321,7 @@ curl http://localhost:8000/predict/hitter/牧
 ## 今後の予定
 
 - [ ] Marcel重みをNPBデータ最適化値に更新（打者 8/4/3・REG_PA=2000 / 投手 4/5/2・REG_IP=800、ブートストラップ p=0.003 で有意）→ [npb-marcel-weight-study](https://github.com/yasumorishima/npb-marcel-weight-study)
-- [ ] BQML精度改善 — 本番Python版（LightGBM/XGBoost）と同等精度を目指す。Marcel特徴量・年齢カーブ・チーム補正等をSQLビューで再現し、BQMLモデルに投入（※本来はBQML→Pythonの順で開発するが、GCP未使用で始めたため順序が逆転。SQLだけでEnd-to-End予測が完結する基盤にする）
+- [x] BQML精度検証 — BQML（BT: OPS MAE 0.0642 / ERA MAE 0.909）は Python ML（OPS ~0.065 / ERA 0.92-0.93）と同等以上。特徴量もBQMLの方が豊富（パークファクター・DIPS・FIP近似・Marcel加重平均等）。両手法とも投手ERAではMarcel法（0.78）に及ばず、これはML共通の課題
 - [ ] 精度が悪化したときの自動アラート
 - [ ] 精度改善（特徴量追加・アンサンブル等）
 
@@ -382,7 +382,7 @@ Marcel法の年齢調整は **+0.3%/年（27歳ピーク基準）** と非常に
 
 #### BigQuery ML モデル
 
-SQL ウインドウ関数で特徴量を構築し、BQML で学習。現時点では Python 版（LightGBM/XGBoost）より簡素な特徴量のため精度は劣る（精度改善は今後の予定を参照）。
+SQL ウインドウ関数で特徴量を構築し、BQML で学習。Python 版と同等以上の精度を達成済み（打者 OPS MAE: BQML 0.0642 vs Python 0.065、投手 ERA MAE: BQML 0.909 vs Python 0.92）。
 
 | モデル | ターゲット | タイプ |
 |---|---|---|
