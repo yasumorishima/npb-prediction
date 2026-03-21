@@ -321,6 +321,7 @@ curl http://localhost:8000/predict/hitter/牧
 ## 今後の予定
 
 - [ ] Marcel重みをNPBデータ最適化値に更新（打者 8/4/3・REG_PA=2000 / 投手 4/5/2・REG_IP=800、ブートストラップ p=0.003 で有意）→ [npb-marcel-weight-study](https://github.com/yasumorishima/npb-marcel-weight-study)
+- [ ] BQML精度改善 — 本番Python版（LightGBM/XGBoost）と同等精度を目指す。Marcel特徴量・年齢カーブ・チーム補正等をSQLビューで再現し、BQMLモデルに投入（※本来はBQML→Pythonの順で開発するが、GCP未使用で始めたため順序が逆転。SQLだけでEnd-to-End予測が完結する基盤にする）
 - [ ] 精度が悪化したときの自動アラート
 - [ ] 精度改善（特徴量追加・アンサンブル等）
 
