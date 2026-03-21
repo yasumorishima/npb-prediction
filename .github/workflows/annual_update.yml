@@ -31,7 +31,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost joblib wandb
+        run: pip install pandas numpy beautifulsoup4 requests lxml scikit-learn lightgbm xgboost joblib wandb google-cloud-bigquery pyarrow db-dtypes
 
       - name: Set DATA_END_YEAR
         run: |
@@ -89,3 +89,25 @@ jobs:
             git commit -m "auto: update NPB data and projections for ${NPB_DATA_END_YEAR} season ($(date +'%Y-%m-%d'))"
             git push
           fi
+
+      # === GCP BigQuery + BQML ===
+      - name: Setup GCP credentials
+        run: echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-sa-key.json
+        continue-on-error: true
+
+      - name: 8. Load all data to BigQuery
+        run: python load_to_bq.py --all --metrics
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+        continue-on-error: true
+
+      - name: 9. Train & evaluate BQML models
+        run: python bqml_train.py --all
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json
+        continue-on-error: true
+
+      - name: Cleanup GCP credentials
+        if: always()
+        run: rm -f /tmp/gcp-sa-key.json
