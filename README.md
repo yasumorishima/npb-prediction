@@ -340,6 +340,26 @@ Marcel法の年齢調整は **+0.3%/年（27歳ピーク基準）** と非常に
 
 詳細は [DATA_SOURCES.md](DATA_SOURCES.md) を参照。
 
+### BigQuery（クラウドからSQLで直接クエリ）
+
+全データをGoogle BigQueryで公開しています。SQLで自由に分析できます。
+
+| 項目 | 値 |
+|---|---|
+| プロジェクト | `data-platform-490901` |
+| データセット | `npb` |
+| テーブル数 | 25（37,954行） |
+
+主なテーブル: Marcel予測（打者/投手 2026）、ML予測、打撃/投球成績（2015-2025）、試合結果、パークファクター、支配下登録、選手プロフィール、順位表、セイバーメトリクス
+
+```sql
+-- 例: 2026年Marcel打者予測TOP10（OPS順）
+SELECT * FROM `data-platform-490901.npb.marcel_hitters_2026`
+ORDER BY OPS DESC LIMIT 10
+```
+
+> BigQuery無料枠（毎月1TBクエリ）で利用できます。費用はかかりません。
+
 ## License
 
 MIT
