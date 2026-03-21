@@ -83,20 +83,12 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Create Artifact Registry repo (if not exists)
-        run: |
-          gcloud artifacts repositories create npb-prediction \
-            --repository-format=docker \
-            --location=us-central1 \
-            --description="NPB Prediction API" \
-            --quiet 2>&1 || echo "Repository already exists"
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Build and push Docker image
         run: |
-          IMAGE="us-central1-docker.pkg.dev/data-platform-490901/npb-prediction/api:$(date +%Y%m%d)-${{ github.run_number }}"
+          IMAGE="us-central1-docker.pkg.dev/data-platform-490901/apis/npb-prediction-api:$(date +%Y%m%d)-${{ github.run_number }}"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           docker build -t "${IMAGE}" .
           docker push "${IMAGE}"
