@@ -35,6 +35,7 @@ from config import (
     BAYES_DIR, DATA_END_YEAR, PROJECTIONS_DIR, TARGET_YEAR,
 )
 from marcel_projection import load_birthdays, calc_age
+from roster_current import get_all_roster_names, get_team_for_player
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -729,6 +730,27 @@ def predict_foreign_pitchers(store: PosteriorStore) -> pd.DataFrame:
     return pd.DataFrame(results)
 
 
+def _filter_roster(df: pd.DataFrame) -> pd.DataFrame:
+    """NPB公式ロースターに在籍する選手のみ残し、チーム名を公式に合わせる。"""
+    if df.empty or "player" not in df.columns:
+        return df
+    roster_names = get_all_roster_names()
+    # 全角/半角スペース除去で比較
+    def _fuzzy(s: str) -> str:
+        return s.replace(" ", "").replace("\u3000", "")
+    mask = df["player"].apply(lambda p: _fuzzy(p) in roster_names)
+    filtered = df[mask].copy()
+    # チーム名を公式ロースターに合わせる（移籍反映）
+    for idx, row in filtered.iterrows():
+        new_team = get_team_for_player(row["player"])
+        if new_team:
+            filtered.at[idx, "team"] = new_team
+    removed = len(df) - len(filtered)
+    if removed > 0:
+        print(f"  Roster filter: {len(df)} → {len(filtered)} ({removed} removed)")
+    return filtered
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -743,6 +765,7 @@ def main():
     print(f"\n--- 打者ベイズ予測 ---")
     hitters = predict_hitters(store)
     if len(hitters) > 0:
+        hitters = _filter_roster(hitters)
         n_stan = (hitters["method"] != "marcel_only").sum()
         n_bma = (hitters["method"] == "bma_jpn").sum()
         print(f"Total: {len(hitters)} players (Stan補正: {n_stan}, BMA: {n_bma})")
@@ -762,6 +785,7 @@ def main():
     print(f"\n--- 投手ベイズ予測 ---")
     pitchers = predict_pitchers(store)
     if len(pitchers) > 0:
+        pitchers = _filter_roster(pitchers)
         n_stan = (pitchers["method"] != "marcel_only").sum()
         n_bma = (pitchers["method"] == "bma_jpn").sum()
         print(f"Total: {len(pitchers)} players (Stan補正: {n_stan}, BMA: {n_bma})")
