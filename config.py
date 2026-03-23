@@ -17,3 +17,9 @@ DATA_END_YEAR = int(os.environ.get("NPB_DATA_END_YEAR", _default_end_year))
 TARGET_YEAR = DATA_END_YEAR + 1   # 予測対象年
 DATA_START_YEAR = 2015
 YEARS = list(range(DATA_START_YEAR, DATA_END_YEAR + 1))
+
+# ベイズモデル関連パス
+from pathlib import Path
+_BASE_DIR = Path(__file__).parent
+BAYES_DIR = _BASE_DIR / "data" / "bayes"
+PROJECTIONS_DIR = _BASE_DIR / "data" / "projections"

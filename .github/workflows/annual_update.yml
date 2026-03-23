@@ -78,6 +78,16 @@ jobs:
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
 
+      - name: 8. Bayesian projections (Stan correction + BMA + foreign players)
+        run: python bayes_projection.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
+      - name: 9. Team Monte Carlo simulation (10,000 draws)
+        run: python team_simulation.py
+        env:
+          NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
+
       - name: Commit and push updated data
         run: |
           git config user.name 'github-actions[bot]'
@@ -95,14 +105,14 @@ jobs:
         run: echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-sa-key.json
         continue-on-error: true
 
-      - name: 8. Load all data to BigQuery
+      - name: 10. Load all data to BigQuery
         run: python load_to_bq.py --all --metrics
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json
           NPB_DATA_END_YEAR: ${{ env.NPB_DATA_END_YEAR }}
         continue-on-error: true
 
-      - name: 9. Train & evaluate BQML models
+      - name: 11. Train & evaluate BQML models
         run: python bqml_train.py --all
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json

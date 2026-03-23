@@ -328,12 +328,68 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] GCP Deploy ワークフロー（BigQuery + BQML + Cloud Run）
 ## 今後の予定
 
+### ベイズ統合（最優先 — 7フェーズ計画）
+
+[npb-bayes-projection](https://github.com/yasumorishima/npb-bayes-projection) で検証済みの Stan 階層ベイズモデルを本リポジトリに統合し、予測システムの構造を根本的に変更します。
+
+**現状の課題:**
+- 予測は点推定のみ（不確実性の表現がない）
+- 新外国人選手は wRAA=0（リーグ平均）で処理（前リーグ成績を活かせていない）
+- Marcel / ML が独立動作（統合的なアンサンブルがない）
+
+**統合後の予測アーキテクチャ — 4層階層:**
+
+```
+Layer 1: Marcel（基盤）
+  - 3年加重平均 + 平均回帰 + 年齢調整（変更なし）
+
+Layer 2: Stan ベイズ補正
+  - 日本人: Marcel に K%/BB%/BABIP/年齢 の Ridge 補正を加算
+  - 外国人: 前リーグ成績からリーグ別ベイズ予測（v2: K%×BB%交互作用、異分散性）
+
+Layer 3: ML（XGBoost/LightGBM）
+  - Stan 補正値を追加特徴量として取り込み
+
+Layer 4: ベイズモデル平均（BMA）
+  - LOO-CV で毎年自動キャリブレーションされる重み
+  - 全予測に 80%/95% 信頼区間を付与
+  → 選手の不確実性がモンテカルロチームシミュレーションに伝播
+```
+
+**研究成果（[npb-bayes-projection](https://github.com/yasumorishima/npb-bayes-projection) で検証済み）:**
+
+| 指標 | n | Marcel MAE | Stan MAE | p値 | Bootstrap |
+|---|---|---|---|---|---|
+| 打者 wOBA | 2,208 | 0.05023 | 0.04980 | 0.060 | 97.1% |
+| 投手 ERA | 2,164 | 1.23008 | 1.22241 | 0.057 | 97.1% |
+
+- BABIP 回帰効果 δ=-0.006（p=0.0004）が打者最強シグナル
+- ERA + K/9 + BB/9（5特徴量）で p=0.012 達成
+- MLB→NPB 換算係数: wOBA ×1.235、ERA ×0.579（bootstrap 95% CI 付き）
+- チーム予測: Monte Carlo 10,000回シミュレーション、パークファクター5年移動平均で CI coverage 86.5→87.5% 改善
+
+**実装フェーズ:**
+
+| Phase | 内容 | 新規ファイル |
+|---|---|---|
+| 1. 基盤 | 日本人ベイズ推論（posteriors.json + NumPy サンプリング） | `bayes_projection.py`, `data/bayes/posteriors.json` |
+| 2. 外国人 | 前リーグ成績ベースのベイズ予測（wRAA=0 を置換） | `fetch_foreign_stats.py`, `data/foreign/*.csv` |
+| 3. チーム | モンテカルロ勝率シミュレーション + パークファクター補正 | `team_simulation.py` |
+| 4. 学習 | Stan 学習パイプライン（GitHub Actions で年次実行） | `train_bayes.py`, `models/*.stan` |
+| 5. API | CI 付きレスポンス + 外国人エンドポイント + 順位シミュレーション | `api.py` 改修 |
+| 6. Streamlit | ファンチャート、密度プロット、外国人ページ、不確実性分析ページ | `streamlit_app.py` 改修 |
+| 7. BigQuery | 新テーブル5本（ベイズ予測・外国人・シミュレーション・事後分布） | `load_to_bq.py` 改修 |
+
+**設計上の重要な判断:**
+- **Stan はランタイムで動かさない** — GitHub Actions で学習、本番は NumPy 事後サンプリング（RPi5 4GB RAM 対応）
+- **BMA 重みは毎年自動更新** — LOO-CV で再計算し posteriors.json に保存（自己キャリブレーション）
+- **不確実性がエンドツーエンドで伝播** — 選手 CI → チーム Monte Carlo → 優勝確率
+
+### その他
+
 - [ ] Marcel重みをNPBデータ最適化値に更新（打者 8/4/3・REG_PA=2000 / 投手 4/5/2・REG_IP=800、ブートストラップ p=0.003 で有意）→ [npb-marcel-weight-study](https://github.com/yasumorishima/npb-marcel-weight-study)
 - [x] BQML精度検証 — BQML（BT: OPS MAE 0.0642 / ERA MAE 0.909）は Python ML（OPS ~0.065 / ERA 0.92-0.93）と同等以上。特徴量もBQMLの方が豊富（パークファクター・DIPS・FIP近似・Marcel加重平均等）。両手法とも投手ERAではMarcel法（0.78）に及ばず、これはML共通の課題
 - [ ] 精度が悪化したときの自動アラート
-- [ ] 精度改善（特徴量追加・アンサンブル等）
-
-> **外国人選手のベイズ推定・Monte Carloシミュレーションは [npb-prediction-bayes](https://github.com/yasumorishima/npb-prediction-bayes) に分離しました。**
 
 ### Marcel法のもう一つの限界: NPB在籍1〜2年の選手
 

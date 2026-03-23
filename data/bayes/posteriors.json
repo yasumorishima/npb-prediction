@@ -1,0 +1,167 @@
+{
+  "version": "1.0",
+  "generated": "2026-03-23T18:00:00",
+  "source": "npb-bayes-projection LOO-CV (2018-2025, n=2208 hitters / 2164 pitchers)",
+  "jpn_hitter": {
+    "method": "ridge_correction",
+    "description": "Stan correction on Marcel wOBA: stan_wOBA = marcel_wOBA + beta @ z_features",
+    "features": ["K_pct", "BB_pct", "BABIP", "age_from_peak"],
+    "beta": {
+      "K_pct": -0.0048,
+      "BB_pct": -0.0005,
+      "BABIP": -0.0064,
+      "age_from_peak": -0.0084
+    },
+    "sigma_residual": 0.06215,
+    "standardization": {
+      "means": {
+        "K_pct": 0.19510936445450763,
+        "BB_pct": 0.08498703372789418,
+        "BABIP": 0.2928774119388999,
+        "age_from_peak": 0.5123469820739007
+      },
+      "stds": {
+        "K_pct": 0.05946849481448119,
+        "BB_pct": 0.035121055523942755,
+        "BABIP": 0.049916234870579224,
+        "age_from_peak": 4.254821085548624
+      }
+    },
+    "loocv": {
+      "n": 2208,
+      "years": "2018-2025",
+      "mae_marcel": 0.05023,
+      "mae_stan": 0.04980,
+      "delta_mae": -0.00043
+    }
+  },
+  "jpn_pitcher": {
+    "method": "ridge_correction",
+    "description": "Stan correction on Marcel ERA: stan_ERA = marcel_ERA + beta @ z_features",
+    "features": ["K_pct", "BB_pct", "K_per_9", "BB_per_9", "age_from_peak"],
+    "beta": {
+      "K_pct": 0.526,
+      "BB_pct": 0.4978,
+      "K_per_9": -0.7102,
+      "BB_per_9": -0.489,
+      "age_from_peak": 0.0508
+    },
+    "sigma_residual": 1.66495,
+    "standardization": {
+      "means": {
+        "K_pct": 0.20304112145970543,
+        "BB_pct": 0.08637173608268964,
+        "K_per_9": 7.706021582926557,
+        "BB_per_9": 3.3195000258050356,
+        "age_from_peak": -0.7088448854362612
+      },
+      "stds": {
+        "K_pct": 0.05133268651904123,
+        "BB_pct": 0.0276031735109707,
+        "K_per_9": 1.8413643157604094,
+        "BB_per_9": 1.1638972290050167,
+        "age_from_peak": 4.3712843916265
+      }
+    },
+    "loocv": {
+      "n": 2164,
+      "years": "2018-2025",
+      "mae_marcel": 1.23008,
+      "mae_stan": 1.22241,
+      "delta_mae": -0.00767
+    }
+  },
+  "model_weights": {
+    "jpn_regular": {
+      "description": "PA >= 200 (hitter) or IP >= 50 (pitcher)",
+      "marcel": 0.35,
+      "stan": 0.40,
+      "ml": 0.25
+    },
+    "jpn_bench": {
+      "description": "PA < 200 (hitter) or IP < 50 (pitcher)",
+      "marcel": 0.50,
+      "stan": 0.30,
+      "ml": 0.20
+    },
+    "foreign": {
+      "description": "Foreign players without NPB history (Phase 2)",
+      "bayes_only": 1.0
+    }
+  },
+  "park_factors": {
+    "source": "npb_park_factors.csv (5-year moving average)",
+    "note": "Loaded at runtime from data/projections/npb_park_factors.csv"
+  },
+  "conversion_factors": {
+    "MLB_to_NPB_wOBA": 1.235,
+    "MLB_to_NPB_ERA": 0.579
+  },
+  "foreign_hitter": {
+    "method": "stan_v2",
+    "description": "Foreign hitter NPB wOBA prediction: lg_avg + beta_woba[league]*z_woba + beta_K*z_K + beta_BB*z_BB + beta_woba_sq*z_woba^2 + beta_K_BB*z_K*z_BB + beta_age*z_age + beta_pos",
+    "params": {
+      "beta_woba_MLB": {"mean": -0.0003994, "sd": 0.006092},
+      "beta_woba_AAA": {"mean": 0.01258, "sd": 0.01434},
+      "beta_woba_Other": {"mean": 0.008238, "sd": 0.01377},
+      "beta_K": {"mean": 0.005401, "sd": 0.005124},
+      "beta_BB": {"mean": -0.001115, "sd": 0.005505},
+      "beta_woba_sq": {"mean": 0.005670, "sd": 0.003164},
+      "beta_K_BB": {"mean": 0.01127, "sd": 0.005334},
+      "beta_age": {"mean": -0.002030, "sd": 0.004555},
+      "beta_catcher": {"mean": 0.0000459, "sd": 0.03012},
+      "beta_middle_inf": {"mean": -0.003103, "sd": 0.01415},
+      "beta_second_year": {"mean": 0.009687, "sd": 0.008367},
+      "sigma_base": {"mean": 0.05083, "sd": 0.003283},
+      "gamma_pa": {"mean": -0.1135, "sd": 0.06519}
+    },
+    "standardization": {
+      "woba_mean": 0.2642, "woba_sd": 0.04977,
+      "K_mean": 26.71, "K_sd": 8.984,
+      "BB_mean": 6.24, "BB_sd": 3.285,
+      "age_mean": 1.382, "age_sd": 2.262,
+      "log_pa_mean": 4.834, "log_pa_sd": 0.7982
+    },
+    "league_avg_woba": {
+      "MLB": 0.310,
+      "AAA": 0.310,
+      "KBO": 0.310,
+      "Independent": 0.300,
+      "Other": 0.300
+    }
+  },
+  "foreign_pitcher": {
+    "method": "stan_v2",
+    "description": "Foreign pitcher NPB ERA prediction: lg_avg + beta_era[league]*z_era + beta_fip*z_fip + beta_K*z_K + beta_BB*z_BB + beta_era_sq*z_era^2 + beta_K_BB*z_K*z_BB + beta_age*z_age + beta_role",
+    "params": {
+      "beta_era_MLB": {"mean": 0.02969, "sd": 0.1375},
+      "beta_era_AAA": {"mean": -0.1864, "sd": 0.2251},
+      "beta_era_Other": {"mean": -0.4554, "sd": 0.4188},
+      "beta_fip": {"mean": -0.1601, "sd": 0.1317},
+      "beta_K": {"mean": -0.2866, "sd": 0.09632},
+      "beta_BB": {"mean": 0.1476, "sd": 0.09970},
+      "beta_era_sq": {"mean": 0.006804, "sd": 0.04889},
+      "beta_K_BB": {"mean": -0.06607, "sd": 0.07204},
+      "beta_age": {"mean": -0.003505, "sd": 0.08573},
+      "beta_reliever": {"mean": 0.1032, "sd": 0.1448},
+      "beta_second_year": {"mean": -0.01041, "sd": 0.1408},
+      "sigma_base": {"mean": 1.306, "sd": 0.07649},
+      "gamma_ip": {"mean": 0.1761, "sd": 0.06029}
+    },
+    "standardization": {
+      "era_mean": 5.947, "era_sd": 2.163,
+      "fip_mean": 5.223, "fip_sd": 1.451,
+      "K_mean": 19.22, "K_sd": 4.735,
+      "BB_mean": 9.758, "BB_sd": 3.523,
+      "age_mean": 1.201, "age_sd": 2.469,
+      "log_ip_mean": 3.376, "log_ip_sd": 0.6061
+    },
+    "league_avg_era": {
+      "MLB": 3.80,
+      "AAA": 4.20,
+      "KBO": 3.90,
+      "Independent": 4.50,
+      "Other": 4.50
+    }
+  }
+}
