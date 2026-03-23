@@ -38,12 +38,14 @@ BigQuery (`data-platform-490901.npb` / `npb_bayes`) に接続。
 Raspberry Pi 5 + Docker で常時稼働中（Tailscaleネットワーク内）。Cloud Run にも同一APIをデプロイ済み。
 
 - **トップページ**: 打者 TOP3（wRC+順）+ 先発投手 TOP3（FIP順/投球回100以上）+ リリーフ投手 TOP3（FIP順/投球回20〜99）+ レーダーチャート + 用語説明（入力不要）
-- **順位表**: セ・パ両リーグの予測順位（ピタゴラス勝率ベース）
-- **打者ランキング**: OPS/AVG/HR/RBI/wOBA/wRC+ でソート
-- **投手ランキング**: ERA/WHIP/SO/W/FIP/K%/BB%/K-BB%/K9/BB9/HR9 でソート
+- **順位表**: セ・パ両リーグの予測順位（ピタゴラス勝率ベース）+ モンテカルロ優勝確率/CS確率
+- **チームシミュレーション**: モンテカルロ10,000回の勝数分布ファンチャート + P(優勝)/P(CS)/P(最下位)確率テーブル
+- **打者ランキング**: OPS/AVG/HR/RBI/wOBA/wRC+/ベイズOPS でソート
+- **投手ランキング**: ERA/WHIP/SO/W/FIP/K%/BB%/K-BB%/K9/BB9/HR9/ベイズERA でソート
 - **チーム勝率**: 12球団の予測勝率 + 信頼区間
-- **打者予測**: クイックボタンで選手検索 + レーダーチャート + wOBA/wRC+/wRAA + 計算式解説
-- **投手予測**: クイックボタンで選手検索 + レーダーチャート + FIP/K%/BB%/K-BB% + 計算式解説
+- **打者予測**: クイックボタンで選手検索 + レーダーチャート + wOBA/wRC+/wRAA + ベイズOPS（80%/95%CI）
+- **投手予測**: クイックボタンで選手検索 + レーダーチャート + FIP/K%/BB%/K-BB% + ベイズERA（80%/95%CI）
+- **外国人選手予測**: 前リーグ成績 + Stan v2モデルによるNPB初年度予測（チーム別フィルタ + CI表示）
 
 ## ファイル構成
 
@@ -202,8 +204,10 @@ Step 4: sabermetrics.py         → wOBA/wRC+/wRAA算出
 Step 5: marcel_projection.py    → Marcel法予測
 Step 6: ml_projection.py        → ML予測 + モデル保存 + メトリクスJSON出力
 Step 7: git commit & push       → data/ を自動コミット
-Step 8: load_to_bq.py           → BigQuery に全データロード
-Step 9: bqml_train.py           → BQML モデル学習・評価・予測
+Step 8: bayes_projection.py     → ベイズ予測（日本人BMA + 外国人Stan v2 + CI）
+Step 9: team_simulation.py      → モンテカルロ10,000回チームシミュレーション
+Step 10: load_to_bq.py          → BigQuery に全データロード（33テーブル）
+Step 11: bqml_train.py          → BQML モデル学習・評価・予測
 ```
 
 スケジュール: 毎年3月1日（FA・移籍確定後、開幕前）+ `workflow_dispatch`（手動実行）
@@ -274,9 +278,11 @@ APIが起動したら http://localhost:8000/docs でSwagger UIを確認できま
 
 | メソッド | パス | 内容 |
 |---|---|---|
-| GET | `/predict/hitter/{name}` | 打者の翌年成績予測（Marcel + ML） |
-| GET | `/predict/pitcher/{name}` | 投手の翌年成績予測（Marcel + ML） |
+| GET | `/predict/hitter/{name}` | 打者の翌年成績予測（Marcel + ML + ベイズOPS/CI） |
+| GET | `/predict/pitcher/{name}` | 投手の翌年成績予測（Marcel + ML + ベイズERA/CI） |
+| GET | `/predict/foreign/{name}` | 外国人選手のNPB初年度予測（Stan v2 + CI） |
 | GET | `/predict/team/{name}?year=2024` | チームのピタゴラス勝率 |
+| GET | `/standings/simulation` | モンテカルロ順位シミュレーション（P(優勝)/P(CS)/勝数CI） |
 | GET | `/sabermetrics/{name}?year=2024` | wOBA/wRC+/wRAA |
 | GET | `/rankings/hitters?top=10&sort_by=OPS` | 打者ランキング |
 | GET | `/rankings/pitchers?top=10&sort_by=ERA` | 投手ランキング |
@@ -340,6 +346,13 @@ curl http://localhost:8000/predict/hitter/牧
 - [x] データ品質チェックビュー（欠損検知・カバレッジ確認）
 - [x] Cloud Run対応 Dockerfile（PORT環境変数）
 - [x] GCP Deploy ワークフロー（BigQuery + BQML + Cloud Run）
+- [x] ベイズ統合予測エンジン（Marcel + Stan Ridge + ML → BMA、80%/95% CI付き）
+- [x] 外国人選手Stan v2モデル（前リーグ成績ベース、全24選手Web検証済み個別予測）
+- [x] モンテカルロ・チームシミュレーション（10,000回、ピタゴラス k=1.83、パークファクター補正）
+- [x] API: ベイズ予測エンドポイント + 外国人予測 + 順位シミュレーション（v0.5.0）
+- [x] Streamlit: ベイズCI表示（打者OPS/投手ERA）+ チームシミュレーションページ + 外国人選手ページ
+- [x] BigQuery: ベイズ予測・外国人・シミュレーション等8テーブル追加（計33テーブル）
+
 ## 今後の予定
 
 ### ベイズ統合（最優先 — 7フェーズ計画）
@@ -389,10 +402,10 @@ Layer 4: ベイズモデル平均（BMA）
 | 1. 基盤 | 日本人ベイズ推論（posteriors.json + NumPy サンプリング） | **完了** |
 | 2. 外国人 | 前リーグ成績ベースのベイズ予測（全24選手Web検証済み） | **完了** |
 | 3. チーム | モンテカルロ勝率シミュレーション + パークファクター補正 | **完了** |
-| 4. 学習 | Stan 学習パイプライン（GitHub Actions で年次実行） | 未着手 |
-| 5. API | CI 付きレスポンス + 外国人エンドポイント + 順位シミュレーション | 未着手 |
-| 6. Streamlit | ファンチャート、密度プロット、外国人ページ、不確実性分析ページ | 未着手 |
-| 7. BigQuery | 新テーブル5本（ベイズ予測・外国人・シミュレーション・事後分布） | 未着手 |
+| 4. 学習 | Stan 学習パイプライン（GitHub Actions で年次実行） | 未着手（来シーズン向け） |
+| 5. API | CI 付きレスポンス + 外国人エンドポイント + 順位シミュレーション | **完了** |
+| 6. Streamlit | ベイズCI表示 + ファンチャート + 外国人ページ + チームシミュレーション | **完了** |
+| 7. BigQuery | 新テーブル8本（ベイズ予測・外国人・シミュレーション・換算係数） | **完了** |
 
 **設計上の重要な判断:**
 - **Stan はランタイムで動かさない** — GitHub Actions で学習、本番は NumPy 事後サンプリング（RPi5 4GB RAM 対応）
