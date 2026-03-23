@@ -1,194 +1,194 @@
 {
   "阪神": {
     "league": "CL",
-    "p_pennant": 0.2329,
-    "p_cs": 0.6402,
-    "p_last": 0.053,
-    "median_wins": 71.4,
-    "mean_wins": 71.5,
+    "p_pennant": 0.2655,
+    "p_cs": 0.7128,
+    "p_last": 0.025,
+    "median_wins": 72.3,
+    "mean_wins": 72.4,
     "wins_80ci": [
-      66.2,
-      77.1
+      67.0,
+      78.0
     ],
     "wins_95ci": [
-      63.4,
-      80.1
+      64.4,
+      81.1
     ]
   },
   "広島": {
     "league": "CL",
-    "p_pennant": 0.0749,
-    "p_cs": 0.3593,
-    "p_last": 0.1392,
-    "median_wins": 68.6,
-    "mean_wins": 68.7,
+    "p_pennant": 0.0457,
+    "p_cs": 0.2707,
+    "p_last": 0.1464,
+    "median_wins": 67.8,
+    "mean_wins": 67.9,
     "wins_80ci": [
-      63.9,
-      73.6
+      63.0,
+      73.0
     ],
     "wins_95ci": [
-      61.3,
-      76.5
+      60.5,
+      76.0
     ]
   },
   "DeNA": {
     "league": "CL",
-    "p_pennant": 0.1158,
-    "p_cs": 0.5069,
-    "p_last": 0.069,
-    "median_wins": 70.0,
-    "mean_wins": 70.1,
+    "p_pennant": 0.0702,
+    "p_cs": 0.4143,
+    "p_last": 0.0701,
+    "median_wins": 69.4,
+    "mean_wins": 69.4,
     "wins_80ci": [
-      65.5,
-      74.7
+      64.7,
+      74.3
     ],
     "wins_95ci": [
-      63.3,
-      77.5
+      62.3,
+      76.9
     ]
   },
   "巨人": {
     "league": "CL",
-    "p_pennant": 0.3652,
-    "p_cs": 0.7853,
-    "p_last": 0.0193,
-    "median_wins": 73.0,
-    "mean_wins": 73.0,
+    "p_pennant": 0.3836,
+    "p_cs": 0.8406,
+    "p_last": 0.0085,
+    "median_wins": 73.8,
+    "mean_wins": 73.9,
     "wins_80ci": [
-      68.2,
-      78.1
+      69.0,
+      78.8
     ],
     "wins_95ci": [
-      65.7,
-      80.9
+      66.6,
+      81.8
     ]
   },
   "中日": {
     "league": "CL",
-    "p_pennant": 0.2075,
-    "p_cs": 0.6561,
-    "p_last": 0.0421,
-    "median_wins": 71.4,
-    "mean_wins": 71.5,
+    "p_pennant": 0.234,
+    "p_cs": 0.734,
+    "p_last": 0.0194,
+    "median_wins": 72.3,
+    "mean_wins": 72.4,
     "wins_80ci": [
-      66.7,
-      76.4
+      67.5,
+      77.4
     ],
     "wins_95ci": [
-      64.3,
-      79.2
+      65.1,
+      80.1
     ]
   },
   "ヤクルト": {
     "league": "CL",
-    "p_pennant": 0.0037,
-    "p_cs": 0.0522,
-    "p_last": 0.6774,
-    "median_wins": 63.9,
-    "mean_wins": 64.0,
+    "p_pennant": 0.001,
+    "p_cs": 0.0276,
+    "p_last": 0.7306,
+    "median_wins": 62.9,
+    "mean_wins": 63.0,
     "wins_80ci": [
-      59.7,
-      68.4
+      58.8,
+      67.3
     ],
     "wins_95ci": [
-      57.6,
-      70.8
+      56.8,
+      69.7
     ]
   },
   "ソフトバンク": {
     "league": "PL",
-    "p_pennant": 0.1681,
-    "p_cs": 0.7374,
-    "p_last": 0.0087,
-    "median_wins": 76.2,
-    "mean_wins": 76.2,
+    "p_pennant": 0.5358,
+    "p_cs": 0.9512,
+    "p_last": 0.0005,
+    "median_wins": 80.4,
+    "mean_wins": 80.4,
     "wins_80ci": [
-      71.2,
-      81.3
+      75.2,
+      85.5
     ],
     "wins_95ci": [
-      68.7,
-      84.1
+      72.6,
+      88.3
     ]
   },
   "日本ハム": {
     "league": "PL",
-    "p_pennant": 0.6289,
-    "p_cs": 0.9579,
-    "p_last": 0.0002,
-    "median_wins": 80.5,
-    "mean_wins": 80.5,
+    "p_pennant": 0.2595,
+    "p_cs": 0.87,
+    "p_last": 0.0024,
+    "median_wins": 77.9,
+    "mean_wins": 78.0,
     "wins_80ci": [
-      75.6,
-      85.6
+      73.0,
+      83.1
     ],
     "wins_95ci": [
-      73.1,
-      88.2
+      70.4,
+      85.7
     ]
   },
   "楽天": {
     "league": "PL",
-    "p_pennant": 0.0052,
-    "p_cs": 0.116,
-    "p_last": 0.1388,
-    "median_wins": 69.7,
-    "mean_wins": 69.8,
+    "p_pennant": 0.0007,
+    "p_cs": 0.0288,
+    "p_last": 0.3463,
+    "median_wins": 67.0,
+    "mean_wins": 67.1,
     "wins_80ci": [
-      65.4,
-      74.1
+      62.8,
+      71.5
     ],
     "wins_95ci": [
-      63.3,
-      76.5
+      60.6,
+      74.0
     ]
   },
   "オリックス": {
     "league": "PL",
-    "p_pennant": 0.1388,
-    "p_cs": 0.709,
-    "p_last": 0.0079,
-    "median_wins": 75.8,
-    "mean_wins": 75.9,
+    "p_pennant": 0.1702,
+    "p_cs": 0.7908,
+    "p_last": 0.0045,
+    "median_wins": 76.7,
+    "mean_wins": 76.7,
     "wins_80ci": [
-      71.0,
-      80.7
+      71.9,
+      81.6
     ],
     "wins_95ci": [
-      68.6,
-      83.5
+      69.6,
+      84.2
     ]
   },
   "ロッテ": {
     "league": "PL",
-    "p_pennant": 0.0002,
-    "p_cs": 0.0091,
-    "p_last": 0.8192,
-    "median_wins": 64.5,
-    "mean_wins": 64.6,
+    "p_pennant": 0.0001,
+    "p_cs": 0.0128,
+    "p_last": 0.6109,
+    "median_wins": 65.4,
+    "mean_wins": 65.4,
     "wins_80ci": [
-      60.1,
-      69.0
+      60.9,
+      69.9
     ],
     "wins_95ci": [
-      57.8,
-      71.6
+      58.7,
+      72.5
     ]
   },
   "西武": {
     "league": "PL",
-    "p_pennant": 0.0588,
-    "p_cs": 0.4706,
-    "p_last": 0.0252,
-    "median_wins": 73.7,
-    "mean_wins": 73.7,
+    "p_pennant": 0.0337,
+    "p_cs": 0.3464,
+    "p_last": 0.0354,
+    "median_wins": 72.8,
+    "mean_wins": 72.9,
     "wins_80ci": [
-      69.0,
-      78.6
+      68.0,
+      77.8
     ],
     "wins_95ci": [
-      66.7,
-      81.3
+      65.7,
+      80.6
     ]
   }
 }
