@@ -95,17 +95,17 @@ TEXTS: dict[str, dict[str, str]] = {
         "top_subtitle": "過去の成績データ × AI予測",
         "top_warning": (
             "⚠️ **ご注意 — これは統計モデルの自動計算結果です**\n\n"
-            "Marcel法が「過去3年のNPB成績データ」だけをもとに算出した参考値です。"
+            "ベイズ統合予測（Marcel法 + Stan/Ridge補正 + 機械学習）が過去のNPB成績データと"
+            "スキル指標（K%/BB%/BABIP等）をもとに算出した参考値です。"
             "好きなチームや選手が低く出ていても、それはモデルが過去の数字をそう計算したというだけで、"
             "作者の見解・応援・願望とは一切関係ありません。\n\n"
-            "**このモデルには捉えられない要素がたくさんあります** —— "
-            "新外国人・新人・復帰選手など、NPBでの過去データがない選手の貢献はすべて「平均」として扱われています。"
-            "記録のない選手たちが活躍すれば、どのチームの順位も大きく変わりえます。"
-            "シーズンが始まってみないとわからない部分が必ずあります。\n\n"
-            "**球場補正（パークファクター）は考慮していません** —— "
-            "2026年のバンテリンドームへのホームランテラス設置など、球場改修による影響は反映されていません。"
-            "球場ごとの打者有利・投手有利の差も未補正です。\n\n"
-            "2025–2026オフの移籍・退団は反映済みです。"
+            "**外国人選手は前リーグ成績から個別予測しています** —— "
+            "MLBやKBOでの成績をリーグ別変換係数でNPB相当に変換し、Stan v2モデルで予測しています。"
+            "ただし新人・復帰選手など一部の選手はデータ不足のためリーグ平均扱いです。\n\n"
+            "**球場補正（パークファクター）は適用済みです** —— "
+            "5年移動平均のパークファクターでチーム得点・失点を補正しています。"
+            "ただし2026年のバンテリンドームへのホームランテラス設置など、球場改修による影響は反映されていません。\n\n"
+            "2025–2026オフの移籍・退団・MLB移籍は反映済みです。"
         ),
         "btn_all_top3": "全体TOP3",
         "team_batters_title": "{team} 打者一覧（2026年予測）",
@@ -275,17 +275,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "standings_title": "予測順位表",
         "standings_info": (
             "⚠️ **これは統計モデルの自動計算結果です。作者の予想・応援とは無関係です。**\n\n"
-            "Marcel法は「過去3年のNPBデータ」だけを見ています。"
-            "つまり、**このモデルが知らないことが必ずあります**。\n\n"
-            "- **データなし選手**: 新外国人・新人・復帰選手の貢献は計算に含まれていません（wRAA=0＝リーグ平均として扱っています）\n"
-            "- **NPB 1〜2年目選手**: データはあるが少ないため予測値がリーグ平均に強く補正されます。"
-            "実力の過小/過大評価が起きやすく、特に2年目外国人選手の移籍初年度実績は参考程度にしてください（選手名横の「NPB1年/2年」バッジで確認できます）\n"
-            "- **若手の急成長**: 23〜26歳の選手が殻を破るような場合、Marcel法は過去3年の平均に引っ張られ、"
-            "実際の成績を大きく下回る予測になることがあります。年齢調整（+0.3%/年）は小さく、急激な成長には追いつきません\n\n"
-            "下位に予測されたチームでも、記録のない選手・殻を破りかけている若手次第で、状況は十分に変わりえます。"
+            "ベイズ統合予測（Marcel法 + Stan/Ridge補正 + 機械学習）とモンテカルロ・シミュレーション（10,000回）で算出しています。\n\n"
+            "- **外国人選手**: 前リーグ成績（MLB/KBO等）から個別にNPB初年度成績を予測しています（Stan v2モデル）\n"
+            "- **MLB移籍選手**: 村上宗隆・岡本和真・今井達也等、MLB移籍選手はロースターから除外済みです\n"
+            "- **NPB 1〜2年目選手**: データが少ないため予測値がリーグ平均に補正されます。"
+            "選手名横の「NPB1年/2年」バッジで確認できます\n"
+            "- **若手の急成長**: 23〜26歳の選手が殻を破るような場合、モデルは過去3年の平均に引っ張られ、"
+            "急激な成長には追いつきません\n"
+            "- **パークファクター補正済み**: 5年移動平均で球場効果を補正しています\n\n"
+            "下位に予測されたチームでも、新人の活躍・若手ブレイク次第で状況は変わりえます。"
         ),
         "standings_2026_title": "2026年 順位予測",
-        "standings_2026_caption": "各チームの打者成績予測（得点）と投手成績予測（失点）からピタゴラス勝率で算出",
+        "standings_2026_caption": "ベイズ統合予測 × モンテカルロ10,000回シミュレーションで算出。パークファクター補正済み。",
         "missing_badge": "計算外{n}名",
         "data_years_badge": "NPB{n}年",
         "data_years_note_1": "⚠️ 直近3年のうちNPBデータが1年のみのため、予測値はリーグ平均に強く補正されています（約2/3がリーグ平均寄り）。実力の過小/過大評価に注意してください。",
@@ -495,17 +496,17 @@ TEXTS: dict[str, dict[str, str]] = {
         "top_subtitle": "Historical Stats × AI Projections",
         "top_warning": (
             "⚠️ **Note — These are automated statistical model outputs.**\n\n"
-            "Marcel method calculates reference values based solely on past 3 years of NPB performance data. "
-            "If your favorite team or player ranks low, this reflects only what the model calculated from historical numbers — "
+            "Bayesian ensemble predictions (Marcel + Stan/Ridge + ML) calculated from NPB performance data "
+            "and skill metrics (K%, BB%, BABIP). "
+            "If your favorite team or player ranks low, this reflects only what the model calculated — "
             "it does not represent the author's opinion, support, or wishes.\n\n"
-            "**This model cannot capture everything** —— "
-            "New foreign players, rookies, and returning players with no NPB history are all treated as 'average' contributions. "
-            "These players' performances could significantly change any team's standing. "
-            "There will always be uncertainties that only the season itself can reveal.\n\n"
-            "**Park factors are not accounted for** —— "
-            "Changes such as the 2026 home run terrace addition at Vantelin Dome Nagoya are not reflected. "
-            "Batter-friendly vs. pitcher-friendly park differences are also unadjusted.\n\n"
-            "Transactions from the 2025–2026 offseason are reflected."
+            "**Foreign players are individually projected** — "
+            "Prior-league stats (MLB/KBO) are converted to NPB-equivalent via Stan v2 model. "
+            "Rookies and some returning players without sufficient data are still treated as league-average.\n\n"
+            "**Park factors are applied** — "
+            "5-year moving average park factors adjust team RS/RA. "
+            "However, stadium renovations (e.g., 2026 Vantelin Dome home run terrace) are not reflected.\n\n"
+            "2025–2026 offseason transactions and MLB departures are reflected."
         ),
         "btn_all_top3": "Top 3 Overall",
         "team_batters_title": "{team} Batters (2026 Projections)",
@@ -675,20 +676,17 @@ TEXTS: dict[str, dict[str, str]] = {
         "standings_title": "Predicted Standings",
         "standings_info": (
             "⚠️ **These are automated statistical model outputs — not the author's predictions.**\n\n"
-            "The Marcel method looks only at the past 3 years of NPB data. "
-            "**There are things this model simply cannot know.**\n\n"
-            "- **Players with no NPB data**: Contributions of new foreign players, rookies, and returning players "
-            "are excluded (treated as wRAA=0 = league average)\n"
-            "- **Players with 1–2 years of NPB data**: These players appear in projections but their stats are "
-            "heavily anchored to league average due to limited data. Projections may under- or over-estimate actual ability. "
-            "Look for the 'NPB1yr / NPB2yr' badge next to player names\n"
-            "- **Young player breakouts**: When players aged 23–26 break out, Marcel is anchored to a 3-year average "
-            "and will significantly underestimate their actual performance. "
-            "The age adjustment (+0.3%/year) is too small to capture rapid growth\n\n"
-            "Even lower-ranked teams can move significantly depending on untracked players and breakout youngsters."
+            "Bayesian ensemble (Marcel + Stan/Ridge + ML) with 10,000 Monte Carlo simulations.\n\n"
+            "- **Foreign players**: Individually projected from prior-league stats (MLB/KBO) via Stan v2 model\n"
+            "- **MLB departures**: Murakami, Okamoto, Imai, etc. excluded from roster\n"
+            "- **Players with 1–2 years of NPB data**: Projections anchored to league average. "
+            "Look for 'NPB1yr / NPB2yr' badges\n"
+            "- **Young player breakouts**: Model is anchored to 3-year average, cannot capture rapid growth\n"
+            "- **Park factors applied**: 5-year moving average\n\n"
+            "Even lower-ranked teams can move significantly depending on rookies and breakout youngsters."
         ),
         "standings_2026_title": "2026 Season Projections",
-        "standings_2026_caption": "Calculated using Pythagorean Win% from projected runs scored/allowed per team",
+        "standings_2026_caption": "Bayesian ensemble × 10,000 Monte Carlo simulations. Park factor adjusted.",
         "missing_badge": "{n} not projected",
         "data_years_badge": "{n}yr NPB",
         "data_years_note_1": "⚠️ Only 1 of the last 3 seasons has NPB data — projection is heavily anchored to league average (~2/3 regression). May under- or over-estimate actual ability.",
