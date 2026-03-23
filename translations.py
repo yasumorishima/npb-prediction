@@ -323,7 +323,82 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- Stan correction ---
         "stan_correction": "Stan/Ridge補正",
         "stan_note": "K%/BB%/BABIP等のスキル指標による補正（8年間のLOO-CVで検証済み）",
-        "stan_standings_note": "※ 選手レベル予測にはStan/Ridge補正を適用しています。チーム順位予測はMarcel法を使用しています。",
+        "stan_standings_note": "※ 選手レベル予測にはベイズ統合予測（Marcel + Stan/Ridge + ML）を適用。チーム順位はモンテカルロ・シミュレーション（10,000回）で算出。外国人選手はStan v2モデルで個別予測済み。",
+
+        # --- Bayesian prediction ---
+        "bayes_pred_title": "ベイズ統合予測",
+        "bayes_ops_label": "ベイズ OPS",
+        "bayes_era_label": "ベイズ ERA",
+        "ci_80": "80%信頼区間",
+        "ci_95": "95%信頼区間",
+        "bayes_method_bma": "BMA統合（Marcel + Stan + ML）",
+        "bayes_method_marcel": "Marcel法のみ（Stan補正なし）",
+        "bayes_method_stan_v2": "Stan v2モデル（前リーグ成績ベース）",
+        "bayes_note": "ベイズ統合予測 — Marcel法 × Stan/Ridge補正 × 機械学習のアンサンブル。信頼区間は事後分布からのサンプリングで算出。",
+        "bayes_delta_label": "Stan補正量",
+        "marcel_label": "Marcel法",
+
+        # --- Rankings (Bayes) ---
+        "sort_bayes_ops": "ベイズOPS — 統合予測のOPS",
+        "sort_bayes_era": "ベイズERA — 統合予測のERA",
+
+        # --- Team Simulation ---
+        "page_team_sim": "チームシミュレーション",
+        "team_sim_title": "モンテカルロ・チームシミュレーション（2026年）",
+        "team_sim_subtitle": "選手レベルのベイズ予測を10,000回サンプリングし、チーム成績の確率分布を算出",
+        "team_sim_note": (
+            "各選手のベイズ事後分布（Marcel + Stan補正 + 機械学習）から"
+            "10,000回独立にサンプリングし、チーム得点・失点→ピタゴラス勝率で勝数を計算。"
+            "パークファクター補正済み。外国人選手は不確実性1.5倍。"
+        ),
+        "p_pennant": "優勝確率",
+        "p_cs": "CS進出確率",
+        "p_last": "最下位確率",
+        "median_wins": "勝数（中央値）",
+        "mean_wins": "勝数（平均）",
+        "wins_ci_80": "勝数 80%CI",
+        "wins_ci_95": "勝数 95%CI",
+        "fan_chart_title": "{league} 勝数分布（ファンチャート）",
+        "fan_chart_note": "濃い帯 = 80%信頼区間、薄い帯 = 95%信頼区間、線 = 中央値",
+        "prob_table_title": "確率テーブル",
+        "mc_method_expander": "シミュレーション手法の説明",
+        "mc_method_content": (
+            "**モンテカルロ法によるチーム成績シミュレーション**\n\n"
+            "1. 各選手のベイズ事後分布（BMA: Marcel 35% + Stan 40% + ML 25%）から独立にサンプリング\n"
+            "2. チーム合計得点（RS）・失点（RA）を算出\n"
+            "3. ピタゴラス勝率（k=1.83）で勝数を計算\n"
+            "4. パークファクター補正を適用\n"
+            "5. リーグ平均RS/RAをNPB歴史的水準（535点）にキャリブレーション\n"
+            "6. 10,000回繰り返して確率分布を取得\n\n"
+            "**外国人選手の不確実性**: σを1.5倍に拡大（NPBデータなしのため）\n"
+            "**Marcel法のみの選手**: Stan補正なしでMarcel予測値をそのまま使用（CIなし）"
+        ),
+
+        # --- Foreign Players ---
+        "page_foreign": "外国人選手予測",
+        "foreign_title": "外国人選手 NPB初年度予測（2026年）",
+        "foreign_subtitle": "前リーグ成績からStan v2モデルでNPBでの成績を予測",
+        "foreign_hitters_title": "外国人打者",
+        "foreign_pitchers_title": "外国人投手",
+        "origin_league_label": "前リーグ",
+        "prev_woba_label": "前リーグ wOBA",
+        "prev_era_label": "前リーグ ERA",
+        "npb_pred_label": "NPB予測",
+        "foreign_note": (
+            "Stan v2モデル: 前リーグ成績（wOBA/ERA）をリーグ別変換係数で補正し、"
+            "K%×BB%交互作用 + 異分散性を考慮してNPB初年度成績を予測。"
+            "信頼区間は事後分布からのサンプリングで算出。"
+        ),
+        "foreign_method_expander": "予測手法の説明",
+        "foreign_method_content": (
+            "**Stan v2 外国人選手モデル**\n\n"
+            "1. **前リーグ成績の変換**: MLB wOBA × 1.235 = NPB相当wOBA（MLB ERA × 0.579 = NPB相当ERA）\n"
+            "2. **リーグ別β係数**: MLB/KBO/独立リーグそれぞれの変換精度を反映\n"
+            "3. **K%×BB%交互作用**: 三振率と四球率のバランスが成績に与える影響を考慮\n"
+            "4. **異分散性**: 前リーグ成績が極端（高すぎ/低すぎ）な選手ほど予測の不確実性が大きい\n"
+            "5. **事後分布サンプリング**: 5,000回のサンプリングで信頼区間を算出"
+        ),
+        "all_teams": "全チーム",
     },
 
     "en": {
@@ -652,7 +727,82 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- Stan correction ---
         "stan_correction": "Stan/Ridge Correction",
         "stan_note": "Correction based on skill metrics (K%, BB%, BABIP) — validated via 8-year LOO-CV",
-        "stan_standings_note": "* Player-level predictions include Stan/Ridge corrections. Team standings use Marcel projections.",
+        "stan_standings_note": "* Player-level predictions use Bayesian ensemble (Marcel + Stan/Ridge + ML). Team standings from 10,000 Monte Carlo simulations. Foreign players projected individually via Stan v2.",
+
+        # --- Bayesian prediction ---
+        "bayes_pred_title": "Bayesian Ensemble Prediction",
+        "bayes_ops_label": "Bayesian OPS",
+        "bayes_era_label": "Bayesian ERA",
+        "ci_80": "80% CI",
+        "ci_95": "95% CI",
+        "bayes_method_bma": "BMA Ensemble (Marcel + Stan + ML)",
+        "bayes_method_marcel": "Marcel Only (no Stan correction)",
+        "bayes_method_stan_v2": "Stan v2 Model (prior-league based)",
+        "bayes_note": "Bayesian ensemble — Marcel × Stan/Ridge × ML. Credible intervals from posterior sampling.",
+        "bayes_delta_label": "Stan correction",
+        "marcel_label": "Marcel",
+
+        # --- Rankings (Bayes) ---
+        "sort_bayes_ops": "Bayesian OPS — Ensemble Prediction",
+        "sort_bayes_era": "Bayesian ERA — Ensemble Prediction",
+
+        # --- Team Simulation ---
+        "page_team_sim": "Team Simulation",
+        "team_sim_title": "Monte Carlo Team Simulation (2026)",
+        "team_sim_subtitle": "10,000 draws from player-level Bayesian posteriors to compute team win distributions",
+        "team_sim_note": (
+            "Samples 10,000 times from each player's Bayesian posterior (Marcel + Stan + ML), "
+            "computes team RS/RA → Pythagorean wins. Park factor adjusted. "
+            "Foreign players have 1.5× uncertainty."
+        ),
+        "p_pennant": "P(Pennant)",
+        "p_cs": "P(Climax Series)",
+        "p_last": "P(Last Place)",
+        "median_wins": "Wins (Median)",
+        "mean_wins": "Wins (Mean)",
+        "wins_ci_80": "Wins 80% CI",
+        "wins_ci_95": "Wins 95% CI",
+        "fan_chart_title": "{league} Win Distribution (Fan Chart)",
+        "fan_chart_note": "Dark band = 80% CI, light band = 95% CI, line = median",
+        "prob_table_title": "Probability Table",
+        "mc_method_expander": "Simulation Methodology",
+        "mc_method_content": (
+            "**Monte Carlo Team Performance Simulation**\n\n"
+            "1. Sample independently from each player's Bayesian posterior (BMA: Marcel 35% + Stan 40% + ML 25%)\n"
+            "2. Compute team total runs scored (RS) and runs allowed (RA)\n"
+            "3. Calculate wins via Pythagorean expectation (k=1.83)\n"
+            "4. Apply park factor corrections\n"
+            "5. Calibrate league-avg RS/RA to NPB historical norm (535 runs)\n"
+            "6. Repeat 10,000 times for probability distributions\n\n"
+            "**Foreign player uncertainty**: σ scaled by 1.5× (no NPB data)\n"
+            "**Marcel-only players**: No Stan correction applied; Marcel projection used directly (no CI)"
+        ),
+
+        # --- Foreign Players ---
+        "page_foreign": "Foreign Players",
+        "foreign_title": "Foreign Player NPB Debut Predictions (2026)",
+        "foreign_subtitle": "Stan v2 model projects NPB performance from prior-league stats",
+        "foreign_hitters_title": "Foreign Hitters",
+        "foreign_pitchers_title": "Foreign Pitchers",
+        "origin_league_label": "Prior League",
+        "prev_woba_label": "Prior wOBA",
+        "prev_era_label": "Prior ERA",
+        "npb_pred_label": "NPB Projection",
+        "foreign_note": (
+            "Stan v2 model: converts prior-league stats (wOBA/ERA) via league-specific factors, "
+            "with K%×BB% interaction and heteroscedasticity for NPB debut projection. "
+            "Credible intervals from posterior sampling."
+        ),
+        "foreign_method_expander": "Methodology",
+        "foreign_method_content": (
+            "**Stan v2 Foreign Player Model**\n\n"
+            "1. **Prior-league conversion**: MLB wOBA × 1.235 = NPB-equivalent wOBA (MLB ERA × 0.579 = NPB ERA)\n"
+            "2. **League-specific β**: Separate coefficients for MLB / KBO / independent leagues\n"
+            "3. **K%×BB% interaction**: Accounts for how strikeout-walk balance affects performance\n"
+            "4. **Heteroscedasticity**: Extreme prior-league stats → wider prediction intervals\n"
+            "5. **Posterior sampling**: 5,000 draws for credible intervals"
+        ),
+        "all_teams": "All Teams",
     },
 }
 

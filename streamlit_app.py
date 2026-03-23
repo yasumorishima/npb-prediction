@@ -33,7 +33,6 @@ def team_disp(team_ja: str) -> str:
 
 
 BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main/"
-BAYES_URL = "https://raw.githubusercontent.com/yasumorishima/npb-bayes-projection/main/"
 
 NPB_TEAM_COLORS = {
     "DeNA": "#0055A5",
@@ -173,18 +172,6 @@ def load_csv(path: str) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=3600)
-def _load_stan_csv(path: str) -> pd.DataFrame | None:
-    """Load Stan CSV from npb-bayes-projection. Returns None on failure."""
-    url = BAYES_URL + path
-    try:
-        df = pd.read_csv(url, encoding="utf-8-sig")
-    except Exception:
-        return None
-    if "player" in df.columns:
-        df["player"] = df["player"].apply(_norm)
-    return df
-
 
 def load_all():
     from roster_current import get_all_roster_names, get_team_for_player
@@ -196,7 +183,16 @@ def load_all():
         "pitcher_history": load_csv(f"data/raw/npb_pitchers_2015_{DATA_END_YEAR}.csv"),
         "pythagorean": load_csv(f"data/projections/pythagorean_2015_{DATA_END_YEAR}.csv"),
         "marcel_team_historical": load_csv("data/projections/marcel_team_historical.csv"),
+        # Bayesian projections
+        "bayes_hitters": load_csv(f"data/projections/bayes_hitters_{TARGET_YEAR}.csv"),
+        "bayes_pitchers": load_csv(f"data/projections/bayes_pitchers_{TARGET_YEAR}.csv"),
+        # Foreign player projections
+        "foreign_hitters": load_csv(f"data/projections/foreign_hitters_{TARGET_YEAR}.csv"),
+        "foreign_pitchers": load_csv(f"data/projections/foreign_pitchers_{TARGET_YEAR}.csv"),
+        # Team simulation
+        "team_sim": load_csv(f"data/projections/team_sim_{TARGET_YEAR}.csv"),
     }
+
     # NPB公式ロースターに在籍する選手のみ残し、チーム名も公式に合わせる
     roster_names = get_all_roster_names()
     for key in ("marcel_hitters", "marcel_pitchers"):
@@ -213,7 +209,7 @@ def load_all():
         result[key] = df
 
     _enrich_projections(result)
-    _merge_stan_projections(result)
+    _merge_bayes_projections(result)
     return result
 
 
@@ -265,23 +261,30 @@ def _enrich_projections(data: dict) -> None:
             mp["FIP"] = ((13 * mp["HRA"] + 3 * (mp["BB"] + mp["HBP"]) - 2 * mp["SO"]) / mp["IP"] + fip_c).round(2)
 
 
-def _merge_stan_projections(data: dict) -> None:
-    """Stan CSV（npb-bayes-projection）から stan_wOBA / stan_ERA をマージ"""
-    stan_h = _load_stan_csv(f"data/projections/stan_hitters_{TARGET_YEAR}.csv")
-    stan_p = _load_stan_csv(f"data/projections/stan_pitchers_{TARGET_YEAR}.csv")
 
+def _merge_bayes_projections(data: dict) -> None:
+    """ベイズCSVからbayes_OPS/ERA + CIカラムをMarcelデータにマージ"""
+    bh = data.get("bayes_hitters", pd.DataFrame())
+    bp = data.get("bayes_pitchers", pd.DataFrame())
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
 
-    if stan_h is not None and not mh.empty:
-        stan_cols = stan_h[["player", "stan_wOBA", "stan_delta_wOBA"]].drop_duplicates("player")
-        mh_merged = mh.merge(stan_cols, on="player", how="left")
-        data["marcel_hitters"] = mh_merged
+    if not bh.empty and not mh.empty and "player" in bh.columns:
+        # player以外でMarcel側と重複しないカラムだけマージ
+        merge_cols = ["player"] + [
+            c for c in bh.columns
+            if c != "player" and c not in mh.columns
+        ]
+        bayes_cols = bh[merge_cols].drop_duplicates("player")
+        data["marcel_hitters"] = mh.merge(bayes_cols, on="player", how="left")
 
-    if stan_p is not None and not mp.empty:
-        stan_cols = stan_p[["player", "stan_ERA", "stan_delta_ERA"]].drop_duplicates("player")
-        mp_merged = mp.merge(stan_cols, on="player", how="left")
-        data["marcel_pitchers"] = mp_merged
+    if not bp.empty and not mp.empty and "player" in bp.columns:
+        merge_cols = ["player"] + [
+            c for c in bp.columns
+            if c != "player" and c not in mp.columns
+        ]
+        bayes_cols = bp[merge_cols].drop_duplicates("player")
+        data["marcel_pitchers"] = mp.merge(bayes_cols, on="player", how="left")
 
 
 _VARIANT_MAP = str.maketrans("﨑髙濵澤邊齋齊國島嶋櫻", "崎高浜沢辺斎斉国島島桜")
@@ -489,6 +492,49 @@ def render_pitcher_card(row: pd.Series, ml_era: float | None = None, glow: str =
         <span style="color:#888;font-size:10px;">▏{avg_legend}</span>
       </div>
     </div>"""
+
+
+def _render_ci_bar(central: float, lo80: float, hi80: float,
+                   lo95: float, hi95: float, label: str,
+                   color: str = "#00e5ff", invert: bool = False) -> None:
+    """信頼区間を横棒で可視化（Plotly）。invert=Trueは低い方が良い指標（ERA等）。"""
+    fig = go.Figure()
+
+    # 95% CI (薄い帯)
+    fig.add_trace(go.Bar(
+        y=[label], x=[hi95 - lo95], base=[lo95],
+        orientation="h", name=t("ci_95"),
+        marker_color=f"{color}33", showlegend=True,
+        hovertemplate=f"95% CI: {lo95:.3f} – {hi95:.3f}<extra></extra>",
+    ))
+    # 80% CI (濃い帯)
+    fig.add_trace(go.Bar(
+        y=[label], x=[hi80 - lo80], base=[lo80],
+        orientation="h", name=t("ci_80"),
+        marker_color=f"{color}88", showlegend=True,
+        hovertemplate=f"80% CI: {lo80:.3f} – {hi80:.3f}<extra></extra>",
+    ))
+    # Central value (マーカー)
+    fig.add_trace(go.Scatter(
+        x=[central], y=[label], mode="markers",
+        marker=dict(size=14, color=color, symbol="diamond"),
+        name=f"{label} = {central:.3f}",
+        hovertemplate=f"{label}: {central:.3f}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        height=120, barmode="overlay",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e0e0e0", size=12),
+        xaxis=dict(gridcolor="#333", title=label),
+        yaxis=dict(visible=False),
+        legend=dict(orientation="h", y=1.15, font=dict(size=11, color="#aaa")),
+        margin=dict(l=10, r=10, t=30, b=30),
+    )
+    if invert:
+        fig.update_xaxes(autorange="reversed")
+
+    st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
 
 def _safe_float(val, default: float = 0.0) -> float:
@@ -871,9 +917,44 @@ def page_hitter_prediction(data: dict):
             st.metric("wRAA", f"{row['wRAA']:+.1f}", delta=f"{t('above_avg') if row['wRAA'] > 0 else t('below_avg')}")
             st.markdown(f"<span style='color:#888;font-size:11px;'>{t('wraa_value_desc')}</span>", unsafe_allow_html=True)
 
-            # Stan補正
-            if "stan_wOBA" in row.index and not pd.isna(row.get("stan_wOBA")):
-                delta_w = float(row["stan_delta_wOBA"])
+            # ベイズ統合予測（OPS + CI）
+            if "bayes_OPS" in row.index and not pd.isna(row.get("bayes_OPS")):
+                st.markdown(f"**{t('bayes_pred_title')}**")
+                b_ops = float(row["bayes_OPS"])
+                m_ops = float(row["OPS"])
+                method = str(row.get("method", ""))
+
+                # Marcel vs Bayes OPS
+                delta = b_ops - m_ops
+                st.metric(
+                    t("bayes_ops_label"), f"{b_ops:.3f}",
+                    delta=f"{delta:+.3f} vs Marcel {m_ops:.3f}",
+                )
+
+                # CI bar chart
+                has_ci = not pd.isna(row.get("bayes_OPS_lo80"))
+                if has_ci:
+                    _render_ci_bar(
+                        central=b_ops,
+                        lo80=float(row["bayes_OPS_lo80"]),
+                        hi80=float(row["bayes_OPS_hi80"]),
+                        lo95=float(row["bayes_OPS_lo95"]),
+                        hi95=float(row["bayes_OPS_hi95"]),
+                        label="OPS",
+                        color=glow,
+                    )
+
+                # Method badge
+                if "bma" in method:
+                    st.caption(f"📊 {t('bayes_method_bma')}")
+                elif "marcel_only" in method:
+                    st.caption(f"📋 {t('bayes_method_marcel')}")
+
+                st.caption(t("bayes_note"))
+
+            # Stan補正（後方互換）
+            elif "stan_wOBA" in row.index and not pd.isna(row.get("stan_wOBA")):
+                delta_w = float(row.get("stan_delta", row.get("stan_delta_wOBA", 0)))
                 if abs(delta_w) > 0.0001:
                     st.markdown(f"**{t('stan_correction')}**")
                     st.markdown(
@@ -999,9 +1080,43 @@ def page_pitcher_prediction(data: dict):
                       delta=f"{row['HR9'] - hr9_avg:+.2f} vs {t('avg_short')}", delta_color="inverse")
             st.markdown(f"<span style='color:#888;font-size:11px;'>{t('hr9_desc')}</span>", unsafe_allow_html=True)
 
-        # Stan補正
-        if "stan_ERA" in row.index and not pd.isna(row.get("stan_ERA")):
-            delta_e = float(row["stan_delta_ERA"])
+        # ベイズ統合予測（ERA + CI）
+        if "bayes_ERA" in row.index and not pd.isna(row.get("bayes_ERA")):
+            st.markdown(f"**{t('bayes_pred_title')}**")
+            b_era = float(row["bayes_ERA"])
+            m_era = float(row["ERA"])
+            method = str(row.get("method", ""))
+
+            delta = b_era - m_era
+            st.metric(
+                t("bayes_era_label"), f"{b_era:.2f}",
+                delta=f"{delta:+.2f} vs Marcel {m_era:.2f}",
+                delta_color="inverse",
+            )
+
+            has_ci = not pd.isna(row.get("bayes_ERA_lo80"))
+            if has_ci:
+                _render_ci_bar(
+                    central=b_era,
+                    lo80=float(row["bayes_ERA_lo80"]),
+                    hi80=float(row["bayes_ERA_hi80"]),
+                    lo95=float(row["bayes_ERA_lo95"]),
+                    hi95=float(row["bayes_ERA_hi95"]),
+                    label="ERA",
+                    color=glow,
+                    invert=True,
+                )
+
+            if "bma" in method:
+                st.caption(f"📊 {t('bayes_method_bma')}")
+            elif "marcel_only" in method:
+                st.caption(f"📋 {t('bayes_method_marcel')}")
+
+            st.caption(t("bayes_note"))
+
+        # Stan補正（後方互換）
+        elif "stan_ERA" in row.index and not pd.isna(row.get("stan_ERA")):
+            delta_e = float(row.get("stan_delta", row.get("stan_delta_ERA", 0)))
             if abs(delta_e) > 0.0001:
                 st.markdown(f"**{t('stan_correction')}**")
                 st.markdown(
@@ -1234,12 +1349,15 @@ def page_hitter_rankings(data: dict):
     if "wOBA" in mh.columns:
         sort_labels[t("sort_woba")] = "wOBA"
         sort_labels[t("sort_wrcplus")] = "wRC+"
+    if "bayes_OPS" in mh.columns:
+        sort_labels[t("sort_bayes_ops")] = "bayes_OPS"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="hitter_rank_sort")
     sort_by = sort_labels[sort_label]
 
     df = mh[mh["PA"] >= 200].sort_values(sort_by, ascending=False).head(top_n).reset_index(drop=True)
 
-    fmt_map = {"OPS": ".3f", "AVG": ".3f", "HR": ".0f", "RBI": ".0f", "wOBA": ".3f", "wRC+": ".0f"}
+    fmt_map = {"OPS": ".3f", "AVG": ".3f", "HR": ".0f", "RBI": ".0f", "wOBA": ".3f", "wRC+": ".0f",
+               "bayes_OPS": ".3f"}
     fmt = fmt_map.get(sort_by, ".3f")
 
     cards = ""
@@ -1276,15 +1394,17 @@ def page_pitcher_rankings(data: dict):
         sort_labels[t("sort_k9")] = "K9"
         sort_labels[t("sort_bb9")] = "BB9"
         sort_labels[t("sort_hr9")] = "HR9"
+    if "bayes_ERA" in mp.columns:
+        sort_labels[t("sort_bayes_era")] = "bayes_ERA"
     sort_label = col2.selectbox(t("sort_by"), list(sort_labels.keys()), key="pitcher_rank_sort")
     sort_by = sort_labels[sort_label]
 
-    ascending = sort_by in ("ERA", "WHIP", "FIP", "BB_pct", "BB9", "HR9")
+    ascending = sort_by in ("ERA", "WHIP", "FIP", "BB_pct", "BB9", "HR9", "bayes_ERA")
     df = mp[mp["IP"] >= 100].sort_values(sort_by, ascending=ascending).head(top_n).reset_index(drop=True)
 
     fmt_map = {"ERA": ".2f", "WHIP": ".2f", "SO": ".0f", "W": ".0f",
                "FIP": ".2f", "K_pct": ".1f", "BB_pct": ".1f", "K_BB_pct": ".1f",
-               "K9": ".2f", "BB9": ".2f", "HR9": ".2f"}
+               "K9": ".2f", "BB9": ".2f", "HR9": ".2f", "bayes_ERA": ".2f"}
     fmt = fmt_map.get(sort_by, ".2f")
 
     # 表示ラベル（K_pct → K% のように変換）
@@ -1468,6 +1588,28 @@ def page_pythagorean_standings(data: dict):
             )
             st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
+        # モンテカルロ結果の併記
+        team_sim = data.get("team_sim", pd.DataFrame())
+        if not team_sim.empty:
+            st.markdown("---")
+            st.markdown(f"**{t('team_sim_title')}**")
+            st.caption(t("team_sim_note"))
+            for league, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
+                mc_lg = team_sim[team_sim["league"] == league].sort_values(
+                    "p_pennant", ascending=False).reset_index(drop=True)
+                if mc_lg.empty:
+                    continue
+                st.markdown(f"**{label}**")
+                mc_disp = mc_lg[["team", "p_pennant", "p_cs", "median_wins"]].copy()
+                mc_disp.columns = [t("team_label"), t("p_pennant"), t("p_cs"), t("median_wins")]
+                mc_disp[t("team_label")] = mc_lg["team"].apply(team_disp)
+                mc_disp[t("p_pennant")] = mc_lg["p_pennant"].apply(lambda x: f"{x * 100:.1f}%")
+                mc_disp[t("p_cs")] = mc_lg["p_cs"].apply(lambda x: f"{x * 100:.1f}%")
+                mc_disp[t("median_wins")] = mc_lg["median_wins"].apply(lambda x: f"{x:.1f}")
+                mc_disp = mc_disp.reset_index(drop=True)
+                mc_disp.index = mc_disp.index + 1
+                st.dataframe(mc_disp, use_container_width=True)
+
         with st.expander(t("missing_expander_all")):
             st.markdown(t("missing_expander_content"))
             st.markdown("---")
@@ -1585,22 +1727,236 @@ def page_pythagorean_standings(data: dict):
         st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
 
+# --- チームシミュレーション ---
+
+
+def page_team_simulation(data: dict):
+    """モンテカルロ・チームシミュレーション結果ページ"""
+    st.markdown(f"### {t('team_sim_title')}")
+    st.caption(t("team_sim_subtitle"))
+
+    team_sim = data.get("team_sim", pd.DataFrame())
+    if team_sim.empty:
+        st.error(t("no_data"))
+        return
+
+    st.info(t("team_sim_note"))
+
+    for league, label in [("CL", t("central_league")), ("PL", t("pacific_league"))]:
+        lg = team_sim[team_sim["league"] == league].sort_values(
+            "p_pennant", ascending=False
+        ).reset_index(drop=True)
+        if lg.empty:
+            continue
+
+        st.markdown(f"## {label}")
+
+        # 確率テーブル
+        st.markdown(f"**{t('prob_table_title')}**")
+        prob_df = lg[["team", "p_pennant", "p_cs", "p_last",
+                      "median_wins", "mean_wins"]].copy()
+        prob_df.columns = [
+            t("team_label"), t("p_pennant"), t("p_cs"), t("p_last"),
+            t("median_wins"), t("mean_wins"),
+        ]
+        # Format percentages
+        for col in [t("p_pennant"), t("p_cs"), t("p_last")]:
+            prob_df[col] = prob_df[col].apply(lambda x: f"{x * 100:.1f}%")
+        for col in [t("median_wins"), t("mean_wins")]:
+            prob_df[col] = prob_df[col].apply(lambda x: f"{x:.1f}")
+        # チーム名を言語に合わせる
+        prob_df[t("team_label")] = lg["team"].apply(team_disp)
+        prob_df = prob_df.reset_index(drop=True)
+        prob_df.index = prob_df.index + 1
+        st.dataframe(prob_df, use_container_width=True)
+
+        # ファンチャート（勝数CIの可視化）
+        st.markdown(f"**{t('fan_chart_title').format(league=label)}**")
+        st.caption(t("fan_chart_note"))
+
+        fig = go.Figure()
+        teams_sorted = lg["team"].tolist()
+
+        for _, row in lg.iterrows():
+            team_name = row["team"]
+            color = NPB_TEAM_COLORS.get(team_name, "#333")
+            disp = team_disp(team_name)
+            r_c, g_c, b_c = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+
+            # 95% CI (薄い)
+            fig.add_trace(go.Bar(
+                y=[disp], x=[row["wins_95ci_hi"] - row["wins_95ci_lo"]],
+                base=[row["wins_95ci_lo"]],
+                orientation="h", showlegend=False,
+                marker_color=f"rgba({r_c},{g_c},{b_c},0.2)",
+                hovertemplate=f"95% CI: {row['wins_95ci_lo']:.0f}–{row['wins_95ci_hi']:.0f}<extra>{disp}</extra>",
+            ))
+            # 80% CI (濃い)
+            fig.add_trace(go.Bar(
+                y=[disp], x=[row["wins_80ci_hi"] - row["wins_80ci_lo"]],
+                base=[row["wins_80ci_lo"]],
+                orientation="h", showlegend=False,
+                marker_color=f"rgba({r_c},{g_c},{b_c},0.5)",
+                hovertemplate=f"80% CI: {row['wins_80ci_lo']:.0f}–{row['wins_80ci_hi']:.0f}<extra>{disp}</extra>",
+            ))
+            # 中央値マーカー
+            fig.add_trace(go.Scatter(
+                x=[row["median_wins"]], y=[disp],
+                mode="markers+text",
+                marker=dict(size=12, color=color, symbol="diamond"),
+                text=[f"{row['median_wins']:.0f}"],
+                textposition="middle right",
+                textfont=dict(color="#e0e0e0", size=12),
+                showlegend=False,
+                hovertemplate=f"Median: {row['median_wins']:.1f}W<extra>{disp}</extra>",
+            ))
+
+        fig.update_layout(
+            height=max(350, len(lg) * 70),
+            barmode="overlay",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#e0e0e0"),
+            xaxis=dict(title=t("pred_wins_label"), gridcolor="#333"),
+            yaxis=dict(gridcolor="#333", categoryorder="array",
+                       categoryarray=[team_disp(tm) for tm in teams_sorted[::-1]]),
+            margin=dict(l=100, r=20, t=10, b=40),
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
+
+    with st.expander(t("mc_method_expander")):
+        st.markdown(t("mc_method_content"))
+
+
+# --- 外国人選手予測 ---
+
+
+def page_foreign_players(data: dict):
+    """外国人選手NPB初年度予測ページ"""
+    st.markdown(f"### {t('foreign_title')}")
+    st.caption(t("foreign_subtitle"))
+
+    fh = data.get("foreign_hitters", pd.DataFrame())
+    fp = data.get("foreign_pitchers", pd.DataFrame())
+
+    if fh.empty and fp.empty:
+        st.error(t("no_data"))
+        return
+
+    st.info(t("foreign_note"))
+
+    # チームフィルタ
+    all_teams = set()
+    if not fh.empty:
+        all_teams.update(fh["team"].unique())
+    if not fp.empty:
+        all_teams.update(fp["team"].unique())
+    team_options = [t("all_teams")] + sorted(all_teams)
+    selected_team = st.selectbox(
+        t("team_label"), team_options, key="foreign_team_filter",
+        format_func=lambda x: team_disp(x) if x != t("all_teams") else x,
+    )
+
+    # 打者セクション
+    if not fh.empty:
+        st.markdown(f"## {t('foreign_hitters_title')}")
+        fh_disp = fh if selected_team == t("all_teams") else fh[fh["team"] == selected_team]
+
+        for _, row in fh_disp.iterrows():
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            team_name = team_disp(row["team"])
+
+            st.markdown(f"""
+            <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                        border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
+                        font-family:'Segoe UI',sans-serif;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div>
+                  <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
+                  <span style="color:#888;font-size:12px;margin-left:8px;">{row.get('origin_league', '')}</span>
+                </div>
+                <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team_name}</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            c1, c2 = st.columns(2)
+            c1.metric(t("prev_woba_label"), f"{row.get('prev_wOBA', 0):.3f}")
+            c2.metric(t("bayes_ops_label"), f"{row['bayes_OPS']:.3f}")
+
+            if not pd.isna(row.get("bayes_OPS_lo80")):
+                _render_ci_bar(
+                    central=float(row["bayes_OPS"]),
+                    lo80=float(row["bayes_OPS_lo80"]),
+                    hi80=float(row["bayes_OPS_hi80"]),
+                    lo95=float(row["bayes_OPS_lo95"]),
+                    hi95=float(row["bayes_OPS_hi95"]),
+                    label="OPS",
+                    color=glow,
+                )
+
+    # 投手セクション
+    if not fp.empty:
+        st.markdown(f"## {t('foreign_pitchers_title')}")
+        fp_disp = fp if selected_team == t("all_teams") else fp[fp["team"] == selected_team]
+
+        for _, row in fp_disp.iterrows():
+            glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
+            team_name = team_disp(row["team"])
+
+            st.markdown(f"""
+            <div style="background:linear-gradient(135deg,#0d0d24,#1a1a3a);border:1px solid {glow}44;
+                        border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 0 15px {glow}22;
+                        font-family:'Segoe UI',sans-serif;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div>
+                  <span style="color:#e0e0e0;font-size:18px;font-weight:bold;">{row['player']}</span>
+                  <span style="color:#888;font-size:12px;margin-left:8px;">{row.get('origin_league', '')}</span>
+                </div>
+                <span style="color:{glow};font-size:12px;border:1px solid {glow}66;padding:2px 8px;border-radius:4px;">{team_name}</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            c1, c2 = st.columns(2)
+            c1.metric(t("prev_era_label"), f"{row.get('prev_ERA', 0):.2f}")
+            c2.metric(t("bayes_era_label"), f"{row['bayes_ERA']:.2f}")
+
+            if not pd.isna(row.get("bayes_ERA_lo80")):
+                _render_ci_bar(
+                    central=float(row["bayes_ERA"]),
+                    lo80=float(row["bayes_ERA_lo80"]),
+                    hi80=float(row["bayes_ERA_hi80"]),
+                    lo95=float(row["bayes_ERA_lo95"]),
+                    hi95=float(row["bayes_ERA_hi95"]),
+                    label="ERA",
+                    color=glow,
+                    invert=True,
+                )
+
+    with st.expander(t("foreign_method_expander")):
+        st.markdown(t("foreign_method_content"))
+
+
 # --- メイン ---
 
 
 PAGE_KEYS = [
-    "page_top", "page_standings", "page_hitter_rank", "page_pitcher_rank",
+    "page_top", "page_standings", "page_team_sim",
+    "page_hitter_rank", "page_pitcher_rank",
     "page_team_wpct", "page_hitter", "page_pitcher",
+    "page_foreign",
 ]
 
 PAGE_FUNCS = {
     "page_top": page_top,
     "page_standings": page_pythagorean_standings,
+    "page_team_sim": page_team_simulation,
     "page_hitter": page_hitter_prediction,
     "page_pitcher": page_pitcher_prediction,
     "page_hitter_rank": page_hitter_rankings,
     "page_pitcher_rank": page_pitcher_rankings,
     "page_team_wpct": page_team_wpct,
+    "page_foreign": page_foreign_players,
 }
 
 

@@ -21,15 +21,17 @@ app = FastAPI(
     description=(
         "NPB（日本プロ野球）の選手成績予測・チーム勝率予測を提供するAPIです。\n\n"
         "## 予測手法\n"
-        "- **Marcel法**: 過去3年の加重平均 + 平均回帰 + 年齢調整（最も精度が高い）\n"
+        "- **ベイズ予測（BMA）**: Marcel + Stan補正 + ML のアンサンブル（80%/95% CI付き）\n"
+        "- **外国人選手**: 前リーグ成績 × Stan v2モデル（リーグ別換算 + 交互作用）\n"
+        "- **Marcel法**: 過去3年の加重平均 + 平均回帰 + 年齢調整\n"
         "- **機械学習**: LightGBM / XGBoost によるアンサンブル予測\n"
-        "- **ピタゴラス勝率**: 得失点からチーム勝率を推定（NPB最適指数 k=1.72）\n"
+        "- **チームシミュレーション**: モンテカルロ10,000回 → P(優勝)/P(CS)/勝利数CI\n"
         "- **セイバーメトリクス**: wOBA / wRC+ / wRAA（NPBリーグ環境にスケーリング）\n\n"
         "## データソース\n"
         "- [プロ野球データFreak](https://baseball-data.com)\n"
         "- [日本野球機構 NPB](https://npb.jp)\n"
     ),
-    version="0.4.0",
+    version="0.5.0",
 )
 
 
@@ -74,8 +76,19 @@ marcel_hitters = _load_csv(f"marcel_hitters_{TARGET_YEAR}.csv")
 marcel_pitchers = _load_csv(f"marcel_pitchers_{TARGET_YEAR}.csv")
 ml_hitters = _load_csv(f"ml_hitters_{TARGET_YEAR}.csv")
 ml_pitchers = _load_csv(f"ml_pitchers_{TARGET_YEAR}.csv")
+bayes_hitters = _load_csv(f"bayes_hitters_{TARGET_YEAR}.csv")
+bayes_pitchers = _load_csv(f"bayes_pitchers_{TARGET_YEAR}.csv")
+foreign_hitters = _load_csv(f"foreign_hitters_{TARGET_YEAR}.csv")
+foreign_pitchers = _load_csv(f"foreign_pitchers_{TARGET_YEAR}.csv")
 sabermetrics = _load_csv(f"npb_sabermetrics_2015_{DATA_END_YEAR}.csv")
 pythagorean = _load_csv(f"pythagorean_2015_{DATA_END_YEAR}.csv")
+
+# チームシミュレーション結果
+_team_sim_path = PROJ_DIR / f"team_sim_{TARGET_YEAR}.json"
+team_sim: dict = {}
+if _team_sim_path.exists():
+    with open(_team_sim_path, encoding="utf-8") as f:
+        team_sim = json.load(f)
 
 
 def _load_all_metrics() -> list[dict]:
@@ -112,7 +125,9 @@ def root():
         "endpoints": [
             "/predict/hitter/{name}",
             "/predict/pitcher/{name}",
+            "/predict/foreign/{name}",
             "/predict/team/{name}",
+            "/standings/simulation",
             "/sabermetrics/{name}",
             "/rankings/hitters",
             "/rankings/pitchers",
@@ -131,11 +146,12 @@ def root():
 def predict_hitter(
     name: str = PathParam(description="選手名（部分一致OK）", examples=["牧", "近藤", "岡本"]),
 ):
-    """打者の2026年成績予測（Marcel法 + ML）"""
+    """打者の2026年成績予測（Marcel法 + ML + ベイズ）"""
     marcel = _search_player(marcel_hitters, name)
     ml = _search_player(ml_hitters, name)
+    bayes = _search_player(bayes_hitters, name) if not bayes_hitters.empty else pd.DataFrame()
 
-    if marcel.empty and ml.empty:
+    if marcel.empty and ml.empty and bayes.empty:
         raise HTTPException(404, f"選手が見つかりません: {name}")
 
     results = []
@@ -155,6 +171,18 @@ def predict_hitter(
         ml_match = ml[ml["player"] == row["player"]]
         if not ml_match.empty:
             entry["ML予測"] = {"OPS": round(ml_match.iloc[0]["pred_OPS"], 3)}
+        bayes_match = bayes[bayes["player"] == row["player"]] if not bayes.empty else pd.DataFrame()
+        if not bayes_match.empty:
+            b = bayes_match.iloc[0]
+            entry["ベイズ予測"] = {
+                "OPS": round(b["bayes_OPS"], 3),
+                "手法": b["method"],
+            }
+            if pd.notna(b.get("bayes_OPS_lo80")):
+                entry["ベイズ予測"]["80%CI"] = [round(b["bayes_OPS_lo80"], 3), round(b["bayes_OPS_hi80"], 3)]
+                entry["ベイズ予測"]["95%CI"] = [round(b["bayes_OPS_lo95"], 3), round(b["bayes_OPS_hi95"], 3)]
+            if pd.notna(b.get("stan_delta")):
+                entry["ベイズ予測"]["Stan補正"] = round(b["stan_delta"], 5)
         results.append(entry)
 
     return {"検索": name, "件数": len(results), "予測": results}
@@ -168,11 +196,12 @@ def predict_hitter(
 def predict_pitcher(
     name: str = PathParam(description="選手名（部分一致OK）", examples=["今永", "山本", "佐々木"]),
 ):
-    """投手の2026年成績予測（Marcel法 + ML）"""
+    """投手の2026年成績予測（Marcel法 + ML + ベイズ）"""
     marcel = _search_player(marcel_pitchers, name)
     ml = _search_player(ml_pitchers, name)
+    bayes = _search_player(bayes_pitchers, name) if not bayes_pitchers.empty else pd.DataFrame()
 
-    if marcel.empty and ml.empty:
+    if marcel.empty and ml.empty and bayes.empty:
         raise HTTPException(404, f"選手が見つかりません: {name}")
 
     results = []
@@ -192,6 +221,18 @@ def predict_pitcher(
         ml_match = ml[ml["player"] == row["player"]]
         if not ml_match.empty:
             entry["ML予測"] = {"防御率": round(ml_match.iloc[0]["pred_ERA"], 2)}
+        bayes_match = bayes[bayes["player"] == row["player"]] if not bayes.empty else pd.DataFrame()
+        if not bayes_match.empty:
+            b = bayes_match.iloc[0]
+            entry["ベイズ予測"] = {
+                "防御率": round(b["bayes_ERA"], 2),
+                "手法": b["method"],
+            }
+            if pd.notna(b.get("bayes_ERA_lo80")):
+                entry["ベイズ予測"]["80%CI"] = [round(b["bayes_ERA_lo80"], 2), round(b["bayes_ERA_hi80"], 2)]
+                entry["ベイズ予測"]["95%CI"] = [round(b["bayes_ERA_lo95"], 2), round(b["bayes_ERA_hi95"], 2)]
+            if pd.notna(b.get("stan_delta")):
+                entry["ベイズ予測"]["Stan補正"] = round(b["stan_delta"], 4)
         results.append(entry)
 
     return {"検索": name, "件数": len(results), "予測": results}
@@ -492,6 +533,98 @@ def pythagorean_all(
         })
 
     return {"年度": year, "件数": len(results), "順位表": results}
+
+
+@app.get(
+    "/predict/foreign/{name}",
+    summary="外国人選手のベイズ予測",
+    description="NPB初年度の外国人選手を前リーグ成績からStan v2モデルで予測。80%/95%信頼区間付き。",
+)
+def predict_foreign(
+    name: str = PathParam(description="選手名（部分一致OK）", examples=["サノー", "ダルベック", "アブレウ"]),
+):
+    """外国人選手のベイズ予測（前リーグ成績 × Stan v2）"""
+    fh = _search_player(foreign_hitters, name) if not foreign_hitters.empty else pd.DataFrame()
+    fp = _search_player(foreign_pitchers, name) if not foreign_pitchers.empty else pd.DataFrame()
+
+    if fh.empty and fp.empty:
+        raise HTTPException(404, f"外国人選手が見つかりません: {name}")
+
+    results = []
+    for _, row in fh.iterrows():
+        entry = {
+            "選手名": row["player"],
+            "チーム": row["team"],
+            "出身リーグ": row["origin_league"],
+            "タイプ": "打者",
+            "予測": {
+                "OPS": round(row["bayes_OPS"], 3),
+                "wOBA": round(row["bayes_wOBA"], 4),
+                "手法": row["method"],
+                "80%CI": [round(row["bayes_OPS_lo80"], 3), round(row["bayes_OPS_hi80"], 3)],
+                "95%CI": [round(row["bayes_OPS_lo95"], 3), round(row["bayes_OPS_hi95"], 3)],
+            },
+        }
+        if pd.notna(row.get("prev_wOBA")):
+            entry["前リーグ成績"] = {"wOBA": round(row["prev_wOBA"], 4)}
+        results.append(entry)
+
+    for _, row in fp.iterrows():
+        entry = {
+            "選手名": row["player"],
+            "チーム": row["team"],
+            "出身リーグ": row["origin_league"],
+            "タイプ": "投手",
+            "予測": {
+                "防御率": round(row["bayes_ERA"], 2),
+                "手法": row["method"],
+                "80%CI": [round(row["bayes_ERA_lo80"], 2), round(row["bayes_ERA_hi80"], 2)],
+                "95%CI": [round(row["bayes_ERA_lo95"], 2), round(row["bayes_ERA_hi95"], 2)],
+            },
+        }
+        if pd.notna(row.get("prev_ERA")):
+            entry["前リーグ成績"] = {"防御率": round(row["prev_ERA"], 2)}
+        results.append(entry)
+
+    return {"検索": name, "件数": len(results), "予測": results}
+
+
+@app.get(
+    "/standings/simulation",
+    summary="モンテカルロ順位シミュレーション",
+    description=(
+        "選手レベルのベイズ予測をチームに積み上げ、モンテカルロ10,000回で勝利数分布を導出。\n\n"
+        "P(優勝) = そのチームが1位になったシミュレーション回数の割合\n"
+        "P(CS) = 3位以内に入った割合\n"
+        "P(最下位) = 6位になった割合"
+    ),
+)
+def standings_simulation(
+    league: str | None = Query(default=None, enum=["CL", "PL"], description="リーグ（省略で両リーグ）"),
+):
+    """モンテカルロ順位シミュレーション"""
+    if not team_sim:
+        raise HTTPException(503, "チームシミュレーション結果がありません（bayes_projection → team_simulation 実行後に利用可能）")
+
+    results = []
+    for team_name, v in team_sim.items():
+        if league and v.get("league") != league:
+            continue
+        lo80, hi80 = v["wins_80ci"]
+        lo95, hi95 = v["wins_95ci"]
+        results.append({
+            "チーム": team_name,
+            "リーグ": v["league"],
+            "P(優勝)": f"{v['p_pennant']:.1%}",
+            "P(CS)": f"{v['p_cs']:.1%}",
+            "P(最下位)": f"{v['p_last']:.1%}",
+            "勝利数中央値": v["median_wins"],
+            "80%CI": [lo80, hi80],
+            "95%CI": [lo95, hi95],
+        })
+
+    results.sort(key=lambda x: (-1 if x["リーグ"] == "CL" else 1, -x["勝利数中央値"]))
+    return {"件数": len(results), "順位予測": results}
 
 
 @app.get(

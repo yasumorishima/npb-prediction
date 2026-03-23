@@ -57,10 +57,23 @@ PROJ_TABLE_MAP = {
     f"marcel_pitchers_{DATA_END_YEAR + 1}.csv": "marcel_pitchers",
     f"ml_hitters_{DATA_END_YEAR + 1}.csv": "ml_hitters",
     f"ml_pitchers_{DATA_END_YEAR + 1}.csv": "ml_pitchers",
+    f"bayes_hitters_{DATA_END_YEAR + 1}.csv": "bayes_hitters",
+    f"bayes_pitchers_{DATA_END_YEAR + 1}.csv": "bayes_pitchers",
+    f"foreign_hitters_{DATA_END_YEAR + 1}.csv": "foreign_hitters",
+    f"foreign_pitchers_{DATA_END_YEAR + 1}.csv": "foreign_pitchers",
+    f"team_sim_{DATA_END_YEAR + 1}.csv": "team_simulation",
     f"npb_sabermetrics_{_YEAR_RANGE}.csv": "sabermetrics",
     f"pythagorean_{_YEAR_RANGE}.csv": "pythagorean",
     "npb_park_factors.csv": "park_factors",
     "marcel_team_historical.csv": "marcel_team_historical",
+}
+
+# --- 外国人データ CSV → BQ テーブル名マッピング ---
+FOREIGN_DIR = Path(__file__).parent / "data" / "foreign"
+FOREIGN_TABLE_MAP = {
+    "foreign_players_master.csv": "foreign_players_master",
+    "foreign_prev_stats.csv": "foreign_prev_stats",
+    "conversion_factors.csv": "foreign_conversion_factors",
 }
 
 
@@ -210,11 +223,17 @@ def load_all_raw() -> dict:
 
 
 def load_projections() -> dict:
-    """projections/*.csv をBigQueryに上書き（WRITE_TRUNCATE）"""
+    """projections/*.csv + foreign/*.csv をBigQueryに上書き（WRITE_TRUNCATE）"""
     print("=== Loading projections to BigQuery ===")
     results = {}
     for csv_name, table_name in PROJ_TABLE_MAP.items():
         csv_path = PROJ_DIR / csv_name
+        rows = load_csv_to_bq(csv_path, table_name, "WRITE_TRUNCATE")
+        results[table_name] = rows
+
+    print("\n--- Foreign player data ---")
+    for csv_name, table_name in FOREIGN_TABLE_MAP.items():
+        csv_path = FOREIGN_DIR / csv_name
         rows = load_csv_to_bq(csv_path, table_name, "WRITE_TRUNCATE")
         results[table_name] = rows
     return results
