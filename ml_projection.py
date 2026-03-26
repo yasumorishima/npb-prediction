@@ -10,6 +10,8 @@ Data sources:
 - 日本野球機構 NPB (https://npb.jp) — wOBA/wRC+算出用の詳細打撃成績
 """
 
+import time
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -49,6 +51,14 @@ MODELS_DIR = DATA_DIR / "models"
 METRICS_DIR = DATA_DIR / "metrics"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 METRICS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _log_elapsed(label: str, start: float, budget_min: int = 180):
+    elapsed_min = (time.time() - start) / 60
+    print(f"  [{label}] elapsed: {elapsed_min:.1f} min / {budget_min} min budget")
+    if elapsed_min > budget_min * 0.8:
+        print(f"  WARNING: {label} used {elapsed_min:.0f}/{budget_min} min "
+              f"({elapsed_min / budget_min * 100:.0f}%) -- timeout risk!")
 
 
 def _norm_name(name: str) -> str:
@@ -419,6 +429,7 @@ def compare_with_marcel(ml_results: dict, feat_test: pd.DataFrame,
 
 
 def main():
+    t0 = time.time()
     print("=" * 60)
     print("XGBoost/LightGBM NPB成績予測")
     print("=" * 60)
@@ -445,6 +456,7 @@ def main():
 
     h_results, X_test_h, y_test_h, feat_test_h = train_and_evaluate(
         feat_h, "target_OPS", "打者 OPS")
+    _log_elapsed("hitter_train", t0)
 
     # metrics 初期化（打者）
     metrics = {
@@ -484,6 +496,7 @@ def main():
 
     p_results, X_test_p, y_test_p, feat_test_p = train_and_evaluate(
         feat_p, "target_ERA", "投手 ERA")
+    _log_elapsed("pitcher_train", t0)
 
     metrics["pitcher"] = {k: round(v["mae"], 4) for k, v in p_results.items() if "mae" in v}
 
@@ -565,11 +578,15 @@ def main():
                     joblib.dump(res["model"], pkl_path)
                     print(f"Saved model: {pkl_path}")
 
+    _log_elapsed("predictions", t0)
+
     metrics_path = METRICS_DIR / f"metrics_{TARGET_YEAR}.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
     print(f"\nSaved metrics: {metrics_path}")
     print(json.dumps(metrics, ensure_ascii=False, indent=2))
+
+    _log_elapsed("ml_projection_total", t0)
 
     if HAS_WANDB:
         log_dict = {}

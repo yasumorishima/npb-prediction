@@ -26,6 +26,8 @@ Data sources:
 """
 
 import json
+import time
+
 import numpy as np
 import pandas as pd
 from datetime import date
@@ -46,6 +48,14 @@ N_SAMPLES = 5000
 PEAK_AGE = 29
 MIN_PA_HITTER = 30
 MIN_IP_PITCHER = 10
+
+
+def _log_elapsed(label: str, start: float, budget_min: int = 180):
+    elapsed_min = (time.time() - start) / 60
+    print(f"  [{label}] elapsed: {elapsed_min:.1f} min / {budget_min} min budget")
+    if elapsed_min > budget_min * 0.8:
+        print(f"  WARNING: {label} used {elapsed_min:.0f}/{budget_min} min "
+              f"({elapsed_min / budget_min * 100:.0f}%) -- timeout risk!")
 
 
 # ── Posterior Store ──────────────────────────────────────────────────────────
@@ -754,6 +764,7 @@ def _filter_roster(df: pd.DataFrame) -> pd.DataFrame:
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
+    t0 = time.time()
     print("=" * 60)
     print(f"ベイズ予測 (target: {TARGET_YEAR})")
     print("=" * 60)
@@ -780,6 +791,7 @@ def main():
         out_path = OUT_DIR / f"bayes_hitters_{TARGET_YEAR}.csv"
         hitters.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
+    _log_elapsed("hitter_bayes", t0)
 
     # 投手
     print(f"\n--- 投手ベイズ予測 ---")
@@ -799,6 +811,7 @@ def main():
         out_path = OUT_DIR / f"bayes_pitchers_{TARGET_YEAR}.csv"
         pitchers.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
+    _log_elapsed("pitcher_bayes", t0)
 
     # 外国人打者
     print(f"\n--- 外国人打者ベイズ予測 ---")
@@ -813,6 +826,7 @@ def main():
         out_path = OUT_DIR / f"foreign_hitters_{TARGET_YEAR}.csv"
         foreign_h.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
+    _log_elapsed("foreign_hitter_bayes", t0)
 
     # 外国人投手
     print(f"\n--- 外国人投手ベイズ予測 ---")
@@ -827,6 +841,7 @@ def main():
         out_path = OUT_DIR / f"foreign_pitchers_{TARGET_YEAR}.csv"
         foreign_p.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
+    _log_elapsed("foreign_pitcher_bayes", t0)
 
     # サマリー
     print(f"\n{'=' * 60}")
@@ -848,6 +863,7 @@ def main():
         print(f"外国人打者: {len(foreign_h)} players, mean bayes_OPS={foreign_h['bayes_OPS'].mean():.3f}")
     if len(foreign_p) > 0:
         print(f"外国人投手: {len(foreign_p)} players, mean bayes_ERA={foreign_p['bayes_ERA'].mean():.2f}")
+    _log_elapsed("bayes_projection_total", t0)
 
 
 if __name__ == "__main__":

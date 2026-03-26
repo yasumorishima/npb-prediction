@@ -23,6 +23,7 @@ Data sources:
 """
 
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -55,6 +56,14 @@ LEAGUES: dict[str, list[str]] = {
     "PL": ["ソフトバンク", "日本ハム", "楽天", "オリックス", "ロッテ", "西武"],
 }
 CS_SPOTS = 3
+
+
+def _log_elapsed(label: str, start: float, budget_min: int = 180):
+    elapsed_min = (time.time() - start) / 60
+    print(f"  [{label}] elapsed: {elapsed_min:.1f} min / {budget_min} min budget")
+    if elapsed_min > budget_min * 0.8:
+        print(f"  WARNING: {label} used {elapsed_min:.0f}/{budget_min} min "
+              f"({elapsed_min / budget_min * 100:.0f}%) -- timeout risk!")
 
 
 def load_bayes_hitters() -> pd.DataFrame:
@@ -287,6 +296,7 @@ def compute_probabilities(wins_sim: dict[str, np.ndarray]) -> dict[str, dict]:
 
 
 def main(n_sim: int = N_SIM) -> None:
+    t0 = time.time()
     print("=" * 60)
     print(f"チームモンテカルロシミュレーション (target: {TARGET_YEAR})")
     print("=" * 60)
@@ -315,10 +325,13 @@ def main(n_sim: int = N_SIM) -> None:
     else:
         print("\nWARNING: パークファクターなし")
 
+    _log_elapsed("data_load", t0)
+
     # シミュレーション実行
     print(f"\n{n_sim:,} simulations...")
     wins_sim = simulate(hitters, pitchers, foreign_h, foreign_p,
                         n_sim=n_sim, park_factors=park_factors)
+    _log_elapsed("monte_carlo_sim", t0)
 
     results = compute_probabilities(wins_sim)
 
@@ -372,6 +385,7 @@ def main(n_sim: int = N_SIM) -> None:
                 index=False, encoding="utf-8-sig")
     )
     print(f"Saved: {OUT_DIR / f'team_sim_{TARGET_YEAR}.csv'}")
+    _log_elapsed("team_simulation_total", t0)
 
 
 if __name__ == "__main__":
