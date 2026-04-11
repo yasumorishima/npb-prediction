@@ -1,8 +1,9 @@
 name: Annual NPB Update
 
 on:
-  schedule:
-    - cron: '0 9 1 3 *'   # 毎年3月1日 9:00 UTC（FA・移籍確定後、開幕前）
+  # Temporarily disabled — data pipeline still stabilising. Re-enable by uncommenting.
+  # schedule:
+  #   - cron: '0 9 1 3 *'   # 毎年3月1日 9:00 UTC（FA・移籍確定後、開幕前）
   workflow_dispatch:
     inputs:
       memo:
