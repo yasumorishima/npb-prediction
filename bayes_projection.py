@@ -265,7 +265,7 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
     平の σ は 2018-2025 の全出場機会水準で fit した残差なので、出場機会で絞った
     選手に当てると区間が広くなりすぎる（8 シーズンすべてで実測残差 sd ÷ σ が
     打者 0.531-0.698・投手 0.561-0.701。出場機会の多い三分位に限ると σ は実測
-    残差 sd の 1.65-2.56 倍（打者）/ 1.89-2.69 倍（投手））。
+    残差 sd の 1.65-2.56 倍（打者）/ 1.89-2.69 倍（投手）。
     詳細は posteriors.json の sigma_model。
     """
     flat = model_params["sigma_residual"]
@@ -854,8 +854,41 @@ def _filter_roster(df: pd.DataFrame) -> pd.DataFrame:
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+def _check_sigma_health(frames) -> None:
+    """区間の σ が意図どおり sigma_model から出たかを検査し、駄目なら止める。
+
+    🔴 fail-closed の範囲＝**fallback は 1 件でも異常**として扱う。
+    正常な走行では 0 件（実測）。「sigma_model が読めない」だけを見ていると、
+    出場機会が取れない経路（列名変更で `row.get("PA", 0)` が 0 を返す等）で
+    全行が平の広すぎる σ へ戻っても素通りする。実際それで 523 行が戻るのに
+    rc=0 だった。
+    """
+    used = SIGMA_FALLBACKS["used_sigma_model"]
+    fell_back = sum(v for k, v in SIGMA_FALLBACKS.items() if k != "used_sigma_model")
+    # 出荷する枠から直接数える（カウンタの引き算で出さない。カウンタはロースター
+    # 絞り込みの前に積まれるので、母集団が違う）
+    with_ci, without_ci = 0, 0
+    for df, col in frames:
+        if len(df) == 0:
+            continue
+        has = df[col].notna()
+        with_ci += int(has.sum())
+        without_ci += int((~has).sum())
+    print(f"\n[sigma] sigma_model 使用 {used} / 平の σ へ fallback {fell_back}"
+          f"  （出荷する行のうち 区間あり {with_ci} / 区間なし {without_ci}）")
+    if not fell_back:
+        return
+    detail = ", ".join(f"{k}={v}" for k, v in SIGMA_FALLBACKS.items()
+                       if v and k != "used_sigma_model")
+    print(f"[sigma] ERROR: 区間の σ が平の sigma_residual へ落ちた行が {fell_back} 件 ({detail})。"
+          " その行の区間は出場機会に追従しておらず広すぎる。出荷してはいけない。")
+    raise SystemExit(1)
+
+
 def main():
     t0 = time.time()
+    for _k in SIGMA_FALLBACKS:
+        SIGMA_FALLBACKS[_k] = 0
     print("=" * 60)
     print(f"ベイズ予測 (target: {TARGET_YEAR})")
     print("=" * 60)
@@ -880,7 +913,7 @@ def main():
 
         # 保存
         out_path = OUT_DIR / f"bayes_hitters_{TARGET_YEAR}.csv"
-        hitters.to_csv(out_path, index=False, encoding="utf-8-sig")
+        _hitters_out_path = out_path   # 書き出しは σ の検査を通してから（下）
         print(f"\nSaved: {out_path}")
     _log_elapsed("hitter_bayes", t0)
 
@@ -900,6 +933,8 @@ def main():
         print(top[cols].to_string(index=False))
 
         out_path = OUT_DIR / f"bayes_pitchers_{TARGET_YEAR}.csv"
+        _check_sigma_health([(hitters, "bayes_OPS_lo80"), (pitchers, "bayes_ERA_lo80")])
+        hitters.to_csv(_hitters_out_path, index=False, encoding="utf-8-sig")
         pitchers.to_csv(out_path, index=False, encoding="utf-8-sig")
         print(f"\nSaved: {out_path}")
     _log_elapsed("pitcher_bayes", t0)
@@ -954,27 +989,6 @@ def main():
         print(f"外国人打者: {len(foreign_h)} players, mean bayes_OPS={foreign_h['bayes_OPS'].mean():.3f}")
     if len(foreign_p) > 0:
         print(f"外国人投手: {len(foreign_p)} players, mean bayes_ERA={foreign_p['bayes_ERA'].mean():.2f}")
-    # 区間の σ の出所を必ず出す。黙って平の σ へ落ちると、その選手だけ区間が
-    # 旧来の広すぎる幅に戻る。件数だけでなく「区間を持たない行」も併記する
-    # （resolve_sigma を一度も通らない行があるので「全選手で使用」とは言えない）。
-    used = SIGMA_FALLBACKS["used_sigma_model"]
-    fell_back = sum(v for k, v in SIGMA_FALLBACKS.items() if k != "used_sigma_model")
-    n_rows = len(hitters) + len(pitchers)
-    no_interval = n_rows - used - fell_back
-    print(f"\n[sigma] sigma_model 使用 {used} / 平の σ へ fallback {fell_back} / "
-          f"区間なし {no_interval}  （日本人 {n_rows} 行）")
-    if fell_back:
-        detail = ", ".join(f"{k}={v}" for k, v in SIGMA_FALLBACKS.items()
-                           if v and k != "used_sigma_model")
-        print(f"[sigma] fallback の内訳: {detail}")
-    fatal = SIGMA_FALLBACKS["no_sigma_model"] + SIGMA_FALLBACKS["broken_sigma_model"]
-    if fatal:
-        # ここで止めないと annual_update.yml がそのまま data/ を commit + push して
-        # 広すぎる区間が出荷される。print だけでは誰も見ない。
-        print(f"[sigma] ERROR: posteriors.json の sigma_model が読めなかった行が {fatal} 件。"
-              " 区間が出場機会に追従していないので、この出力を出荷してはいけない。")
-        _log_elapsed("bayes_projection_total", t0)
-        sys.exit(1)
     _log_elapsed("bayes_projection_total", t0)
 
 

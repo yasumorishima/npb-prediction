@@ -14,8 +14,14 @@ NOTE 2020 was a 120-game season -> reported but flagged.
 Source: baseball-data.com
 """
 import sys, os
-ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+import argparse
+_ap = argparse.ArgumentParser(description="Marcel 残差 sd を 8 シーズンで測る")
+_ap.add_argument("--out", default=None, help="残差表の書き出し先（省略すると書かない）")
+_args = _ap.parse_args()
 os.environ.setdefault("NPB_DATA_END_YEAR", "2025")
 import numpy as np, pandas as pd
 import marcel_projection as M
@@ -23,7 +29,6 @@ import marcel_projection as M
 # 平の sigma は posteriors.json から読む（ベタ書きしない。2026 の区間から
 # 逆算した 0.1429/1.6378 は固定 seed の標本分位点で縮んだ値だった）
 import json as _json
-from pathlib import Path as _Path
 _POST = _json.loads((ROOT / "data" / "bayes" / "posteriors.json").read_text(encoding="utf-8"))
 SIG_OPS = _POST["jpn_hitter"]["sigma_residual"] * 2.33
 SIG_ERA = _POST["jpn_pitcher"]["sigma_residual"]
@@ -91,12 +96,12 @@ for what in df["what"].unique():
     print("  %-12s excluding the 120-game 2020: ratio median %.2f (n=%d years); "
           "sigma should be about %.4f not %.4f"
           % ("", ex["ratio"].median(), len(ex), ex["sd"].median(), s["sig"].iloc[0]))
+    # README が引用するのはこの 2 つ。ツールから直接読めるように印字する
+    print("  %-12s ratio range (3dp) %.3f - %.3f" % ("", s["ratio"].min(), s["ratio"].max()))
+    print("  %-12s sigma / (top-tertile residual sd): %.4f - %.4f"
+          % ("", (s["sig"] / s["hi"]).min(), (s["sig"] / s["hi"]).max()))
 print("")
 print("  （2026 の比較値はシーズン未完了のため暫定。README の暫定表を見ること）")
-import argparse as _argparse
-_ap = _argparse.ArgumentParser()
-_ap.add_argument("--out", default=None, help="残差表の書き出し先（省略すると書かない）")
-_args, _ = _ap.parse_known_args()
 if _args.out:
     df.to_csv(_args.out, index=False)
     print("  wrote %s" % _args.out)
