@@ -57,8 +57,18 @@ def norm_name(s):
 
 
 def npb_ip(value):
-    """NPB 表記の投球回を実数へ。"10.2" = 10 と 2/3 回。実績にだけ当てる。"""
-    v = float(value)
+    """NPB 表記の投球回を実数へ。"10.2" = 10 と 2/3 回。実績にだけ当てる。
+
+    使えない値（欠測・空欄・"-" 等）は NaN を返す。呼び出し側は後段の
+    dropna() で落とす。ここで例外を投げると、その年に 1 行でも空欄があった
+    だけで再現スクリプト全体が止まる。
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not np.isfinite(v):
+        return float("nan")
     whole = np.floor(v)
     return whole + round((v - whole) * 10) / 3.0
 
