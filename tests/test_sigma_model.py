@@ -70,7 +70,7 @@ def test_falls_back_when_sigma_model_is_broken_rather_than_raising():
         assert got == HIT["sigma_residual"], (key, got)
 
 
-def test_pt_floor_is_required_not_optional():
+def test_pt_floor_is_required_and_its_value_is_honoured():
     # 係数は clamp を当てた上で fit してあるので、pt_floor が無い設定を
     # 「clamp 無しで使う」のは fit と別の変換を当てることになる。
     # 既定値で黙って続けず、平の sigma_residual へ落ちること。
@@ -84,6 +84,12 @@ def test_pt_floor_is_required_not_optional():
         broken = copy.deepcopy(HIT)
         broken["sigma_model"]["pt_floor"] = bad
         assert resolve_sigma(broken, 300) == HIT["sigma_residual"], bad
+    # 値そのものが効いていること（既定値に差し替える変異を捕まえる）。
+    # floor を 300 にすると 300 未満は全部 300 の σ になる。
+    moved = copy.deepcopy(HIT)
+    moved["sigma_model"]["pt_floor"] = 300
+    assert resolve_sigma(moved, 100) == resolve_sigma(moved, 300)
+    assert resolve_sigma(moved, 100) != resolve_sigma(HIT, 100)
 
 
 def test_never_returns_a_zero_width_sigma():
@@ -116,19 +122,55 @@ def test_never_extrapolates_below_the_fit_support():
     assert at_floor_p < PIT["sigma_residual"]
 
 
-def test_hitter_interval_half_width_in_ops_matches_the_fitted_value():
-    # 「json の数字どうしを比べる」のではなく、resolve_sigma が返す σ を
-    # 実際の変換関数に通して OPS 尺度の半幅を組み立て、fit 値と突き合わせる。
-    # これで resolve_sigma・pt_floor・woba_to_ops_approx のどれを壊しても落ちる。
+# 出荷している σ の曲線を、出場機会ごとの実数で固定する。
+#
+# 🔴 なぜこの形か: 以前は「z=0 の点で sigma_base と一致するか」だけを見ていた。
+# それだと z=0 で gamma と log_sd が消え、しかも評価点 exp(log_mean) を同じ
+# json から取るので log_mean についてトートロジーになる。実際、投手 4 係数を
+# refit 前の値へ全戻ししてもテストは 9 件とも緑だった（実測）。
+# ⇒ z != 0 の点を複数置き、打者と投手の両方を固定する。これで 8 係数すべてが
+# どれか 1 つでも動けば落ちる。
+#
+# 値は tools/fit_sigma_model.py の係数から resolve_sigma 自身で生成した。
+# 係数を fit し直したらこの表も作り直す（作り直しを忘れたらテストが落ちる＝
+# それが狙い）。
+HITTER_SIGMA_WOBA = [
+    (100, 0.048041134),
+    (150, 0.044610936),
+    (250, 0.040635865),
+    (400, 0.037292091),
+    (600, 0.034629388),
+]
+PITCHER_SIGMA_ERA = [
+    (30, 1.255127375),
+    (45, 1.169868316),
+    (80, 1.058728663),
+    (140, 0.960768961),
+    (190, 0.911190513),
+]
+
+
+def test_shipped_sigma_curve_is_pinned_for_hitters():
+    for pa, expected in HITTER_SIGMA_WOBA:
+        got = resolve_sigma(HIT, pa)
+        assert abs(got - expected) < 1e-7, (pa, got, expected)
+
+
+def test_shipped_sigma_curve_is_pinned_for_pitchers():
+    for ip, expected in PITCHER_SIGMA_ERA:
+        got = resolve_sigma(PIT, ip)
+        assert abs(got - expected) < 1e-7, (ip, got, expected)
+
+
+def test_hitter_ops_half_width_matches_the_fitted_ops_scale():
+    # 打者の σ は wOBA 尺度で持つので、OPS 尺度の幅は変換関数の傾きを掛けたもの。
+    # fit は OPS 尺度で行ったので、その値に戻ること。
     FITTED_OPS_SIGMA_BASE = 0.094205      # tools/fit_sigma_model.py の出力
-    sigma_woba = resolve_sigma(HIT, HIT["sigma_model"]["pt_floor"])
     slope = (woba_to_ops_approx(0.400) - woba_to_ops_approx(0.300)) / 0.100
-    # z=0 になる出場機会（標準化の中心）で σ を評価すると sigma_base そのもの
-    center_pa = math.exp(HIT["sigma_model"]["log_mean"])
-    sigma_at_center = resolve_sigma(HIT, center_pa)
-    assert abs(sigma_at_center * slope - FITTED_OPS_SIGMA_BASE) < 5e-6, sigma_at_center * slope
+    center_pa = math.exp(HIT["sigma_model"]["log_mean"])   # z = 0 の点
+    assert abs(resolve_sigma(HIT, center_pa) * slope - FITTED_OPS_SIGMA_BASE) < 5e-6
     # floor の所では中心より広い（gamma < 0 なので）
-    assert sigma_woba > sigma_at_center
+    assert resolve_sigma(HIT, HIT["sigma_model"]["pt_floor"]) > resolve_sigma(HIT, center_pa)
 
 
 if __name__ == "__main__":

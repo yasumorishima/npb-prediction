@@ -26,6 +26,7 @@ Data sources:
 """
 
 import json
+import sys
 import time
 
 import numpy as np
@@ -47,6 +48,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # resolve_sigma が平の sigma_residual へ落ちた回数。黙って落ちると区間が
 # 旧来の広すぎる幅へ戻るので、走行の最後に必ず印字する。
 SIGMA_FALLBACKS = {
+    "used_sigma_model": 0,
     "no_sigma_model": 0,
     "no_playing_time": 0,
     "bad_playing_time": 0,
@@ -262,7 +264,9 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
 
     平の σ は 2018-2025 の全出場機会水準で fit した残差なので、出場機会で絞った
     選手に当てると区間が広くなりすぎる（8 シーズンすべてで実測残差 sd ÷ σ が
-    0.54-0.71、レギュラーでは 2.2 倍超）。詳細は posteriors.json の sigma_model。
+    打者 0.531-0.698・投手 0.561-0.701。出場機会の多い三分位に限ると σ は実測
+    残差 sd の 1.65-2.56 倍（打者）/ 1.89-2.69 倍（投手））。
+    詳細は posteriors.json の sigma_model。
     """
     flat = model_params["sigma_residual"]
     sm = model_params.get("sigma_model")
@@ -307,6 +311,7 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
     if not np.isfinite(sigma) or sigma <= 0:
         SIGMA_FALLBACKS["non_finite_sigma"] += 1
         return flat
+    SIGMA_FALLBACKS["used_sigma_model"] += 1
     return sigma
 
 
@@ -949,17 +954,27 @@ def main():
         print(f"外国人打者: {len(foreign_h)} players, mean bayes_OPS={foreign_h['bayes_OPS'].mean():.3f}")
     if len(foreign_p) > 0:
         print(f"外国人投手: {len(foreign_p)} players, mean bayes_ERA={foreign_p['bayes_ERA'].mean():.2f}")
-    # 区間の σ が平の sigma_residual へ落ちた件数。0 以外なら区間がその選手だけ
-    # 旧来の広すぎる幅に戻っているので、黙って通さず必ず出す。
-    n_flat = sum(SIGMA_FALLBACKS.values())
-    if n_flat:
-        detail = ", ".join(f"{k}={v}" for k, v in SIGMA_FALLBACKS.items() if v)
-        print(f"\n[sigma] 平の sigma_residual へ落ちた回数: {n_flat}  ({detail})")
-        if SIGMA_FALLBACKS["no_sigma_model"] or SIGMA_FALLBACKS["broken_sigma_model"]:
-            print("[sigma] WARNING: posteriors.json の sigma_model が読めていない。"
-                  "区間が出場機会に追従していない可能性がある。")
-    else:
-        print("\n[sigma] 全選手で sigma_model を使用（平の σ への fallback なし）")
+    # 区間の σ の出所を必ず出す。黙って平の σ へ落ちると、その選手だけ区間が
+    # 旧来の広すぎる幅に戻る。件数だけでなく「区間を持たない行」も併記する
+    # （resolve_sigma を一度も通らない行があるので「全選手で使用」とは言えない）。
+    used = SIGMA_FALLBACKS["used_sigma_model"]
+    fell_back = sum(v for k, v in SIGMA_FALLBACKS.items() if k != "used_sigma_model")
+    n_rows = len(hitters) + len(pitchers)
+    no_interval = n_rows - used - fell_back
+    print(f"\n[sigma] sigma_model 使用 {used} / 平の σ へ fallback {fell_back} / "
+          f"区間なし {no_interval}  （日本人 {n_rows} 行）")
+    if fell_back:
+        detail = ", ".join(f"{k}={v}" for k, v in SIGMA_FALLBACKS.items()
+                           if v and k != "used_sigma_model")
+        print(f"[sigma] fallback の内訳: {detail}")
+    fatal = SIGMA_FALLBACKS["no_sigma_model"] + SIGMA_FALLBACKS["broken_sigma_model"]
+    if fatal:
+        # ここで止めないと annual_update.yml がそのまま data/ を commit + push して
+        # 広すぎる区間が出荷される。print だけでは誰も見ない。
+        print(f"[sigma] ERROR: posteriors.json の sigma_model が読めなかった行が {fatal} 件。"
+              " 区間が出場機会に追従していないので、この出力を出荷してはいけない。")
+        _log_elapsed("bayes_projection_total", t0)
+        sys.exit(1)
     _log_elapsed("bayes_projection_total", t0)
 
 

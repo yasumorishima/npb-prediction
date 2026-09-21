@@ -114,7 +114,7 @@ def fit(train, floor):
 
     🔴 予測出場機会は **deploy 時と同じく floor で頭打ちにしてから** fit する。
     足切りは実績で行うので、実績は閾値を超えたのに予測が floor 未満、という
-    訓練行が存在する（打者）。clamp せずに fit すると、
+    訓練行が存在する（打者・投手とも。件数は走行時に印字）。clamp せずに fit すると、
     その行は運用では起こりえない z で係数に効いてしまう。
     「当てる変換で fit する」を守る。
     """
@@ -129,6 +129,10 @@ def fit(train, floor):
 
     res = minimize(nll, [np.log(err.std()), -0.1], method="Nelder-Mead",
                    options=dict(xatol=1e-9, fatol=1e-9, maxiter=5000))
+    # 収束を見ずに係数を印字して手写しすると、止まらなかった最適化の結果を
+    # そのまま出荷しかねない。
+    assert res.success, "最適化が収束しなかった: %s" % res.message
+    print("  [fit] nll=%.4f  nit=%d  converged=%s" % (res.fun, res.nit, res.success))
     return float(np.exp(res.x[0])), float(res.x[1]), mean, sd
 
 

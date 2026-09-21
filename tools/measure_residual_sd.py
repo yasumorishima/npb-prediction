@@ -5,15 +5,17 @@ The Bayes layer moves MAE by -0.9% (posteriors loocv: marcel 0.05023 -> stan 0.0
 so the Marcel residual sd is used here as a proxy for the residual sd the interval should carry.
 
 DECLARED BEFORE RUNNING:
-  P4  residual sd on the PA>=100 / IP>=30 population is BELOW the sigma the model applies
-      (OPS 0.1429 / ERA 1.6378) in all 8 years 2018-2025.
+  P4  residual sd on the PA>=100 / IP>=30 population is BELOW the flat sigma the model
+      applies in all 8 years 2018-2025. The flat sigma is read from posteriors.json
+      (sigma_residual: 0.14481 OPS / 1.66495 ERA), not hardcoded.
   P5  within each year residual sd falls as playing time rises (same shape as 2026).
 If either fails, the 2026 reading is suspect and I say so.
 NOTE 2020 was a 120-game season -> reported but flagged.
 Source: baseball-data.com
 """
 import sys, os
-sys.path.insert(0, ".")
+ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 os.environ.setdefault("NPB_DATA_END_YEAR", "2025")
 import numpy as np, pandas as pd
 import marcel_projection as M
@@ -22,8 +24,7 @@ import marcel_projection as M
 # 逆算した 0.1429/1.6378 は固定 seed の標本分位点で縮んだ値だった）
 import json as _json
 from pathlib import Path as _Path
-_POST = _json.loads((_Path(__file__).resolve().parents[1] / "data" / "bayes" /
-                     "posteriors.json").read_text(encoding="utf-8"))
+_POST = _json.loads((ROOT / "data" / "bayes" / "posteriors.json").read_text(encoding="utf-8"))
 SIG_OPS = _POST["jpn_hitter"]["sigma_residual"] * 2.33
 SIG_ERA = _POST["jpn_pitcher"]["sigma_residual"]
 YEARS = list(range(2018, 2026))
@@ -91,7 +92,7 @@ for what in df["what"].unique():
           "sigma should be about %.4f not %.4f"
           % ("", ex["ratio"].median(), len(ex), ex["sd"].median(), s["sig"].iloc[0]))
 print("")
-print("  2026 for comparison: hitter sd(z)=0.624 -> ratio 0.62 ; pitcher sd(z)=0.640 -> ratio 0.64")
+print("  （2026 の比較値はシーズン未完了のため暫定。README の暫定表を見ること）")
 import argparse as _argparse
 _ap = _argparse.ArgumentParser()
 _ap.add_argument("--out", default=None, help="残差表の書き出し先（省略すると書かない）")
