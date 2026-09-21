@@ -37,13 +37,18 @@ def test_z_constants_are_the_quantiles_they_claim():
     assert abs(_phi(Z95) - 0.975) < 1e-10, _phi(Z95)
 
 
-def test_woba_to_ops_is_affine_so_shifting_commutes_with_converting():
-    # 区間を wOBA 空間で作って OPS へ変換しても、OPS 空間で同じ量だけ動かしても
-    # 同じ結果になること（打者の再センタリングがこの性質に乗っている）
-    a, b, shift_woba = 0.300, 0.360, 0.012
-    lhs = woba_to_ops_approx(a + shift_woba) - woba_to_ops_approx(b + shift_woba)
-    rhs = woba_to_ops_approx(a) - woba_to_ops_approx(b)
-    assert abs(lhs - rhs) < 1e-12
+def test_woba_to_ops_slope_is_the_one_the_sigma_scale_assumes():
+    # posteriors.json の打者 sigma_base は wOBA 尺度で、区間は wOBA 空間で作られて
+    # この関数で OPS へ変換される。つまり OPS 尺度の幅は sigma_base x この傾き。
+    # 傾きを変えたら sigma_base と無言で食い違うので、傾きを関数から取り出して
+    # ベタ書きの 2.33 と突き合わせる（定数を 2 箇所に置かない）。
+    slope = woba_to_ops_approx(0.400) - woba_to_ops_approx(0.300)
+    assert abs(slope / 0.100 - 2.33) < 1e-9, slope / 0.100
+    # 切片も固定しておく（傾きだけ合っていても水準がずれれば予測が動く）
+    assert abs(woba_to_ops_approx(0.310) - 0.690) < 1e-12
+    # アフィンであること（2 次項が入ると区間の変換が中心と非対称になる）
+    mid = woba_to_ops_approx((0.300 + 0.400) / 2)
+    assert abs(mid - (woba_to_ops_approx(0.300) + woba_to_ops_approx(0.400)) / 2) < 1e-12
 
 
 def test_falls_back_to_flat_sigma_for_unusable_playing_time():
@@ -63,6 +68,22 @@ def test_falls_back_when_sigma_model_is_broken_rather_than_raising():
                 "resolve_sigma raised %s when sigma_model lost %r; it must fall back"
                 % (type(exc).__name__, key))
         assert got == HIT["sigma_residual"], (key, got)
+
+
+def test_pt_floor_is_required_not_optional():
+    # 係数は clamp を当てた上で fit してあるので、pt_floor が無い設定を
+    # 「clamp 無しで使う」のは fit と別の変換を当てることになる。
+    # 既定値で黙って続けず、平の sigma_residual へ落ちること。
+    for params in (HIT, PIT):
+        broken = copy.deepcopy(params)
+        broken["sigma_model"].pop("pt_floor")
+        assert resolve_sigma(broken, 300) == params["sigma_residual"]
+        # 台の下でも同じ（黙って外挿が復活しない）
+        assert resolve_sigma(broken, 1) == params["sigma_residual"]
+    for bad in (0, -1, float("nan")):
+        broken = copy.deepcopy(HIT)
+        broken["sigma_model"]["pt_floor"] = bad
+        assert resolve_sigma(broken, 300) == HIT["sigma_residual"], bad
 
 
 def test_never_returns_a_zero_width_sigma():
@@ -95,10 +116,19 @@ def test_never_extrapolates_below_the_fit_support():
     assert at_floor_p < PIT["sigma_residual"]
 
 
-def test_sigma_model_matches_the_documented_ops_scale():
-    # 打者の sigma_base は wOBA 尺度。2.33 倍して OPS 尺度の fit 値に戻ること
-    ops_base = HIT["sigma_model"]["sigma_base"] * 2.33
-    assert abs(ops_base - 0.093913) < 5e-6, ops_base
+def test_hitter_interval_half_width_in_ops_matches_the_fitted_value():
+    # 「json の数字どうしを比べる」のではなく、resolve_sigma が返す σ を
+    # 実際の変換関数に通して OPS 尺度の半幅を組み立て、fit 値と突き合わせる。
+    # これで resolve_sigma・pt_floor・woba_to_ops_approx のどれを壊しても落ちる。
+    FITTED_OPS_SIGMA_BASE = 0.094205      # tools/fit_sigma_model.py の出力
+    sigma_woba = resolve_sigma(HIT, HIT["sigma_model"]["pt_floor"])
+    slope = (woba_to_ops_approx(0.400) - woba_to_ops_approx(0.300)) / 0.100
+    # z=0 になる出場機会（標準化の中心）で σ を評価すると sigma_base そのもの
+    center_pa = math.exp(HIT["sigma_model"]["log_mean"])
+    sigma_at_center = resolve_sigma(HIT, center_pa)
+    assert abs(sigma_at_center * slope - FITTED_OPS_SIGMA_BASE) < 5e-6, sigma_at_center * slope
+    # floor の所では中心より広い（gamma < 0 なので）
+    assert sigma_woba > sigma_at_center
 
 
 if __name__ == "__main__":

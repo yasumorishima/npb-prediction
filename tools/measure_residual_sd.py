@@ -18,7 +18,14 @@ os.environ.setdefault("NPB_DATA_END_YEAR", "2025")
 import numpy as np, pandas as pd
 import marcel_projection as M
 
-SIG_OPS, SIG_ERA = 0.1429, 1.6378          # recovered from the 2026 intervals
+# 平の sigma は posteriors.json から読む（ベタ書きしない。2026 の区間から
+# 逆算した 0.1429/1.6378 は固定 seed の標本分位点で縮んだ値だった）
+import json as _json
+from pathlib import Path as _Path
+_POST = _json.loads((_Path(__file__).resolve().parents[1] / "data" / "bayes" /
+                     "posteriors.json").read_text(encoding="utf-8"))
+SIG_OPS = _POST["jpn_hitter"]["sigma_residual"] * 2.33
+SIG_ERA = _POST["jpn_pitcher"]["sigma_residual"]
 YEARS = list(range(2018, 2026))
 
 def norm(s): return str(s).replace(" ", "").replace("　", "").strip()
@@ -85,5 +92,10 @@ for what in df["what"].unique():
           % ("", ex["ratio"].median(), len(ex), ex["sd"].median(), s["sig"].iloc[0]))
 print("")
 print("  2026 for comparison: hitter sd(z)=0.624 -> ratio 0.62 ; pitcher sd(z)=0.640 -> ratio 0.64")
-df.to_csv("years_resid.csv", index=False)
-print("  wrote years_resid.csv")
+import argparse as _argparse
+_ap = _argparse.ArgumentParser()
+_ap.add_argument("--out", default=None, help="残差表の書き出し先（省略すると書かない）")
+_args, _ = _ap.parse_known_args()
+if _args.out:
+    df.to_csv(_args.out, index=False)
+    print("  wrote %s" % _args.out)

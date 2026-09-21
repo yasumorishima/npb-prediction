@@ -44,6 +44,16 @@ RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = PROJECTIONS_DIR
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# resolve_sigma が平の sigma_residual へ落ちた回数。黙って落ちると区間が
+# 旧来の広すぎる幅へ戻るので、走行の最後に必ず印字する。
+SIGMA_FALLBACKS = {
+    "no_sigma_model": 0,
+    "no_playing_time": 0,
+    "bad_playing_time": 0,
+    "broken_sigma_model": 0,
+    "non_finite_sigma": 0,
+}
+
 Z80 = 1.2815515655446004   # 正規分布の 80% 区間
 Z95 = 1.959963984540054    # 正規分布の 95% 区間
 PEAK_AGE = 29
@@ -256,7 +266,11 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
     """
     flat = model_params["sigma_residual"]
     sm = model_params.get("sigma_model")
-    if not isinstance(sm, dict) or playing_time is None:
+    if not isinstance(sm, dict):
+        SIGMA_FALLBACKS["no_sigma_model"] += 1
+        return flat
+    if playing_time is None:
+        SIGMA_FALLBACKS["no_playing_time"] += 1
         return flat
 
     # sigma_model 側が壊れていても pipeline を止めず、幅ゼロの区間も出さない。
@@ -264,27 +278,36 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
     try:
         base = float(sm["sigma_base"]); gamma = float(sm["gamma"])
         mean = float(sm["log_mean"]); sd = float(sm["log_sd"])
-        floor_pt = float(sm.get("pt_floor", 0.0))
+        floor_pt = float(sm["pt_floor"])      # 必須。係数はこの clamp 込みで fit してある
     except (KeyError, TypeError, ValueError):
+        SIGMA_FALLBACKS["broken_sigma_model"] += 1
         return flat
-    if not all(np.isfinite(v) for v in (base, gamma, mean, sd)) or sd <= 0 or base <= 0:
+    if (not all(np.isfinite(v) for v in (base, gamma, mean, sd, floor_pt))
+            or sd <= 0 or base <= 0 or floor_pt <= 0):
+        SIGMA_FALLBACKS["broken_sigma_model"] += 1
         return flat
 
     try:
         pt = float(playing_time)
     except (TypeError, ValueError):
+        SIGMA_FALLBACKS["bad_playing_time"] += 1
         return flat
     if not np.isfinite(pt) or pt <= 0:
+        SIGMA_FALLBACKS["bad_playing_time"] += 1
         return flat
 
     # fit の台（打者 PA>=100 / 投手 IP>=30）より下は外挿になる。台の下端で
     # 頭打ちにして、検証していない領域へ exp で外挿しない。
-    if floor_pt > 0:
-        pt = max(pt, floor_pt)
+    # 係数はこの clamp を当てた上で fit してあるので、ここを外すと fit と
+    # 当てる変換が食い違う。
+    pt = max(pt, floor_pt)
 
     z = (np.log(pt) - mean) / sd
     sigma = float(base * np.exp(gamma * z))
-    return sigma if np.isfinite(sigma) and sigma > 0 else flat
+    if not np.isfinite(sigma) or sigma <= 0:
+        SIGMA_FALLBACKS["non_finite_sigma"] += 1
+        return flat
+    return sigma
 
 
 def apply_stan_correction(
@@ -926,6 +949,17 @@ def main():
         print(f"外国人打者: {len(foreign_h)} players, mean bayes_OPS={foreign_h['bayes_OPS'].mean():.3f}")
     if len(foreign_p) > 0:
         print(f"外国人投手: {len(foreign_p)} players, mean bayes_ERA={foreign_p['bayes_ERA'].mean():.2f}")
+    # 区間の σ が平の sigma_residual へ落ちた件数。0 以外なら区間がその選手だけ
+    # 旧来の広すぎる幅に戻っているので、黙って通さず必ず出す。
+    n_flat = sum(SIGMA_FALLBACKS.values())
+    if n_flat:
+        detail = ", ".join(f"{k}={v}" for k, v in SIGMA_FALLBACKS.items() if v)
+        print(f"\n[sigma] 平の sigma_residual へ落ちた回数: {n_flat}  ({detail})")
+        if SIGMA_FALLBACKS["no_sigma_model"] or SIGMA_FALLBACKS["broken_sigma_model"]:
+            print("[sigma] WARNING: posteriors.json の sigma_model が読めていない。"
+                  "区間が出場機会に追従していない可能性がある。")
+    else:
+        print("\n[sigma] 全選手で sigma_model を使用（平の σ への fallback なし）")
     _log_elapsed("bayes_projection_total", t0)
 
 
