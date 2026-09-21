@@ -13,6 +13,19 @@
       "age_from_peak": -0.0084
     },
     "sigma_residual": 0.06215,
+    "sigma_model": {
+      "form": "sigma = sigma_base * exp(gamma * (log(pt) - log_mean) / log_sd)",
+      "pt": "PA",
+      "pt_source": "Marcel projected PA (known before the season)",
+      "scale": "wOBA",
+      "sigma_base": 0.040306,
+      "gamma": -0.122249,
+      "log_mean": 5.365331,
+      "log_sd": 1.025666,
+      "fit": "MLE on Marcel OPS residuals, 2018-2024, actual PA>=100; OPS sigma_base 0.093913 divided by the 2.33 wOBA->OPS slope. Held out 2025 and 2026 (fitted 2026-09-21).",
+      "held_out_coverage": {"2025": [0.876, 0.976], "2026": [0.844, 0.952], "nominal": [0.8, 0.95],
+                            "flat_sigma_was": {"2025": [0.988, 1.0], "2026": [0.946, 1.0]}}
+    },
     "standardization": {
       "means": {
         "K_pct": 0.19510936445450763,
@@ -47,6 +60,19 @@
       "age_from_peak": 0.0508
     },
     "sigma_residual": 1.66495,
+    "sigma_model": {
+      "form": "sigma = sigma_base * exp(gamma * (log(pt) - log_mean) / log_sd)",
+      "pt": "IP",
+      "pt_source": "Marcel projected IP (known before the season)",
+      "scale": "ERA",
+      "sigma_base": 1.121675,
+      "gamma": -0.090995,
+      "log_mean": 3.911572,
+      "log_sd": 0.848863,
+      "fit": "MLE on Marcel ERA residuals, 2018-2024, actual IP>=30. Held out 2025 and 2026 (fitted 2026-09-21).",
+      "held_out_coverage": {"2025": [0.847, 0.993], "2026": [0.850, 0.962], "nominal": [0.8, 0.95],
+                            "flat_sigma_was": {"2025": [0.986, 1.0], "2026": [0.955, 0.992]}}
+    },
     "standardization": {
       "means": {
         "K_pct": 0.20304112145970543,

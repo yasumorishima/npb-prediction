@@ -44,7 +44,9 @@ RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = PROJECTIONS_DIR
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-N_SAMPLES = 5000
+N_SAMPLES = 5000  # 外国人経路のサンプリングで使用
+Z80 = 1.2815515655446004   # 正規分布の 80% 区間
+Z95 = 1.959963984540054    # 正規分布の 95% 区間
 PEAK_AGE = 29
 MIN_PA_HITTER = 30
 MIN_IP_PITCHER = 10
@@ -242,20 +244,48 @@ def extract_pitcher_features(pitchers_df: pd.DataFrame, target_year: int) -> pd.
 
 # ── Stan correction ──────────────────────────────────────────────────────────
 
+def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
+    """予測区間の σ を返す。
+
+    `sigma_model` があり出場機会（打者=予測PA・投手=予測IP）が渡されていれば
+    σ = sigma_base * exp(gamma * z_log_pt) を使う。無ければ従来の平の
+    `sigma_residual` に落ちる。
+
+    平の σ は 2018-2025 の全出場機会水準で fit した残差なので、出場機会で絞った
+    選手に当てると区間が広くなりすぎる（8 シーズンすべてで実測残差 sd ÷ σ が
+    0.54-0.71、レギュラーでは 2.2 倍超）。詳細は posteriors.json の sigma_model。
+    """
+    sm = model_params.get("sigma_model")
+    if not sm or playing_time is None:
+        return model_params["sigma_residual"]
+    try:
+        pt = float(playing_time)
+    except (TypeError, ValueError):
+        return model_params["sigma_residual"]
+    if not np.isfinite(pt) or pt <= 0:
+        return model_params["sigma_residual"]
+    z = (np.log(pt) - sm["log_mean"]) / sm["log_sd"]
+    return float(sm["sigma_base"] * np.exp(sm["gamma"] * z))
+
+
 def apply_stan_correction(
     marcel_value: float,
     features: dict[str, float],
     model_params: dict,
+    playing_time: float | None = None,
 ) -> tuple[float, float, float, float, float]:
     """
     Marcel予測値にStan Ridge補正を適用し、点推定+CIを返す。
+
+    playing_time: 予測PA（打者）/ 予測IP（投手）。渡すと区間幅が出場機会に応じて
+    狭くなる。渡さなければ従来どおり平の sigma_residual。
 
     Returns:
         (stan_pred, ci80_lo, ci80_hi, ci95_lo, ci95_hi)
     """
     beta = model_params["beta"]
     std_info = model_params["standardization"]
-    sigma = model_params["sigma_residual"]
+    sigma = resolve_sigma(model_params, playing_time)
 
     # z-score standardization
     delta = 0.0
@@ -268,12 +298,12 @@ def apply_stan_correction(
 
     stan_pred = marcel_value + delta
 
-    # NumPy sampling for CI
-    rng = np.random.default_rng(42)
-    samples = rng.normal(stan_pred, sigma, size=N_SAMPLES)
-
-    ci80_lo, ci80_hi = np.percentile(samples, [10, 90])
-    ci95_lo, ci95_hi = np.percentile(samples, [2.5, 97.5])
+    # 正規分布の分位点は閉じた形で出る。以前は固定 seed の 5,000 draws を
+    # np.percentile に通していたが、seed が全選手共通なので標本分位点のずれ
+    # （seed 42 では 2.5%点 -1.9892 / 97.5%点 +1.9509）が全員に同じ向きで乗り、
+    # 区間が点推定から系統的に -0.0018 OPS ずれていた。
+    ci80_lo, ci80_hi = stan_pred - Z80 * sigma, stan_pred + Z80 * sigma
+    ci95_lo, ci95_hi = stan_pred - Z95 * sigma, stan_pred + Z95 * sigma
 
     return stan_pred, ci80_lo, ci80_hi, ci95_lo, ci95_hi
 
@@ -377,7 +407,7 @@ def predict_hitters(store: PosteriorStore) -> pd.DataFrame:
 
         # Stan correction (wOBA空間で)
         stan_woba, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
-            marcel_woba, features, model_params
+            marcel_woba, features, model_params, playing_time=marcel_pa
         )
         stan_ops = woba_to_ops_approx(stan_woba)
         ops_ci80_lo = woba_to_ops_approx(ci80_lo)
@@ -401,6 +431,14 @@ def predict_hitters(store: PosteriorStore) -> pd.DataFrame:
         bayes_ops = bma_predict(marcel_ops, stan_ops, ml_ops, weights)
         if bayes_ops is None:
             bayes_ops = stan_ops
+
+        # CIはstan空間で作ったので、公表する点推定（BMA合成のbayes_OPS）を中心に
+        # 置き直す。区間は「隣に載っている数値」の周りに無いと意味が取れない。
+        ci_shift = bayes_ops - stan_ops
+        ops_ci80_lo += ci_shift
+        ops_ci80_hi += ci_shift
+        ops_ci95_lo += ci_shift
+        ops_ci95_hi += ci_shift
 
         results.append({
             "player": player,
@@ -472,13 +510,13 @@ def predict_pitchers(store: PosteriorStore) -> pd.DataFrame:
 
         # Stan correction (ERA空間で)
         stan_era, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
-            marcel_era, features, model_params
+            marcel_era, features, model_params, playing_time=marcel_ip
         )
 
-        # ERA下限クリップ（負のERAは物理的にありえない）
+        # ERA下限クリップ（負のERAは物理的にありえない）。
+        # 区間の下限は再センタリングの後でクリップする（先にクリップすると
+        # 区間の中心が点推定からずれる）。
         stan_era = max(0.0, stan_era)
-        ci80_lo = max(0.0, ci80_lo)
-        ci95_lo = max(0.0, ci95_lo)
 
         # ML予測取得（名前正規化してマッチ）
         ml_era = None
@@ -497,6 +535,14 @@ def predict_pitchers(store: PosteriorStore) -> pd.DataFrame:
         bayes_era = bma_predict(marcel_era, stan_era, ml_era, weights)
         if bayes_era is None:
             bayes_era = stan_era
+
+        # CIはstan空間で作ったので、公表する点推定（bayes_ERA）を中心に置き直す。
+        # 下限クリップは移動後にやり直す（移動で負に出ることがある）。
+        ci_shift = bayes_era - stan_era
+        ci80_lo = max(0.0, ci80_lo + ci_shift)
+        ci80_hi = ci80_hi + ci_shift
+        ci95_lo = max(0.0, ci95_lo + ci_shift)
+        ci95_hi = ci95_hi + ci_shift
 
         results.append({
             "player": player,
