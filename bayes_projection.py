@@ -17,7 +17,7 @@ Marcel予測にRidge補正を適用し、信頼区間（CI）付き予測を生�
 ランタイム設計:
   - Stan学習はGitHub Actionsのみ（cmdstanpy不要）
   - posteriors.json（beta/sigma/standardization）をロード
-  - NumPyサンプリングでCI算出（5,000 draws）
+  - CIは正規分布の分位点を閉じた形で算出（サンプリングしない）
   - RPi5 4GB RAM対応
 
 Data sources:
@@ -44,7 +44,6 @@ RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = PROJECTIONS_DIR
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-N_SAMPLES = 5000  # 外国人経路のサンプリングで使用
 Z80 = 1.2815515655446004   # 正規分布の 80% 区間
 Z95 = 1.959963984540054    # 正規分布の 95% 区間
 PEAK_AGE = 29
@@ -255,17 +254,37 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
     選手に当てると区間が広くなりすぎる（8 シーズンすべてで実測残差 sd ÷ σ が
     0.54-0.71、レギュラーでは 2.2 倍超）。詳細は posteriors.json の sigma_model。
     """
+    flat = model_params["sigma_residual"]
     sm = model_params.get("sigma_model")
-    if not sm or playing_time is None:
-        return model_params["sigma_residual"]
+    if not isinstance(sm, dict) or playing_time is None:
+        return flat
+
+    # sigma_model 側が壊れていても pipeline を止めず、幅ゼロの区間も出さない。
+    # （キー欠落で KeyError、log_sd=0 で sigma=0 になる経路を明示的に塞ぐ）
+    try:
+        base = float(sm["sigma_base"]); gamma = float(sm["gamma"])
+        mean = float(sm["log_mean"]); sd = float(sm["log_sd"])
+        floor_pt = float(sm.get("pt_floor", 0.0))
+    except (KeyError, TypeError, ValueError):
+        return flat
+    if not all(np.isfinite(v) for v in (base, gamma, mean, sd)) or sd <= 0 or base <= 0:
+        return flat
+
     try:
         pt = float(playing_time)
     except (TypeError, ValueError):
-        return model_params["sigma_residual"]
+        return flat
     if not np.isfinite(pt) or pt <= 0:
-        return model_params["sigma_residual"]
-    z = (np.log(pt) - sm["log_mean"]) / sm["log_sd"]
-    return float(sm["sigma_base"] * np.exp(sm["gamma"] * z))
+        return flat
+
+    # fit の台（打者 PA>=100 / 投手 IP>=30）より下は外挿になる。台の下端で
+    # 頭打ちにして、検証していない領域へ exp で外挿しない。
+    if floor_pt > 0:
+        pt = max(pt, floor_pt)
+
+    z = (np.log(pt) - mean) / sd
+    sigma = float(base * np.exp(gamma * z))
+    return sigma if np.isfinite(sigma) and sigma > 0 else flat
 
 
 def apply_stan_correction(
@@ -509,14 +528,16 @@ def predict_pitchers(store: PosteriorStore) -> pd.DataFrame:
         }
 
         # Stan correction (ERA空間で)
-        stan_era, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
+        stan_era_raw, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
             marcel_era, features, model_params, playing_time=marcel_ip
         )
 
         # ERA下限クリップ（負のERAは物理的にありえない）。
-        # 区間の下限は再センタリングの後でクリップする（先にクリップすると
-        # 区間の中心が点推定からずれる）。
-        stan_era = max(0.0, stan_era)
+        # 区間はクリップ前の stan_era_raw の周りに作られているので、
+        # 再センタリング量にもクリップ前の値を使う（クリップ後の値を使うと
+        # 生の stan_ERA が負のとき区間の中心が点推定からずれる）。
+        # 区間下限のクリップは再センタリングの後で行う。
+        stan_era = max(0.0, stan_era_raw)
 
         # ML予測取得（名前正規化してマッチ）
         ml_era = None
@@ -538,7 +559,7 @@ def predict_pitchers(store: PosteriorStore) -> pd.DataFrame:
 
         # CIはstan空間で作ったので、公表する点推定（bayes_ERA）を中心に置き直す。
         # 下限クリップは移動後にやり直す（移動で負に出ることがある）。
-        ci_shift = bayes_era - stan_era
+        ci_shift = bayes_era - stan_era_raw
         ci80_lo = max(0.0, ci80_lo + ci_shift)
         ci80_hi = ci80_hi + ci_shift
         ci95_lo = max(0.0, ci95_lo + ci_shift)
@@ -600,7 +621,6 @@ def predict_foreign_hitters(store: PosteriorStore) -> pd.DataFrame:
     std = model["standardization"]
     lg_avg_woba = model.get("league_avg_woba", {})
 
-    rng = np.random.default_rng(42)
     results = []
 
     for _, row in foreign_hitters.iterrows():
@@ -663,10 +683,9 @@ def predict_foreign_hitters(store: PosteriorStore) -> pd.DataFrame:
             params["gamma_pa"]["mean"] * z_log_pa
         )
 
-        # Sampling
-        samples = rng.normal(mu, sigma, size=N_SAMPLES)
-        ci80_lo, ci80_hi = np.percentile(samples, [10, 90])
-        ci95_lo, ci95_hi = np.percentile(samples, [2.5, 97.5])
+        # 分位点は閉じた形で（国内経路と同じ。標本分位点の雑音を入れない）
+        ci80_lo, ci80_hi = mu - Z80 * sigma, mu + Z80 * sigma
+        ci95_lo, ci95_hi = mu - Z95 * sigma, mu + Z95 * sigma
 
         # wOBA → OPS近似
         pred_ops = woba_to_ops_approx(mu)
@@ -708,7 +727,6 @@ def predict_foreign_pitchers(store: PosteriorStore) -> pd.DataFrame:
     std = model["standardization"]
     lg_avg_era = model.get("league_avg_era", {})
 
-    rng = np.random.default_rng(43)
     results = []
 
     for _, row in foreign_pitchers.iterrows():
@@ -764,11 +782,10 @@ def predict_foreign_pitchers(store: PosteriorStore) -> pd.DataFrame:
             params["gamma_ip"]["mean"] * z_log_ip
         )
 
-        # Sampling
-        samples = rng.normal(mu, sigma, size=N_SAMPLES)
-        samples = np.clip(samples, 0.0, None)  # ERAは非負
-        ci80_lo, ci80_hi = np.percentile(samples, [10, 90])
-        ci95_lo, ci95_hi = np.percentile(samples, [2.5, 97.5])
+        # 分位点は閉じた形で。非負クリップは分位点を取った後に当てる
+        # （標本を先にクリップすると下側の分位点に別の偏りが乗る）
+        ci80_lo, ci80_hi = max(0.0, mu - Z80 * sigma), mu + Z80 * sigma
+        ci95_lo, ci95_hi = max(0.0, mu - Z95 * sigma), mu + Z95 * sigma
 
         results.append({
             "player": npb_name,

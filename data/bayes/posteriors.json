@@ -22,9 +22,14 @@
       "gamma": -0.122249,
       "log_mean": 5.365331,
       "log_sd": 1.025666,
+      "pt_floor": 100,
       "fit": "MLE on Marcel OPS residuals, 2018-2024, actual PA>=100; OPS sigma_base 0.093913 divided by the 2.33 wOBA->OPS slope. Held out 2025 and 2026 (fitted 2026-09-21).",
-      "held_out_coverage": {"2025": [0.876, 0.976], "2026": [0.844, 0.952], "nominal": [0.8, 0.95],
-                            "flat_sigma_was": {"2025": [0.988, 1.0], "2026": [0.946, 1.0]}}
+      "support": "fitted only on PA>=100. pt_floor holds sigma at its PA=100 value below that, so the model is never extrapolated past the edge of its own fit. 124 of the 311 projected hitters are under 100 PA.",
+      "coverage_measured_on_the_2026_artifacts": {"nominal": [0.8, 0.95], "flat_sigma": [0.954, 0.992], "sigma_model": [0.840, 0.947],
+                                                  "how": "regenerated predict_hitters vs the real 2026 season, actual PA>=100, rows with an interval (131 of 147)"},
+      "coverage_from_the_marcel_residual_proxy": {"2025": [0.876, 0.976], "2026": [0.844, 0.952],
+                                                  "flat_sigma": {"2025": [0.988, 1.0], "2026": [0.946, 1.0]},
+                                                  "how": "reconstructed intervals around the point estimate; no committed 2025 projections exist. These are NOT the artifact numbers above."}
     },
     "standardization": {
       "means": {
@@ -69,9 +74,14 @@
       "gamma": -0.090995,
       "log_mean": 3.911572,
       "log_sd": 0.848863,
+      "pt_floor": 30,
       "fit": "MLE on Marcel ERA residuals, 2018-2024, actual IP>=30. Held out 2025 and 2026 (fitted 2026-09-21).",
-      "held_out_coverage": {"2025": [0.847, 0.993], "2026": [0.850, 0.962], "nominal": [0.8, 0.95],
-                            "flat_sigma_was": {"2025": [0.986, 1.0], "2026": [0.955, 0.992]}}
+      "support": "fitted only on IP>=30. pt_floor holds sigma at its IP=30 value below that, so the model is never extrapolated past the edge of its own fit. 143 of the 302 projected pitchers are under 30 IP.",
+      "coverage_measured_on_the_2026_artifacts": {"nominal": [0.8, 0.95], "flat_sigma": [0.950, 0.992], "sigma_model": [0.843, 0.967],
+                                                  "how": "regenerated predict_pitchers vs the real 2026 season, actual IP>=30, rows with an interval (121 of 133)"},
+      "coverage_from_the_marcel_residual_proxy": {"2025": [0.847, 0.993], "2026": [0.850, 0.962],
+                                                  "flat_sigma": {"2025": [0.986, 1.0], "2026": [0.955, 0.992]},
+                                                  "how": "reconstructed intervals around the point estimate; no committed 2025 projections exist. These are NOT the artifact numbers above."}
     },
     "standardization": {
       "means": {
