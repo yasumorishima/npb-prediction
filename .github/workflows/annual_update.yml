@@ -112,7 +112,11 @@ jobs:
       # 打者・投手のどちらかが 0 行でも fail-closed が発動することを固定する。
       # ⚠️ step 名は「commit の前に落ちる」であって「何も書く前に」ではない。
       #    step 6/7 が既に marcel_*.csv / ml_*.csv を書いた後にここが走る。
+      # ⚠️ hf_only の run では「Install dependencies」が skip されるので、この step に
+      #    ガードが無いと numpy / pandas が無いまま走って ModuleNotFoundError で落ち、
+      #    HF 同期に一度も到達しない。hf_only は data/ を再生成しないので門も要らない。
       - name: 7.5 Sigma model + output gating tests (fail before the commit step)
+        if: github.event.inputs.hf_only != 'true'
         run: |
           python tests/test_sigma_model.py
           python tests/test_output_gating.py
