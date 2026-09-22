@@ -8,12 +8,17 @@
   - 打者 CSV を書く前に `Saved:` と印字していたので、**書けていないのに成功
     したと見えた**
   - 打者が 0 行・投手が非 0 行だと `UnboundLocalError` で投手 CSV も落ちた
+  - `_filter_roster` が全行を落とすと保存先は None にならないので、**ヘッダ
+    だけの CSV（実測 97 バイト・1 行）で出荷中の予測を上書きして rc=0** だった
 
-🔴 **`_finalize_outputs` を直接呼ぶだけでは、この 3 つのどれも縛れない。**
+🔴 **`_finalize_outputs` を直接呼ぶだけでは、この 4 つのどれも縛れない。**
 壊れていたのは関数の中身ではなく `main()` の**呼び出し位置**だったので、
 `main()` を実際に駆動する検査（`test_main_*`）が要る。最初に書いた 8 件は
 関数を直接呼ぶだけで、門を投手ブロックへ戻す変異も、`main()` が
 `_finalize_outputs` を呼ばなくなる変異も 1 つも捕まえなかった（監査で判明）。
+
+🔴 **年次の走行に「片方だけ」という正常な形は無い**ので、打者・投手のどちらかが
+空なら落とす。片方だけ書き出すと、**空いた側は前年の CSV が現行として残る**。
 
 🔴 **本物の予測は一切走らせない**（`data/projections/*_2026.csv` は 2026-03-23 に
 凍結した採点の記録）。`OUT_DIR` を一時ディレクトリへ差し替え、**差し替わった
@@ -33,11 +38,6 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import bayes_projection as B  # noqa: E402
-
-HITTER_COLS = ["player", "team", "PA", "marcel_OPS", "stan_OPS", "bayes_OPS",
-               "bayes_OPS_lo80", "bayes_OPS_hi80", "stan_delta", "method"]
-PITCHER_COLS = ["player", "team", "IP", "marcel_ERA", "stan_ERA", "bayes_ERA",
-                "bayes_ERA_lo80", "bayes_ERA_hi80", "stan_delta", "method"]
 
 
 def _hitters(n=3, with_ci=True):
@@ -62,7 +62,7 @@ def _pitchers(n=2, with_ci=True):
     })
 
 
-def _empty(cols=None):
+def _empty():
     """実物に合わせた空枠。
 
     ⚠️ `predict_hitters` / `predict_pitchers` はデータが無いとき **列を 1 つも
@@ -106,36 +106,32 @@ def _run(hitters, pitchers, write_hitters=True, write_pitchers=True, fallbacks=N
         B.SIGMA_FALLBACKS.update(saved)
 
 
-def test_nothing_is_written_when_the_gate_fails():
-    code, files, _ = _run(_hitters(), _pitchers(), fallbacks={"broken_sigma_model": 1})
+def test_nothing_is_written_when_the_sigma_gate_fails():
+    code, files, out = _run(_hitters(), _pitchers(), fallbacks={"broken_sigma_model": 1})
     assert code == 1, code
     assert files == [], files
+    assert "平の sigma_residual へ落ちた行" in out, out   # σ の門が理由であること
 
 
 def test_both_files_are_written_on_a_clean_run():
-    code, files, _ = _run(_hitters(), _pitchers())
+    code, files, out = _run(_hitters(), _pitchers())
     assert code == 0, code
     assert files == ["bayes_hitters_TEST.csv", "bayes_pitchers_TEST.csv"], files
+    assert len(_saved_lines(out)) == 2, out
 
 
-def test_saved_lines_match_the_files_that_exist():
-    """🔴「Saved:」が嘘をつかないこと。
+def test_a_missing_output_path_is_fatal_and_prints_no_saved_line():
+    """🔴「Saved: None」を出さないこと。
 
-    以前ここは `assert "bayes_pitchers_TEST.csv" not in out` だったが、その
-    シナリオでは投手の保存先が None なのでどの実装からも出得ず、**構成上ほぼ
-    必ず真＝何も縛っていなかった**（監査で判明）。本数と実在で縛る。
+    以前ここは `assert "…pitchers_TEST.csv" not in out` だったが、そのシナリオ
+    では投手の保存先が None なのでどの実装からも出得ず、**構成上ほぼ必ず真＝
+    何も縛っていなかった**（監査で判明）。`to_csv(None)` は例外を出さず CSV
+    文字列を返すだけなので、素通しにすると書かずに成功してしまう。
     """
-    with tempfile.TemporaryDirectory() as tmp:
-        hp = Path(tmp) / "bayes_hitters_TEST.csv"
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            B._finalize_outputs(_hitters(), hp,
-                                _empty(PITCHER_COLS), None)
-        lines = _saved_lines(buf.getvalue())
-        made = sorted(p.name for p in Path(tmp).iterdir())
-        assert len(lines) == len(made), (lines, made)
-        for path in lines:
-            assert Path(path).exists(), path      # 「Saved: None」を捕まえる
+    code, files, out = _run(_hitters(), _pitchers(), write_pitchers=False)
+    assert code == 1, code
+    assert files == [], files            # 片方だけ出荷しないので打者も書かない
+    assert _saved_lines(out) == [], out
 
 
 def test_each_file_holds_the_frame_it_is_named_for():
@@ -144,8 +140,7 @@ def test_each_file_holds_the_frame_it_is_named_for():
         hp, pp = Path(tmp) / "h.csv", Path(tmp) / "p.csv"
         with contextlib.redirect_stdout(io.StringIO()):
             B._finalize_outputs(_hitters(), hp, _pitchers(), pp)
-        head_h = hp.read_bytes()
-        head_p = pp.read_bytes()
+        head_h, head_p = hp.read_bytes(), pp.read_bytes()
         assert b"bayes_OPS" in head_h and b"bayes_ERA" not in head_h, head_h[:120]
         assert b"bayes_ERA" in head_p and b"bayes_OPS" not in head_p, head_p[:120]
         # BOM つき utf-8（Excel 向け）で、無名の index 列を足していないこと
@@ -181,7 +176,7 @@ def test_rows_without_intervals_are_counted_from_the_shipped_frames():
 # B. main() の呼び出し位置（これが無いと BLOCKER の再発を検出できない）
 # --------------------------------------------------------------------------
 
-def _drive_main(hitters, pitchers, fallbacks=None):
+def _drive_main(hitters, pitchers, fallbacks=None, filter_roster=None):
     """main() を一時ディレクトリで駆動して (終了コード, ファイル名, stdout) を返す。
 
     🔴 本物の data/projections には絶対に書かせない。OUT_DIR を tmp へ差し替え、
@@ -211,9 +206,9 @@ def _drive_main(hitters, pitchers, fallbacks=None):
             B.PosteriorStore = lambda *a, **k: types.SimpleNamespace(version="test")
             B.predict_hitters = fake_hitters
             B.predict_pitchers = fake_pitchers
-            B.predict_foreign_hitters = lambda store: _empty(["player"])
-            B.predict_foreign_pitchers = lambda store: _empty(["player"])
-            B._filter_roster = lambda df: df
+            B.predict_foreign_hitters = lambda store: _empty()
+            B.predict_foreign_pitchers = lambda store: _empty()
+            B._filter_roster = filter_roster or (lambda df: df)
 
             code, buf = 0, io.StringIO()
             try:
@@ -229,29 +224,6 @@ def _drive_main(hitters, pitchers, fallbacks=None):
         B.SIGMA_FALLBACKS.update(saved)
 
 
-def test_main_gate_fires_when_pitchers_are_empty_and_hitters_fell_back():
-    """🔴 これが監査 5 回目の BLOCKER そのもの。門を投手ブロックへ戻すと落ちる。"""
-    code, files, _ = _drive_main(_hitters(), _empty(PITCHER_COLS),
-                                 fallbacks={"bad_playing_time": 3})
-    assert code == 1, code
-    assert files == [], files
-
-
-def test_main_writes_the_hitter_file_when_pitchers_are_empty():
-    code, files, out = _drive_main(_hitters(), _empty(PITCHER_COLS))
-    assert code == 0, code
-    assert files == [f"bayes_hitters_{B.TARGET_YEAR}.csv"], files
-    assert len(_saved_lines(out)) == len(files), out
-
-
-def test_main_writes_the_pitcher_file_when_hitters_are_empty():
-    # c58feb7 ではここが UnboundLocalError だった。
-    code, files, out = _drive_main(_empty(HITTER_COLS), _pitchers())
-    assert code == 0, code
-    assert files == [f"bayes_pitchers_{B.TARGET_YEAR}.csv"], files
-    assert len(_saved_lines(out)) == len(files), out
-
-
 def test_main_writes_both_files_on_a_clean_run():
     code, files, out = _drive_main(_hitters(), _pitchers())
     assert code == 0, code
@@ -260,13 +232,57 @@ def test_main_writes_both_files_on_a_clean_run():
     assert len(_saved_lines(out)) == 2, out
 
 
-def test_main_fails_when_both_frames_are_empty():
-    """上流が全滅したら黙って成功しない。
+def test_main_sigma_gate_fires_when_pitchers_are_empty_and_hitters_fell_back():
+    """🔴 これが監査 5 回目の BLOCKER そのもの。門を投手ブロックへ戻すと落ちる。
 
-    以前は rc=0・ファイル 0 件・「Saved:」0 行で通っていた＝CI からは成功に
-    見えるのに何も更新されない（前年の CSV がそのまま出荷される）。
+    σ の門は空枠の検査より**前**にあるので、落ちた理由が σ であることまで縛る。
     """
-    code, files, _ = _drive_main(_empty(HITTER_COLS), _empty(PITCHER_COLS))
+    code, files, out = _drive_main(_hitters(), _empty(),
+                                   fallbacks={"bad_playing_time": 3})
+    assert code == 1, code
+    assert files == [], files
+    assert "平の sigma_residual へ落ちた行" in out, out
+
+
+def test_main_fails_when_pitchers_are_empty():
+    """片方だけ書き出さない＝空いた側に前年の CSV が現行として残るのを防ぐ。"""
+    code, files, out = _drive_main(_hitters(), _empty())
+    assert code == 1, code
+    assert files == [], files
+    assert _saved_lines(out) == [], out
+
+
+def test_main_fails_when_hitters_are_empty():
+    # c58feb7 ではここが UnboundLocalError だった。
+    code, files, out = _drive_main(_empty(), _pitchers())
+    assert code == 1, code
+    assert files == [], files
+    assert _saved_lines(out) == [], out
+
+
+def test_main_fails_when_both_frames_are_empty():
+    code, files, _ = _drive_main(_empty(), _empty())
+    assert code == 1, code
+    assert files == [], files
+
+
+def test_main_fails_when_roster_filtering_empties_both_frames():
+    """🔴 ロースター絞り込みが全行を落としたら、ヘッダだけの CSV を出荷しない。
+
+    `predict_*` が行を返していれば保存先は None にならないので、門が枠の中身を
+    見ないと **97 バイト・1 行の CSV で出荷中の予測を上書きして rc=0** になる。
+    """
+    code, files, _ = _drive_main(_hitters(), _pitchers(),
+                                 filter_roster=lambda df: df.iloc[0:0])
+    assert code == 1, code
+    assert files == [], files
+
+
+def test_main_fails_when_roster_filtering_empties_one_frame():
+    def only_pitchers_survive(df):
+        return df.iloc[0:0] if "bayes_OPS" in df.columns else df
+    code, files, _ = _drive_main(_hitters(), _pitchers(),
+                                 filter_roster=only_pitchers_survive)
     assert code == 1, code
     assert files == [], files
 

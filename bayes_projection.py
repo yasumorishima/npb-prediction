@@ -895,24 +895,30 @@ def _finalize_outputs(hitters, hitters_path, pitchers, pitchers_path) -> None:
     と印字すると、上流の取得失敗が CI から見えなくなる）。
     """
     _check_sigma_health([(hitters, "bayes_OPS_lo80"), (pitchers, "bayes_ERA_lo80")])
-    if hitters_path is None and pitchers_path is None:
-        # 上流が全滅した形。黙って rc=0 で終わると CI からは成功に見えるのに
-        # 何も更新されず、前年の CSV がそのまま出荷される。
-        print("[sigma] ERROR: 打者・投手のどちらの枠も空で、書き出すものが無い。"
-              " 上流の取得が失敗している。")
+    # 🔴 年次の走行に「片方だけ」という正常な形は無い。片方が空のまま進むと、
+    # その枠は書かれず**出荷済みのもう片方だけが新しくなり、空いた側は前年の
+    # CSV が現行として残る**（両方空で塞いだのと同じ失敗の型）。
+    # ⚠️ `len(df) == 0` は `predict_*` が 0 行を返した場合だけでなく、行はあった
+    # のに `_filter_roster` が全部落とした場合にも起きる。後者では保存先が
+    # None にならないので、行数を見ないと**ヘッダだけの CSV で出荷中の予測を
+    # 上書きして rc=0** になる（実測 97 バイト・1 行）。
+    empty = [label for label, df in (("打者", hitters), ("投手", pitchers)) if len(df) == 0]
+    if empty:
+        print(f"[sigma] ERROR: {' と '.join(empty)}の枠が空（打者 {len(hitters)} 行 /"
+              f" 投手 {len(pitchers)} 行）。上流の取得かロースター絞り込みが失敗している。"
+              " 片方だけ書き出すと、空いた側は前年の CSV が現行として残る。")
         raise SystemExit(1)
-    written = 0
-    for df, path in ((hitters, hitters_path), (pitchers, pitchers_path)):
+    # 🔴 検査を全部通してから書き出す。書きながら検査すると、**先に書いた 1 本
+    # だけが残って中途半端に更新された data/projections** になる。
+    # ⚠️ `to_csv(None)` は例外を出さず CSV 文字列を返すだけなので、保存先が
+    # None のまま進むと書かずに「Saved: None」と印字して rc=0 になる。
+    for label, path in (("打者", hitters_path), ("投手", pitchers_path)):
         if path is None:
-            continue
-        # ⚠️ `path is None` を落とすと `to_csv(None)` が例外を出さず CSV 文字列を
-        # 返すだけなので、ファイルを書かないまま「Saved: None」と印字して rc=0 に
-        # なる。ここは `continue` が無いと静かに壊れる。
+            print(f"[sigma] ERROR: {label}の保存先が決まっていない。")
+            raise SystemExit(1)
+    for df, path in ((hitters, hitters_path), (pitchers, pitchers_path)):
         df.to_csv(path, index=False, encoding="utf-8-sig")
-        written += 1
         print(f"\nSaved: {path}")
-    if written == 0:
-        raise SystemExit(1)
 
 
 def main():
