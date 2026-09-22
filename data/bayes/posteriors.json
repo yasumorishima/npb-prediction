@@ -13,6 +13,24 @@
       "age_from_peak": -0.0084
     },
     "sigma_residual": 0.06215,
+    "sigma_model": {
+      "form": "sigma = sigma_base * exp(gamma * (log(pt) - log_mean) / log_sd)",
+      "pt": "PA",
+      "pt_source": "Marcel projected PA (known before the season)",
+      "scale": "wOBA",
+      "sigma_base": 0.040431,
+      "gamma": -0.115276,
+      "log_mean": 5.549125,
+      "log_sd": 0.630957,
+      "pt_floor": 100,
+      "fit": "MLE on Marcel OPS residuals, 2018-2024, actual PA>=100, sigma driven by the projected PA CLAMPED AT pt_floor (the same transform runtime applies; 194 of 1062 training rows are clamped); OPS sigma_base 0.094205 divided by the 2.33 wOBA->OPS slope. Held out 2025 and 2026 (fitted 2026-09-21).",
+      "support": "fitted only on PA>=100. pt_floor holds sigma at its PA=100 value below that, so the model is never extrapolated past the edge of its own fit. 124 of the 311 projected hitters are under 100 PA.",
+      "coverage_measured_on_the_2026_artifacts_PROVISIONAL": {"nominal": [0.8, 0.95], "flat_sigma": [0.954, 0.992], "sigma_model": [0.840, 0.947],
+                                                  "how": "regenerated predict_hitters vs the 2026 season AS OF 2026-09-21 (129-136 of 143 games played -- PROVISIONAL), actual PA>=100, rows with an interval (131 of 147)"},
+      "coverage_from_the_marcel_residual_proxy": {"2025": [0.888, 0.976], "2026_provisional": [0.852, 0.948],
+                                                  "flat_sigma": {"2025": [0.988, 1.0], "2026_provisional": [0.961, 1.0]},
+                                                  "how": "reconstructed intervals around the point estimate; no committed 2025 projections exist. These are NOT the artifact numbers above."}
+    },
     "standardization": {
       "means": {
         "K_pct": 0.19510936445450763,
@@ -47,6 +65,24 @@
       "age_from_peak": 0.0508
     },
     "sigma_residual": 1.66495,
+    "sigma_model": {
+      "form": "sigma = sigma_base * exp(gamma * (log(pt) - log_mean) / log_sd)",
+      "pt": "IP",
+      "pt_source": "Marcel projected IP (known before the season)",
+      "scale": "ERA",
+      "sigma_base": 1.120361,
+      "gamma": -0.096438,
+      "log_mean": 4.055894,
+      "log_sd": 0.555857,
+      "pt_floor": 30,
+      "fit": "MLE on Marcel ERA residuals, 2018-2024, actual IP>=30, sigma driven by the RAW projected IP CLAMPED AT pt_floor (the same transform runtime applies; 240 of 1045 training rows are clamped). Marcel writes projected IP as a plain decimal mean, not NPB notation (61% of rows have a first decimal > 2), so no innings conversion is applied to it. Refitted 2026-09-21 by tools/fit_sigma_model.py.",
+      "support": "fitted only on IP>=30. pt_floor holds sigma at its IP=30 value below that, so the model is never extrapolated past the edge of its own fit. 152 of the 302 projected pitchers are under 30 IP (counted on the raw projected IP that runtime feeds).",
+      "coverage_measured_on_the_2026_artifacts_PROVISIONAL": {"nominal": [0.8, 0.95], "flat_sigma": [0.950, 0.992], "sigma_model": [0.851, 0.975],
+                                                  "how": "regenerated predict_pitchers vs the 2026 season AS OF 2026-09-21 (129-136 of 143 games played -- PROVISIONAL), actual IP>=30, rows with an interval (121 of 133)"},
+      "coverage_from_the_marcel_residual_proxy": {"2025": [0.861, 0.986], "2026_provisional": [0.849, 0.966],
+                                                  "flat_sigma": {"2025": [0.993, 1.0], "2026_provisional": [0.959, 0.986]},
+                                                  "how": "reconstructed intervals around the point estimate; no committed 2025 projections exist. These are NOT the artifact numbers above."}
+    },
     "standardization": {
       "means": {
         "K_pct": 0.20304112145970543,

@@ -17,7 +17,7 @@ Marcel予測にRidge補正を適用し、信頼区間（CI）付き予測を生�
 ランタイム設計:
   - Stan学習はGitHub Actionsのみ（cmdstanpy不要）
   - posteriors.json（beta/sigma/standardization）をロード
-  - NumPyサンプリングでCI算出（5,000 draws）
+  - CIは正規分布の分位点を閉じた形で算出（サンプリングしない）
   - RPi5 4GB RAM対応
 
 Data sources:
@@ -26,6 +26,7 @@ Data sources:
 """
 
 import json
+import sys
 import time
 
 import numpy as np
@@ -37,14 +38,26 @@ from config import (
     BAYES_DIR, DATA_END_YEAR, PROJECTIONS_DIR, TARGET_YEAR,
 )
 from marcel_projection import load_birthdays, calc_age
-from roster_current import get_all_roster_names, get_team_for_player
+from roster_current import _VARIANT_MAP, get_all_roster_names, get_team_for_player
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 OUT_DIR = PROJECTIONS_DIR
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-N_SAMPLES = 5000
+# resolve_sigma が平の sigma_residual へ落ちた回数。黙って落ちると区間が
+# 旧来の広すぎる幅へ戻るので、走行の最後に必ず印字する。
+SIGMA_FALLBACKS = {
+    "used_sigma_model": 0,
+    "no_sigma_model": 0,
+    "no_playing_time": 0,
+    "bad_playing_time": 0,
+    "broken_sigma_model": 0,
+    "non_finite_sigma": 0,
+}
+
+Z80 = 1.2815515655446004   # 正規分布の 80% 区間
+Z95 = 1.959963984540054    # 正規分布の 95% 区間
 PEAK_AGE = 29
 MIN_PA_HITTER = 30
 MIN_IP_PITCHER = 10
@@ -242,20 +255,84 @@ def extract_pitcher_features(pitchers_df: pd.DataFrame, target_year: int) -> pd.
 
 # ── Stan correction ──────────────────────────────────────────────────────────
 
+def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
+    """予測区間の σ を返す。
+
+    `sigma_model` があり出場機会（打者=予測PA・投手=予測IP）が渡されていれば
+    σ = sigma_base * exp(gamma * z_log_pt) を使う。無ければ従来の平の
+    `sigma_residual` に落ちる。
+
+    平の σ は 2018-2025 の全出場機会水準で fit した残差なので、出場機会で絞った
+    選手に当てると区間が広くなりすぎる（8 シーズンすべてで実測残差 sd ÷ σ が
+    打者 0.531-0.698・投手 0.561-0.701。出場機会の多い三分位に限ると σ は実測
+    残差 sd の 1.60-2.56 倍（打者）/ 1.89-2.69 倍（投手）。
+    詳細は posteriors.json の sigma_model。
+    """
+    flat = model_params["sigma_residual"]
+    sm = model_params.get("sigma_model")
+    if not isinstance(sm, dict):
+        SIGMA_FALLBACKS["no_sigma_model"] += 1
+        return flat
+    if playing_time is None:
+        SIGMA_FALLBACKS["no_playing_time"] += 1
+        return flat
+
+    # sigma_model 側が壊れていても pipeline を止めず、幅ゼロの区間も出さない。
+    # （キー欠落で KeyError、log_sd=0 で sigma=0 になる経路を明示的に塞ぐ）
+    try:
+        base = float(sm["sigma_base"]); gamma = float(sm["gamma"])
+        mean = float(sm["log_mean"]); sd = float(sm["log_sd"])
+        floor_pt = float(sm["pt_floor"])      # 必須。係数はこの clamp 込みで fit してある
+    except (KeyError, TypeError, ValueError):
+        SIGMA_FALLBACKS["broken_sigma_model"] += 1
+        return flat
+    if (not all(np.isfinite(v) for v in (base, gamma, mean, sd, floor_pt))
+            or sd <= 0 or base <= 0 or floor_pt <= 0):
+        SIGMA_FALLBACKS["broken_sigma_model"] += 1
+        return flat
+
+    try:
+        pt = float(playing_time)
+    except (TypeError, ValueError):
+        SIGMA_FALLBACKS["bad_playing_time"] += 1
+        return flat
+    if not np.isfinite(pt) or pt <= 0:
+        SIGMA_FALLBACKS["bad_playing_time"] += 1
+        return flat
+
+    # fit の台（打者 PA>=100 / 投手 IP>=30）より下は外挿になる。台の下端で
+    # 頭打ちにして、検証していない領域へ exp で外挿しない。
+    # 係数はこの clamp を当てた上で fit してあるので、ここを外すと fit と
+    # 当てる変換が食い違う。
+    pt = max(pt, floor_pt)
+
+    z = (np.log(pt) - mean) / sd
+    sigma = float(base * np.exp(gamma * z))
+    if not np.isfinite(sigma) or sigma <= 0:
+        SIGMA_FALLBACKS["non_finite_sigma"] += 1
+        return flat
+    SIGMA_FALLBACKS["used_sigma_model"] += 1
+    return sigma
+
+
 def apply_stan_correction(
     marcel_value: float,
     features: dict[str, float],
     model_params: dict,
+    playing_time: float | None = None,
 ) -> tuple[float, float, float, float, float]:
     """
     Marcel予測値にStan Ridge補正を適用し、点推定+CIを返す。
+
+    playing_time: 予測PA（打者）/ 予測IP（投手）。渡すと区間幅が出場機会に応じて
+    狭くなる。渡さなければ従来どおり平の sigma_residual。
 
     Returns:
         (stan_pred, ci80_lo, ci80_hi, ci95_lo, ci95_hi)
     """
     beta = model_params["beta"]
     std_info = model_params["standardization"]
-    sigma = model_params["sigma_residual"]
+    sigma = resolve_sigma(model_params, playing_time)
 
     # z-score standardization
     delta = 0.0
@@ -268,12 +345,12 @@ def apply_stan_correction(
 
     stan_pred = marcel_value + delta
 
-    # NumPy sampling for CI
-    rng = np.random.default_rng(42)
-    samples = rng.normal(stan_pred, sigma, size=N_SAMPLES)
-
-    ci80_lo, ci80_hi = np.percentile(samples, [10, 90])
-    ci95_lo, ci95_hi = np.percentile(samples, [2.5, 97.5])
+    # 正規分布の分位点は閉じた形で出る。以前は固定 seed の 5,000 draws を
+    # np.percentile に通していたが、seed が全選手共通なので標本分位点のずれ
+    # （seed 42 では 2.5%点 -1.9892 / 97.5%点 +1.9509）が全員に同じ向きで乗り、
+    # 区間が点推定から系統的に -0.0018 OPS ずれていた。
+    ci80_lo, ci80_hi = stan_pred - Z80 * sigma, stan_pred + Z80 * sigma
+    ci95_lo, ci95_hi = stan_pred - Z95 * sigma, stan_pred + Z95 * sigma
 
     return stan_pred, ci80_lo, ci80_hi, ci95_lo, ci95_hi
 
@@ -377,7 +454,7 @@ def predict_hitters(store: PosteriorStore) -> pd.DataFrame:
 
         # Stan correction (wOBA空間で)
         stan_woba, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
-            marcel_woba, features, model_params
+            marcel_woba, features, model_params, playing_time=marcel_pa
         )
         stan_ops = woba_to_ops_approx(stan_woba)
         ops_ci80_lo = woba_to_ops_approx(ci80_lo)
@@ -401,6 +478,14 @@ def predict_hitters(store: PosteriorStore) -> pd.DataFrame:
         bayes_ops = bma_predict(marcel_ops, stan_ops, ml_ops, weights)
         if bayes_ops is None:
             bayes_ops = stan_ops
+
+        # CIはstan空間で作ったので、公表する点推定（BMA合成のbayes_OPS）を中心に
+        # 置き直す。区間は「隣に載っている数値」の周りに無いと意味が取れない。
+        ci_shift = bayes_ops - stan_ops
+        ops_ci80_lo += ci_shift
+        ops_ci80_hi += ci_shift
+        ops_ci95_lo += ci_shift
+        ops_ci95_hi += ci_shift
 
         results.append({
             "player": player,
@@ -471,14 +556,16 @@ def predict_pitchers(store: PosteriorStore) -> pd.DataFrame:
         }
 
         # Stan correction (ERA空間で)
-        stan_era, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
-            marcel_era, features, model_params
+        stan_era_raw, ci80_lo, ci80_hi, ci95_lo, ci95_hi = apply_stan_correction(
+            marcel_era, features, model_params, playing_time=marcel_ip
         )
 
-        # ERA下限クリップ（負のERAは物理的にありえない）
-        stan_era = max(0.0, stan_era)
-        ci80_lo = max(0.0, ci80_lo)
-        ci95_lo = max(0.0, ci95_lo)
+        # ERA下限クリップ（負のERAは物理的にありえない）。
+        # 区間はクリップ前の stan_era_raw の周りに作られているので、
+        # 再センタリング量にもクリップ前の値を使う（クリップ後の値を使うと
+        # 生の stan_ERA が負のとき区間の中心が点推定からずれる）。
+        # 区間下限のクリップは再センタリングの後で行う。
+        stan_era = max(0.0, stan_era_raw)
 
         # ML予測取得（名前正規化してマッチ）
         ml_era = None
@@ -497,6 +584,14 @@ def predict_pitchers(store: PosteriorStore) -> pd.DataFrame:
         bayes_era = bma_predict(marcel_era, stan_era, ml_era, weights)
         if bayes_era is None:
             bayes_era = stan_era
+
+        # CIはstan空間で作ったので、公表する点推定（bayes_ERA）を中心に置き直す。
+        # 下限クリップは移動後にやり直す（移動で負に出ることがある）。
+        ci_shift = bayes_era - stan_era_raw
+        ci80_lo = max(0.0, ci80_lo + ci_shift)
+        ci80_hi = ci80_hi + ci_shift
+        ci95_lo = max(0.0, ci95_lo + ci_shift)
+        ci95_hi = ci95_hi + ci_shift
 
         results.append({
             "player": player,
@@ -554,7 +649,6 @@ def predict_foreign_hitters(store: PosteriorStore) -> pd.DataFrame:
     std = model["standardization"]
     lg_avg_woba = model.get("league_avg_woba", {})
 
-    rng = np.random.default_rng(42)
     results = []
 
     for _, row in foreign_hitters.iterrows():
@@ -617,10 +711,9 @@ def predict_foreign_hitters(store: PosteriorStore) -> pd.DataFrame:
             params["gamma_pa"]["mean"] * z_log_pa
         )
 
-        # Sampling
-        samples = rng.normal(mu, sigma, size=N_SAMPLES)
-        ci80_lo, ci80_hi = np.percentile(samples, [10, 90])
-        ci95_lo, ci95_hi = np.percentile(samples, [2.5, 97.5])
+        # 分位点は閉じた形で（国内経路と同じ。標本分位点の雑音を入れない）
+        ci80_lo, ci80_hi = mu - Z80 * sigma, mu + Z80 * sigma
+        ci95_lo, ci95_hi = mu - Z95 * sigma, mu + Z95 * sigma
 
         # wOBA → OPS近似
         pred_ops = woba_to_ops_approx(mu)
@@ -662,7 +755,6 @@ def predict_foreign_pitchers(store: PosteriorStore) -> pd.DataFrame:
     std = model["standardization"]
     lg_avg_era = model.get("league_avg_era", {})
 
-    rng = np.random.default_rng(43)
     results = []
 
     for _, row in foreign_pitchers.iterrows():
@@ -718,11 +810,10 @@ def predict_foreign_pitchers(store: PosteriorStore) -> pd.DataFrame:
             params["gamma_ip"]["mean"] * z_log_ip
         )
 
-        # Sampling
-        samples = rng.normal(mu, sigma, size=N_SAMPLES)
-        samples = np.clip(samples, 0.0, None)  # ERAは非負
-        ci80_lo, ci80_hi = np.percentile(samples, [10, 90])
-        ci95_lo, ci95_hi = np.percentile(samples, [2.5, 97.5])
+        # 分位点は閉じた形で。非負クリップは分位点を取った後に当てる
+        # （標本を先にクリップすると下側の分位点に別の偏りが乗る）
+        ci80_lo, ci80_hi = max(0.0, mu - Z80 * sigma), mu + Z80 * sigma
+        ci95_lo, ci95_hi = max(0.0, mu - Z95 * sigma), mu + Z95 * sigma
 
         results.append({
             "player": npb_name,
@@ -745,9 +836,14 @@ def _filter_roster(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or "player" not in df.columns:
         return df
     roster_names = get_all_roster_names()
-    # 全角/半角スペース除去で比較
+    # 全角/半角スペース除去 ＋ 異体字統一で比較
     def _fuzzy(s: str) -> str:
-        return s.replace(" ", "").replace("\u3000", "")
+        # ⚠️ `get_all_roster_names()` は `_VARIANT_MAP`（﨑→崎 等）を当てた形で
+        # 名前を返すので、こちら側でも当てないと**片側だけ変換された状態で比較**
+        # することになる。ロースター 782 名のうち 41 名がこの差の対象。
+        # 現在の出荷行では落ちる名前は 0 名（実測）＝実害はまだ出ていないが、
+        # 上流の表記が異体字側へ変わった日に黙って最大 41 名が消える。
+        return s.replace(" ", "").replace("\u3000", "").translate(_VARIANT_MAP)
     mask = df["player"].apply(lambda p: _fuzzy(p) in roster_names)
     filtered = df[mask].copy()
     # チーム名を公式ロースターに合わせる（移籍反映）
@@ -763,8 +859,77 @@ def _filter_roster(df: pd.DataFrame) -> pd.DataFrame:
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+def _check_sigma_health(frames) -> None:
+    """区間の σ が意図どおり sigma_model から出たかを検査し、駄目なら止める。
+
+    🔴 fail-closed の範囲＝**fallback は 1 件でも異常**として扱う。
+    正常な走行では 0 件（実測）。「sigma_model が読めない」だけを見ていると、
+    出場機会が取れない経路（列名変更で `row.get("PA", 0)` が 0 を返す等）で
+    全行が平の広すぎる σ へ戻っても素通りする。実際それで 523 行が戻るのに
+    rc=0 だった。
+    """
+    used = SIGMA_FALLBACKS["used_sigma_model"]
+    fell_back = sum(v for k, v in SIGMA_FALLBACKS.items() if k != "used_sigma_model")
+    # 出荷する枠から直接数える（カウンタの引き算で出さない。カウンタはロースター
+    # 絞り込みの前に積まれるので、母集団が違う）
+    with_ci, without_ci = 0, 0
+    for df, col in frames:
+        if len(df) == 0:
+            continue
+        has = df[col].notna()
+        with_ci += int(has.sum())
+        without_ci += int((~has).sum())
+    print(f"\n[sigma] sigma_model 使用 {used} / 平の σ へ fallback {fell_back}"
+          f"  （出荷する行のうち 区間あり {with_ci} / 区間なし {without_ci}）")
+    if not fell_back:
+        return
+    detail = ", ".join(f"{k}={v}" for k, v in SIGMA_FALLBACKS.items()
+                       if v and k != "used_sigma_model")
+    print(f"[sigma] ERROR: 区間の σ が平の sigma_residual へ落ちた行が {fell_back} 件 ({detail})。"
+          " その行の区間は出場機会に追従しておらず広すぎる。出荷してはいけない。")
+    raise SystemExit(1)
+
+
+def _finalize_outputs(hitters, hitters_path, pitchers, pitchers_path) -> None:
+    """σ の検査を通してから、書き出す枠だけを書き出す。
+
+    🔴 検査は**打者・投手のどちらが 0 行でも必ず 1 回走る**。片方のブロックの
+    中に置くと、そちらが 0 行のときに fail-closed が丸ごと発動せず、もう片方が
+    平の σ へ落ちていても rc=0 で通る（`c58feb7` で実際にそうなっていた）。
+    「Saved:」は**実際に書き出した後にだけ**印字する（書けていないのに成功した
+    と印字すると、上流の取得失敗が CI から見えなくなる）。
+    """
+    _check_sigma_health([(hitters, "bayes_OPS_lo80"), (pitchers, "bayes_ERA_lo80")])
+    # 🔴 年次の走行に「片方だけ」という正常な形は無い。片方が空のまま進むと、
+    # その枠は書かれず**出荷済みのもう片方だけが新しくなり、空いた側は前年の
+    # CSV が現行として残る**（両方空で塞いだのと同じ失敗の型）。
+    # ⚠️ `len(df) == 0` は `predict_*` が 0 行を返した場合だけでなく、行はあった
+    # のに `_filter_roster` が全部落とした場合にも起きる。後者では保存先が
+    # None にならないので、行数を見ないと**ヘッダだけの CSV で出荷中の予測を
+    # 上書きして rc=0** になる（実測 97 バイト・1 行）。
+    empty = [label for label, df in (("打者", hitters), ("投手", pitchers)) if len(df) == 0]
+    if empty:
+        print(f"[sigma] ERROR: {' と '.join(empty)}の枠が空（打者 {len(hitters)} 行 /"
+              f" 投手 {len(pitchers)} 行）。上流の取得かロースター絞り込みが失敗している。"
+              " 片方だけ書き出すと、空いた側は前年の CSV が現行として残る。")
+        raise SystemExit(1)
+    # 🔴 検査を全部通してから書き出す。書きながら検査すると、**先に書いた 1 本
+    # だけが残って中途半端に更新された data/projections** になる。
+    # ⚠️ `to_csv(None)` は例外を出さず CSV 文字列を返すだけなので、保存先が
+    # None のまま進むと書かずに「Saved: None」と印字して rc=0 になる。
+    for label, path in (("打者", hitters_path), ("投手", pitchers_path)):
+        if path is None:
+            print(f"[sigma] ERROR: {label}の保存先が決まっていない。")
+            raise SystemExit(1)
+    for df, path in ((hitters, hitters_path), (pitchers, pitchers_path)):
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"\nSaved: {path}")
+
+
 def main():
     t0 = time.time()
+    for _k in SIGMA_FALLBACKS:
+        SIGMA_FALLBACKS[_k] = 0
     print("=" * 60)
     print(f"ベイズ予測 (target: {TARGET_YEAR})")
     print("=" * 60)
@@ -775,6 +940,7 @@ def main():
     # 打者
     print(f"\n--- 打者ベイズ予測 ---")
     hitters = predict_hitters(store)
+    _hitters_out_path = None
     if len(hitters) > 0:
         hitters = _filter_roster(hitters)
         n_stan = (hitters["method"] != "marcel_only").sum()
@@ -787,15 +953,14 @@ def main():
                 "bayes_OPS_lo80", "bayes_OPS_hi80", "stan_delta", "method"]
         print(top[cols].to_string(index=False))
 
-        # 保存
-        out_path = OUT_DIR / f"bayes_hitters_{TARGET_YEAR}.csv"
-        hitters.to_csv(out_path, index=False, encoding="utf-8-sig")
-        print(f"\nSaved: {out_path}")
+        # 保存先を決めるだけ。書き出しは σ の検査を通してから（下の共通ブロック）
+        _hitters_out_path = OUT_DIR / f"bayes_hitters_{TARGET_YEAR}.csv"
     _log_elapsed("hitter_bayes", t0)
 
     # 投手
     print(f"\n--- 投手ベイズ予測 ---")
     pitchers = predict_pitchers(store)
+    _pitchers_out_path = None
     if len(pitchers) > 0:
         pitchers = _filter_roster(pitchers)
         n_stan = (pitchers["method"] != "marcel_only").sum()
@@ -808,10 +973,10 @@ def main():
                 "bayes_ERA_lo80", "bayes_ERA_hi80", "stan_delta", "method"]
         print(top[cols].to_string(index=False))
 
-        out_path = OUT_DIR / f"bayes_pitchers_{TARGET_YEAR}.csv"
-        pitchers.to_csv(out_path, index=False, encoding="utf-8-sig")
-        print(f"\nSaved: {out_path}")
+        _pitchers_out_path = OUT_DIR / f"bayes_pitchers_{TARGET_YEAR}.csv"
     _log_elapsed("pitcher_bayes", t0)
+
+    _finalize_outputs(hitters, _hitters_out_path, pitchers, _pitchers_out_path)
 
     # 外国人打者
     print(f"\n--- 外国人打者ベイズ予測 ---")
