@@ -91,8 +91,14 @@ jobs:
       # 出した値を手写ししている。tests/test_sigma_model.py が出場機会ごとの σ を
       # 実数表で固定しているので、係数を更新して表を作り直し忘れるとここで落ちる。
       # この step が無いと「忘れたら落ちる」が一度も発動しない。
-      - name: 7.5 Sigma model tests (fail before writing projections)
-        run: python tests/test_sigma_model.py
+      # 書き出しの門（_finalize_outputs）も縛る。tests/test_output_gating.py は
+      # 打者・投手のどちらかが 0 行でも fail-closed が発動することを固定する。
+      # ⚠️ step 名は「commit の前に落ちる」であって「何も書く前に」ではない。
+      #    step 6/7 が既に marcel_*.csv / ml_*.csv を書いた後にここが走る。
+      - name: 7.5 Sigma model + output gating tests (fail before the commit step)
+        run: |
+          python tests/test_sigma_model.py
+          python tests/test_output_gating.py
 
       - name: 8. Bayesian projections (Stan correction + BMA + foreign players)
         run: python bayes_projection.py

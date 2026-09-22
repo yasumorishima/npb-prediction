@@ -265,7 +265,7 @@ def resolve_sigma(model_params: dict, playing_time: float | None) -> float:
     平の σ は 2018-2025 の全出場機会水準で fit した残差なので、出場機会で絞った
     選手に当てると区間が広くなりすぎる（8 シーズンすべてで実測残差 sd ÷ σ が
     打者 0.531-0.698・投手 0.561-0.701。出場機会の多い三分位に限ると σ は実測
-    残差 sd の 1.65-2.56 倍（打者）/ 1.89-2.69 倍（投手）。
+    残差 sd の 1.60-2.56 倍（打者）/ 1.89-2.69 倍（投手）。
     詳細は posteriors.json の sigma_model。
     """
     flat = model_params["sigma_residual"]
@@ -885,6 +885,23 @@ def _check_sigma_health(frames) -> None:
     raise SystemExit(1)
 
 
+def _finalize_outputs(hitters, hitters_path, pitchers, pitchers_path) -> None:
+    """σ の検査を通してから、書き出す枠だけを書き出す。
+
+    🔴 検査は**打者・投手のどちらが 0 行でも必ず 1 回走る**。片方のブロックの
+    中に置くと、そちらが 0 行のときに fail-closed が丸ごと発動せず、もう片方が
+    平の σ へ落ちていても rc=0 で通る（`c58feb7` で実際にそうなっていた）。
+    「Saved:」は**実際に書き出した後にだけ**印字する（書けていないのに成功した
+    と印字すると、上流の取得失敗が CI から見えなくなる）。
+    """
+    _check_sigma_health([(hitters, "bayes_OPS_lo80"), (pitchers, "bayes_ERA_lo80")])
+    for df, path in ((hitters, hitters_path), (pitchers, pitchers_path)):
+        if path is None:
+            continue
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"\nSaved: {path}")
+
+
 def main():
     t0 = time.time()
     for _k in SIGMA_FALLBACKS:
@@ -899,6 +916,7 @@ def main():
     # 打者
     print(f"\n--- 打者ベイズ予測 ---")
     hitters = predict_hitters(store)
+    _hitters_out_path = None
     if len(hitters) > 0:
         hitters = _filter_roster(hitters)
         n_stan = (hitters["method"] != "marcel_only").sum()
@@ -911,15 +929,14 @@ def main():
                 "bayes_OPS_lo80", "bayes_OPS_hi80", "stan_delta", "method"]
         print(top[cols].to_string(index=False))
 
-        # 保存
-        out_path = OUT_DIR / f"bayes_hitters_{TARGET_YEAR}.csv"
-        _hitters_out_path = out_path   # 書き出しは σ の検査を通してから（下）
-        print(f"\nSaved: {out_path}")
+        # 保存先を決めるだけ。書き出しは σ の検査を通してから（下の共通ブロック）
+        _hitters_out_path = OUT_DIR / f"bayes_hitters_{TARGET_YEAR}.csv"
     _log_elapsed("hitter_bayes", t0)
 
     # 投手
     print(f"\n--- 投手ベイズ予測 ---")
     pitchers = predict_pitchers(store)
+    _pitchers_out_path = None
     if len(pitchers) > 0:
         pitchers = _filter_roster(pitchers)
         n_stan = (pitchers["method"] != "marcel_only").sum()
@@ -932,12 +949,10 @@ def main():
                 "bayes_ERA_lo80", "bayes_ERA_hi80", "stan_delta", "method"]
         print(top[cols].to_string(index=False))
 
-        out_path = OUT_DIR / f"bayes_pitchers_{TARGET_YEAR}.csv"
-        _check_sigma_health([(hitters, "bayes_OPS_lo80"), (pitchers, "bayes_ERA_lo80")])
-        hitters.to_csv(_hitters_out_path, index=False, encoding="utf-8-sig")
-        pitchers.to_csv(out_path, index=False, encoding="utf-8-sig")
-        print(f"\nSaved: {out_path}")
+        _pitchers_out_path = OUT_DIR / f"bayes_pitchers_{TARGET_YEAR}.csv"
     _log_elapsed("pitcher_bayes", t0)
+
+    _finalize_outputs(hitters, _hitters_out_path, pitchers, _pitchers_out_path)
 
     # 外国人打者
     print(f"\n--- 外国人打者ベイズ予測 ---")

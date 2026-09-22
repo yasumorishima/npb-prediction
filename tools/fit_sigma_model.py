@@ -70,7 +70,15 @@ def npb_ip(value):
     if not np.isfinite(v):
         return float("nan")
     whole = np.floor(v)
-    return whole + round((v - whole) * 10) / 3.0
+    tenth = int(round((v - whole) * 10))
+    if tenth > 2:
+        # NPB 表記の小数部は 1/3 回刻みなので 0 / 1 / 2 しか無い。3 以上は
+        # 「NPB 表記ではない値（平均の小数）をここへ通した」合図なので、黙って
+        # 換算せず NaN にする。この弧で実際に、Marcel の予測 IP 513 行のうち
+        # 313 行（61.0%）にこの換算を当てて出荷する投手係数を狂わせた。
+        # 実績側（data/raw/npb_pitchers_*.csv 3,773 行）には 3 以上は 0 件。
+        return float("nan")
+    return whole + tenth / 3.0
 
 
 def flat_sigma_from_posteriors():
@@ -131,7 +139,10 @@ def fit(train, floor):
                    options=dict(xatol=1e-9, fatol=1e-9, maxiter=5000))
     # 収束を見ずに係数を印字して手写しすると、止まらなかった最適化の結果を
     # そのまま出荷しかねない。
-    assert res.success, "最適化が収束しなかった: %s" % res.message
+    # assert は python -O で消える。収束しなかった最適化の係数を印字して
+    # 手写しする経路を残さないため、例外そのものを投げる。
+    if not res.success:
+        raise RuntimeError("最適化が収束しなかった: %s" % res.message)
     print("  [fit] nll=%.4f  nit=%d  converged=%s" % (res.fun, res.nit, res.success))
     return float(np.exp(res.x[0])), float(res.x[1]), mean, sd
 
