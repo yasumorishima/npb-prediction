@@ -62,6 +62,23 @@ def _pitchers(n=2, with_ci=True):
     })
 
 
+def _foreign_hitters(n=2):
+    return pd.DataFrame({
+        "player": [f"外打{i}" for i in range(n)], "team": ["T"] * n,
+        "origin_league": ["MLB"] * n, "prev_wOBA": [0.320] * n,
+        "bayes_wOBA": [0.310] * n, "bayes_OPS": [0.720] * n,
+        "method": ["stan_v2"] * n,
+    })
+
+
+def _foreign_pitchers(n=2):
+    return pd.DataFrame({
+        "player": [f"外投{i}" for i in range(n)], "team": ["T"] * n,
+        "origin_league": ["MLB"] * n, "prev_ERA": [3.80] * n,
+        "bayes_ERA": [3.70] * n, "method": ["stan_v2"] * n,
+    })
+
+
 def _empty():
     """実物に合わせた空枠。
 
@@ -206,8 +223,12 @@ def _drive_main(hitters, pitchers, fallbacks=None, filter_roster=None):
             B.PosteriorStore = lambda *a, **k: types.SimpleNamespace(version="test")
             B.predict_hitters = fake_hitters
             B.predict_pitchers = fake_pitchers
-            B.predict_foreign_hitters = lambda store: _empty()
-            B.predict_foreign_pitchers = lambda store: _empty()
+            # ⚠️ 外国人枠を空にすると、門を外国人ブロックの**後ろ**へ動かす変異が
+            # 捕まらない（空だと外国人 CSV が書かれないので差が出ない）。門が
+            # 落ちる走行で「1 ファイルも残っていない」を要求できるよう、
+            # **空でない**枠を返す。
+            B.predict_foreign_hitters = lambda store: _foreign_hitters()
+            B.predict_foreign_pitchers = lambda store: _foreign_pitchers()
             B._filter_roster = filter_roster or (lambda df: df)
 
             code, buf = 0, io.StringIO()
@@ -216,7 +237,10 @@ def _drive_main(hitters, pitchers, fallbacks=None, filter_roster=None):
                     B.main()
             except SystemExit as exc:
                 code = exc.code
-            return code, sorted(p.name for p in Path(tmp).iterdir()), buf.getvalue()
+            made = sorted(Path(tmp).iterdir())
+            # tmp が消える前に中身を読む（名前だけ見ると結線の取り違えを見逃す）
+            body = {q.name: q.read_bytes() for q in made}
+            return code, [q.name for q in made], buf.getvalue(), body
     finally:
         for k, v in orig.items():
             setattr(B, k, v)
@@ -225,11 +249,22 @@ def _drive_main(hitters, pitchers, fallbacks=None, filter_roster=None):
 
 
 def test_main_writes_both_files_on_a_clean_run():
-    code, files, out = _drive_main(_hitters(), _pitchers())
+    """🔴 ファイル名だけでなく**中身**を見る。
+
+    `main()` が `_finalize_outputs` に打者枠と投手の保存先を入れ替えて渡す変異は、
+    名前しか見ていないと素通りする（関数の中では縛ったが結線は縛れていなかった）。
+    """
+    code, files, out, body = _drive_main(_hitters(), _pitchers())
     assert code == 0, code
     assert files == [f"bayes_hitters_{B.TARGET_YEAR}.csv",
-                     f"bayes_pitchers_{B.TARGET_YEAR}.csv"], files
-    assert len(_saved_lines(out)) == 2, out
+                     f"bayes_pitchers_{B.TARGET_YEAR}.csv",
+                     f"foreign_hitters_{B.TARGET_YEAR}.csv",
+                     f"foreign_pitchers_{B.TARGET_YEAR}.csv"], files
+    assert len(_saved_lines(out)) == 4, out
+    h = body[f"bayes_hitters_{B.TARGET_YEAR}.csv"]
+    q = body[f"bayes_pitchers_{B.TARGET_YEAR}.csv"]
+    assert b"bayes_OPS" in h and b"bayes_ERA" not in h, h[:120]
+    assert b"bayes_ERA" in q and b"bayes_OPS" not in q, q[:120]
 
 
 def test_main_sigma_gate_fires_when_pitchers_are_empty_and_hitters_fell_back():
@@ -237,7 +272,7 @@ def test_main_sigma_gate_fires_when_pitchers_are_empty_and_hitters_fell_back():
 
     σ の門は空枠の検査より**前**にあるので、落ちた理由が σ であることまで縛る。
     """
-    code, files, out = _drive_main(_hitters(), _empty(),
+    code, files, out, _body = _drive_main(_hitters(), _empty(),
                                    fallbacks={"bad_playing_time": 3})
     assert code == 1, code
     assert files == [], files
@@ -246,7 +281,7 @@ def test_main_sigma_gate_fires_when_pitchers_are_empty_and_hitters_fell_back():
 
 def test_main_fails_when_pitchers_are_empty():
     """片方だけ書き出さない＝空いた側に前年の CSV が現行として残るのを防ぐ。"""
-    code, files, out = _drive_main(_hitters(), _empty())
+    code, files, out, _body = _drive_main(_hitters(), _empty())
     assert code == 1, code
     assert files == [], files
     assert _saved_lines(out) == [], out
@@ -254,14 +289,14 @@ def test_main_fails_when_pitchers_are_empty():
 
 def test_main_fails_when_hitters_are_empty():
     # c58feb7 ではここが UnboundLocalError だった。
-    code, files, out = _drive_main(_empty(), _pitchers())
+    code, files, out, _body = _drive_main(_empty(), _pitchers())
     assert code == 1, code
     assert files == [], files
     assert _saved_lines(out) == [], out
 
 
 def test_main_fails_when_both_frames_are_empty():
-    code, files, _ = _drive_main(_empty(), _empty())
+    code, files, _, _body = _drive_main(_empty(), _empty())
     assert code == 1, code
     assert files == [], files
 
@@ -272,7 +307,7 @@ def test_main_fails_when_roster_filtering_empties_both_frames():
     `predict_*` が行を返していれば保存先は None にならないので、門が枠の中身を
     見ないと **97 バイト・1 行の CSV で出荷中の予測を上書きして rc=0** になる。
     """
-    code, files, _ = _drive_main(_hitters(), _pitchers(),
+    code, files, _, _body = _drive_main(_hitters(), _pitchers(),
                                  filter_roster=lambda df: df.iloc[0:0])
     assert code == 1, code
     assert files == [], files
@@ -281,7 +316,7 @@ def test_main_fails_when_roster_filtering_empties_both_frames():
 def test_main_fails_when_roster_filtering_empties_one_frame():
     def only_pitchers_survive(df):
         return df.iloc[0:0] if "bayes_OPS" in df.columns else df
-    code, files, _ = _drive_main(_hitters(), _pitchers(),
+    code, files, _, _body = _drive_main(_hitters(), _pitchers(),
                                  filter_roster=only_pitchers_survive)
     assert code == 1, code
     assert files == [], files
@@ -294,8 +329,13 @@ if __name__ == "__main__":
             try:
                 fn()
                 print("PASS %s" % name)
-            except Exception as exc:          # 例外も失敗として数える
-                failed += 1                   # （pytest と同じ扱いにする）
+            except (Exception, SystemExit) as exc:
+                # 🔴 `SystemExit` は BaseException の直系で `except Exception` に
+                # 掛からない。門を直接呼ぶテストから SystemExit が抜けると、この
+                # ループごと終了して sys.exit(...) に到達せず、**落ちているのに
+                # rc=0** になる（実測: pytest 13 failed のとき standalone rc=0）。
+                # CI の step 7.5 が呼ぶのはこの standalone の形。
+                failed += 1                   # 例外も失敗として数える（pytest と同じ）
                 print("FAIL %s: %s: %s" % (name, type(exc).__name__, exc))
     print("\n%d failed" % failed)
     sys.exit(1 if failed else 0)

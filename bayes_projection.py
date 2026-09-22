@@ -38,7 +38,7 @@ from config import (
     BAYES_DIR, DATA_END_YEAR, PROJECTIONS_DIR, TARGET_YEAR,
 )
 from marcel_projection import load_birthdays, calc_age
-from roster_current import get_all_roster_names, get_team_for_player
+from roster_current import _VARIANT_MAP, get_all_roster_names, get_team_for_player
 
 DATA_DIR = Path(__file__).parent / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -836,9 +836,14 @@ def _filter_roster(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty or "player" not in df.columns:
         return df
     roster_names = get_all_roster_names()
-    # 全角/半角スペース除去で比較
+    # 全角/半角スペース除去 ＋ 異体字統一で比較
     def _fuzzy(s: str) -> str:
-        return s.replace(" ", "").replace("\u3000", "")
+        # ⚠️ `get_all_roster_names()` は `_VARIANT_MAP`（﨑→崎 等）を当てた形で
+        # 名前を返すので、こちら側でも当てないと**片側だけ変換された状態で比較**
+        # することになる。ロースター 782 名のうち 41 名がこの差の対象。
+        # 現在の出荷行では落ちる名前は 0 名（実測）＝実害はまだ出ていないが、
+        # 上流の表記が異体字側へ変わった日に黙って最大 41 名が消える。
+        return s.replace(" ", "").replace("\u3000", "").translate(_VARIANT_MAP)
     mask = df["player"].apply(lambda p: _fuzzy(p) in roster_names)
     filtered = df[mask].copy()
     # チーム名を公式ロースターに合わせる（移籍反映）

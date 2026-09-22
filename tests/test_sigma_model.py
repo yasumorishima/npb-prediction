@@ -180,8 +180,13 @@ if __name__ == "__main__":
             try:
                 fn()
                 print("PASS %s" % name)
-            except Exception as exc:          # 例外も失敗として数える
-                failed += 1                   # （pytest と同じ扱いにする）
+            except (Exception, SystemExit) as exc:
+                # 🔴 `SystemExit` は BaseException の直系で `except Exception` に
+                # 掛からない。門を直接呼ぶテストから SystemExit が抜けると、この
+                # ループごと終了して sys.exit(...) に到達せず、**落ちているのに
+                # rc=0** になる（実測: pytest 13 failed のとき standalone rc=0）。
+                # CI の step 7.5 が呼ぶのはこの standalone の形。
+                failed += 1                   # 例外も失敗として数える（pytest と同じ）
                 print("FAIL %s: %s: %s" % (name, type(exc).__name__, exc))
     print("\n%d failed" % failed)
     sys.exit(1 if failed else 0)
