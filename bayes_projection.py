@@ -895,11 +895,24 @@ def _finalize_outputs(hitters, hitters_path, pitchers, pitchers_path) -> None:
     と印字すると、上流の取得失敗が CI から見えなくなる）。
     """
     _check_sigma_health([(hitters, "bayes_OPS_lo80"), (pitchers, "bayes_ERA_lo80")])
+    if hitters_path is None and pitchers_path is None:
+        # 上流が全滅した形。黙って rc=0 で終わると CI からは成功に見えるのに
+        # 何も更新されず、前年の CSV がそのまま出荷される。
+        print("[sigma] ERROR: 打者・投手のどちらの枠も空で、書き出すものが無い。"
+              " 上流の取得が失敗している。")
+        raise SystemExit(1)
+    written = 0
     for df, path in ((hitters, hitters_path), (pitchers, pitchers_path)):
         if path is None:
             continue
+        # ⚠️ `path is None` を落とすと `to_csv(None)` が例外を出さず CSV 文字列を
+        # 返すだけなので、ファイルを書かないまま「Saved: None」と印字して rc=0 に
+        # なる。ここは `continue` が無いと静かに壊れる。
         df.to_csv(path, index=False, encoding="utf-8-sig")
+        written += 1
         print(f"\nSaved: {path}")
+    if written == 0:
+        raise SystemExit(1)
 
 
 def main():
