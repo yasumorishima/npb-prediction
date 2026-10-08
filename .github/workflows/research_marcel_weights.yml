@@ -1,4 +1,4 @@
-name: Research: Marcel weights (merged from npb-marcel-weight-study)
+name: "Research: Marcel weights (merged from npb-marcel-weight-study)"
 # Marcel weight grid search: w0/w1/w2 over NPB 2019-2025
 
 on:

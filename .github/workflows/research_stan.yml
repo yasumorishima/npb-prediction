@@ -1,4 +1,4 @@
-name: Research: Stan models (merged from npb-stan-research)
+name: "Research: Stan models (merged from npb-stan-research)"
 
 on:
   workflow_dispatch:
