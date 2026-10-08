@@ -1,4 +1,4 @@
-name: Build Conversion Factors
+name: Research: Stan models (merged from npb-stan-research)
 
 on:
   workflow_dispatch:
@@ -45,9 +45,13 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    working-directory: research/stan
+
 jobs:
   run:
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
@@ -265,7 +269,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: model-output
-          path: data/
+          path: research/stan/data/
           retention-days: 30
 
       - name: Discord notification on completion

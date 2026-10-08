@@ -1,0 +1,37 @@
+name: Tests
+
+# The sigma-model and output-gating tests used to run only inside the annual
+# update. Run them on every pull request and push as well. Both the standalone
+# runners and pytest run, because the standalone runner once missed a
+# SystemExit that pytest caught.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pandas numpy requests beautifulsoup4 lxml pytest
+      - name: Standalone runners
+        run: |
+          python tests/test_sigma_model.py
+          python tests/test_output_gating.py
+      - name: pytest
+        run: python -m pytest -q tests

@@ -1,3 +1,5 @@
+> **Moved (2026-10-08)**: this is the former `npb-stan-research` repository, merged with its history into [npb-prediction](https://github.com/yasumorishima/npb-prediction) under `research/stan/`. Its 2026 projections are research output, not the live forecast (that is `data/projections/` at the root).
+
 # npb-stan-research
 
 NPB (Nippon Professional Baseball) player performance projection using Bayesian (Stan) methods.
@@ -76,7 +78,9 @@ Pitcher: npb_ERA  = lg_avg + β_era·z_era + β_fip·z_fip + β_K·z_K + β_BB·
 - Training: 2015-2019 | Backtest: 2020-2025
 - **Problem**: Uniform coefficients (w≈0.14) → all players regress to league average regardless of skill level
 
-#### v2 (in progress)
+#### v2
+
+> Status (2026-10-08): v2, v3b, v4a and v5 have all been fit; their outputs are in `data/model/`. This research is closed; the live model is at the root of npb-prediction.
 
 v1 applies the same weight to all foreign players. A strong MLB hitter with low K% and high BB% gets the same prediction as a marginal AAA player. v2 fixes this with 7 improvements:
 
@@ -128,11 +132,11 @@ Monte Carlo simulation (N=10,000) propagates player uncertainty to team win dist
 
 **Park Factor series:**
 - [球場補正を加えたらNPB予測は改善したか — ベイズ順位予測への追加検証（Zenn）](https://zenn.dev/shogaku/articles/npb-bayes-pf-validation)
-- [Did Adding Stadium Correction Improve My NPB Baseball Predictions? (DEV.to)](https://dev.to/yasumorishima/npb-bayes-pf-validation)
+- [Did Adding Stadium Correction Improve My NPB Baseball Predictions? (DEV.to)](https://dev.to/yasumorishima/did-adding-stadium-correction-improve-my-npb-baseball-predictions-a-full-backtest-comparison-3672)
 - [NPBベイズ順位予測にパークファクター補正を追加した（Zenn）](https://zenn.dev/shogaku/articles/npb-bayes-park-factors)
 
 **Bayesian model series:**
-- [Beyond Marcel: Adding Bayesian Regression to NPB Baseball Predictions (DEV.to)](https://dev.to/yasumorishima/beyond-marcel-adding-bayesian-regression-to-npb-baseball-predictions-a-15-step-journey-1b4f)
+- [Beyond Marcel: Adding Bayesian Regression to NPB Baseball Predictions (DEV.to)](https://dev.to/yasumorishima/beyond-marcel-adding-bayesian-regression-to-npb-baseball-predictions-a-15-step-journey-5f86)
 - [Marcel法の限界を超えたい — NPBベイズ回帰15ステップの記録（Zenn）](https://zenn.dev/shogaku/articles/npb-bayes-projection-story)
 - [Did Bayesian Projection (Stan/Ridge) Predict the 2021 NPB Last-to-First Upsets? (DEV.to)](https://dev.to/yasumorishima/did-bayesian-projection-stanridge-predict-the-2021-npb-last-to-first-upsets-4595)
 - [ベイズ予測（Stan/Ridge）で2021年ヤクルト・オリックスの優勝は見えたか（Zenn）](https://zenn.dev/shogaku/articles/npb-bayes-lastplace-to-champion)
@@ -178,18 +182,18 @@ npb-bayes-projection/
 ## Running via GitHub Actions
 
 ```bash
-gh workflow run build_factors.yml -f step=run_jpn_model           # Japanese player Stan model
-gh workflow run build_factors.yml -f step=run_stan_model          # Foreign player Stan model
-gh workflow run build_factors.yml -f step=statistical_validation  # LOO-CV + significance tests (Steps 10-15)
-gh workflow run build_factors.yml -f step=diagnose_big_misses     # Team-year big miss analysis
-gh workflow run build_factors.yml -f step=team_compare            # Marcel vs Stan comparison
-gh workflow run build_factors.yml -f step=team_sim                # Team standings simulation (2026)
-gh workflow run build_factors.yml -f step=team_backtest           # Backtest 2018-2025
-gh workflow run build_factors.yml -f step=compare_pf_methods      # No PF vs single-year vs PF_5yr
-gh workflow run build_factors.yml -f step=analyze_pf              # Park factor analysis report
-gh workflow run build_factors.yml -f step=foreign_v2              # Foreign v2 — fit full model
-gh workflow run build_factors.yml -f step=foreign_v2_loo          # Foreign v2 — LOO-CV (~2h)
-gh workflow run build_factors.yml -f step=foreign_v2_expanding    # Foreign v2 — expanding-window CV
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=run_jpn_model           # Japanese player Stan model
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=run_stan_model          # Foreign player Stan model
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=statistical_validation  # LOO-CV + significance tests (Steps 10-15)
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=diagnose_big_misses     # Team-year big miss analysis
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=team_compare            # Marcel vs Stan comparison
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=team_sim                # Team standings simulation (2026)
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=team_backtest           # Backtest 2018-2025
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=compare_pf_methods      # No PF vs single-year vs PF_5yr
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=analyze_pf              # Park factor analysis report
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=foreign_v2              # Foreign v2 — fit full model
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=foreign_v2_loo          # Foreign v2 — LOO-CV (~2h)
+gh workflow run research_stan.yml -R yasumorishima/npb-prediction -f step=foreign_v2_expanding    # Foreign v2 — expanding-window CV
 ```
 
 **CI タイムアウト保護**: ワークフローに `timeout-minutes: 360` を設定。全 9 スクリプト（Stan/PyMC/LOO-CV）に `PYTHONUNBUFFERED=1` + ステップ別経過時間ログを追加し、長時間 MCMC サンプリングのハング検知を容易にしている。

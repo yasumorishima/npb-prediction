@@ -1,3 +1,5 @@
+> **Moved (2026-10-08)**: this is the former `npb-marcel-weight-study` repository, merged with its history into [npb-prediction](https://github.com/yasumorishima/npb-prediction) under `research/marcel-weights/`. Run it with the `Research: Marcel weights` workflow there.
+
 # NPB Marcel Weight Study
 
 Marcel法のパラメータをNPBデータで最適化する検証プロジェクト。
@@ -162,6 +164,8 @@ ERA最適の重みとWHIP最適の重みが一致（4/5/2）している点は�
 
 95%信頼区間の下限が0を超えており、**最適パラメータの優位性は統計的に有意**（p < 0.01）。
 
+⚠️ **2026-10-08 追記**：この p 値は**同じ 2015-2025 のデータで 720 通りを探して選んだ組み合わせを、同じデータのブートストラップで評価したもの（in-sample）**。選び方の分だけ有利に出るので、未見の年での優位はまだ確かめていない。npb-prediction の `marcel_projection.py` は従来の 5/4/3 のまま。2026 シーズン終了後に、未見の 2026 で両方を採点して決める。
+
 ## 考察: NPBとMLBの構造的な違い
 
 ### 打者
@@ -254,7 +258,7 @@ gh workflow run "Optimize Marcel Weights" --repo yasumorishima/npb-marcel-weight
 
 本プロジェクトの結果:
 - [Marcel法の重みをNPBデータで最適化した（Zenn）](https://zenn.dev/shogaku/articles/npb-marcel-weight-optimization)
-- [Optimizing Marcel Projection Weights for NPB（DEV.to）](https://dev.to/yasumorishima/optimizing-marcel-projection-weights-for-npb-grid-search-bootstrap-validation)
+- [Optimizing Marcel Projection Weights for NPB（DEV.to）](https://dev.to/yasumorishima/optimizing-marcel-projection-weights-for-npb-grid-search-bootstrap-validation-3pkm)
 
 比較元（従来のMarcel法による予測システム）:
 - [Marcel法とMLを比較してみた — NPB選手成績予測システムを作った（Zenn）](https://zenn.dev/shogaku/articles/npb-prediction-marcel-vs-ml)

@@ -1,4 +1,4 @@
-name: Optimize Marcel Weights
+name: Research: Marcel weights (merged from npb-marcel-weight-study)
 # Marcel weight grid search: w0/w1/w2 over NPB 2019-2025
 
 on:
@@ -8,6 +8,10 @@ on:
         description: 'この実行の意図（必須）'
         required: true
         type: string
+defaults:
+  run:
+    working-directory: research/marcel-weights
+
 jobs:
   optimize:
     runs-on: ubuntu-latest
@@ -33,19 +37,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add results/
           git diff --cached --quiet || git commit -m "add weight optimization results"
-          git pull --rebase origin master
+          git pull --rebase
           git push
 
-      - name: Notify Discord (success)
-        if: success()
-        run: |
-          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{"content": "✅ **npb-marcel-weight-study** 完了\nグリッドサーチ + ブートストラップ終了。results/ を確認してください。\nhttps://github.com/yasumorishima/npb-marcel-weight-study/actions/runs/${{ github.run_id }}"}'
-
-      - name: Notify Discord (failure)
-        if: failure()
-        run: |
-          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{"content": "❌ **npb-marcel-weight-study** 失敗\nhttps://github.com/yasumorishima/npb-marcel-weight-study/actions/runs/${{ github.run_id }}"}'
