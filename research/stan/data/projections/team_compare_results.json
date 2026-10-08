@@ -1,0 +1,495 @@
+{
+  "scaling_method": "marcel_anchored",
+  "player_level": {
+    "hitter_woba_mae_marcel": 0.0377,
+    "hitter_woba_mae_stan": 0.0376,
+    "hitter_delta": -0.0001,
+    "n_hitters": 705,
+    "pitcher_era_mae_marcel": 0.9215,
+    "pitcher_era_mae_stan": 0.9163,
+    "pitcher_delta": -0.0052,
+    "n_pitchers": 619,
+    "yearly": {
+      "2022": {
+        "hitter_mae_marcel": 0.0397,
+        "hitter_mae_stan": 0.0393,
+        "pitcher_mae_marcel": 0.96,
+        "pitcher_mae_stan": 0.9496,
+        "n_hitters": 181,
+        "n_pitchers": 149
+      },
+      "2023": {
+        "hitter_mae_marcel": 0.037,
+        "hitter_mae_stan": 0.0371,
+        "pitcher_mae_marcel": 0.9071,
+        "pitcher_mae_stan": 0.9074,
+        "n_hitters": 166,
+        "n_pitchers": 151
+      },
+      "2024": {
+        "hitter_mae_marcel": 0.0372,
+        "hitter_mae_stan": 0.0379,
+        "pitcher_mae_marcel": 0.8767,
+        "pitcher_mae_stan": 0.8757,
+        "n_hitters": 178,
+        "n_pitchers": 159
+      },
+      "2025": {
+        "hitter_mae_marcel": 0.0369,
+        "hitter_mae_stan": 0.0362,
+        "pitcher_mae_marcel": 0.9436,
+        "pitcher_mae_stan": 0.9341,
+        "n_hitters": 180,
+        "n_pitchers": 160
+      }
+    }
+  },
+  "team_level": {
+    "mae_marcel": 10.565,
+    "mae_stan": 10.411,
+    "delta_mae": -0.154,
+    "bias_marcel": 2.141,
+    "bias_stan": 1.655,
+    "n": 48
+  },
+  "years": [
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "detail": [
+    {
+      "year": 2022,
+      "team": "DeNA",
+      "actual_W": 73.0,
+      "W_marcel": 72.8,
+      "W_stan": 73.1,
+      "err_marcel": -0.2,
+      "err_stan": 0.1
+    },
+    {
+      "year": 2022,
+      "team": "オリックス",
+      "actual_W": 76.0,
+      "W_marcel": 75.4,
+      "W_stan": 75.2,
+      "err_marcel": -0.6,
+      "err_stan": -0.8
+    },
+    {
+      "year": 2022,
+      "team": "ソフトバンク",
+      "actual_W": 76.0,
+      "W_marcel": 68.5,
+      "W_stan": 70.3,
+      "err_marcel": -7.5,
+      "err_stan": -5.7
+    },
+    {
+      "year": 2022,
+      "team": "ヤクルト",
+      "actual_W": 80.0,
+      "W_marcel": 55.9,
+      "W_stan": 55.0,
+      "err_marcel": -24.1,
+      "err_stan": -25.0
+    },
+    {
+      "year": 2022,
+      "team": "ロッテ",
+      "actual_W": 69.0,
+      "W_marcel": 56.5,
+      "W_stan": 55.4,
+      "err_marcel": -12.5,
+      "err_stan": -13.6
+    },
+    {
+      "year": 2022,
+      "team": "中日",
+      "actual_W": 66.0,
+      "W_marcel": 65.2,
+      "W_stan": 64.6,
+      "err_marcel": -0.8,
+      "err_stan": -1.4
+    },
+    {
+      "year": 2022,
+      "team": "巨人",
+      "actual_W": 68.0,
+      "W_marcel": 100.6,
+      "W_stan": 100.4,
+      "err_marcel": 32.6,
+      "err_stan": 32.4
+    },
+    {
+      "year": 2022,
+      "team": "広島",
+      "actual_W": 66.0,
+      "W_marcel": 81.6,
+      "W_stan": 81.0,
+      "err_marcel": 15.6,
+      "err_stan": 15.0
+    },
+    {
+      "year": 2022,
+      "team": "日本ハム",
+      "actual_W": 59.0,
+      "W_marcel": 76.3,
+      "W_stan": 76.6,
+      "err_marcel": 17.3,
+      "err_stan": 17.6
+    },
+    {
+      "year": 2022,
+      "team": "楽天",
+      "actual_W": 69.0,
+      "W_marcel": 72.5,
+      "W_stan": 72.6,
+      "err_marcel": 3.5,
+      "err_stan": 3.6
+    },
+    {
+      "year": 2022,
+      "team": "西武",
+      "actual_W": 72.0,
+      "W_marcel": 60.7,
+      "W_stan": 62.1,
+      "err_marcel": -11.3,
+      "err_stan": -9.9
+    },
+    {
+      "year": 2022,
+      "team": "阪神",
+      "actual_W": 68.0,
+      "W_marcel": 77.5,
+      "W_stan": 75.3,
+      "err_marcel": 9.5,
+      "err_stan": 7.3
+    },
+    {
+      "year": 2023,
+      "team": "DeNA",
+      "actual_W": 74.0,
+      "W_marcel": 61.8,
+      "W_stan": 63.0,
+      "err_marcel": -12.2,
+      "err_stan": -11.0
+    },
+    {
+      "year": 2023,
+      "team": "オリックス",
+      "actual_W": 86.0,
+      "W_marcel": 72.1,
+      "W_stan": 72.5,
+      "err_marcel": -13.9,
+      "err_stan": -13.5
+    },
+    {
+      "year": 2023,
+      "team": "ソフトバンク",
+      "actual_W": 71.0,
+      "W_marcel": 78.1,
+      "W_stan": 79.6,
+      "err_marcel": 7.1,
+      "err_stan": 8.6
+    },
+    {
+      "year": 2023,
+      "team": "ヤクルト",
+      "actual_W": 57.0,
+      "W_marcel": 72.4,
+      "W_stan": 70.7,
+      "err_marcel": 15.4,
+      "err_stan": 13.7
+    },
+    {
+      "year": 2023,
+      "team": "ロッテ",
+      "actual_W": 70.0,
+      "W_marcel": 92.9,
+      "W_stan": 94.0,
+      "err_marcel": 22.9,
+      "err_stan": 24.0
+    },
+    {
+      "year": 2023,
+      "team": "中日",
+      "actual_W": 56.0,
+      "W_marcel": 62.8,
+      "W_stan": 63.6,
+      "err_marcel": 6.8,
+      "err_stan": 7.6
+    },
+    {
+      "year": 2023,
+      "team": "巨人",
+      "actual_W": 71.0,
+      "W_marcel": 87.9,
+      "W_stan": 85.9,
+      "err_marcel": 16.9,
+      "err_stan": 14.9
+    },
+    {
+      "year": 2023,
+      "team": "広島",
+      "actual_W": 74.0,
+      "W_marcel": 73.7,
+      "W_stan": 72.3,
+      "err_marcel": -0.3,
+      "err_stan": -1.7
+    },
+    {
+      "year": 2023,
+      "team": "日本ハム",
+      "actual_W": 60.0,
+      "W_marcel": 62.0,
+      "W_stan": 60.7,
+      "err_marcel": 2.0,
+      "err_stan": 0.7
+    },
+    {
+      "year": 2023,
+      "team": "楽天",
+      "actual_W": 70.0,
+      "W_marcel": 55.8,
+      "W_stan": 55.2,
+      "err_marcel": -14.2,
+      "err_stan": -14.8
+    },
+    {
+      "year": 2023,
+      "team": "西武",
+      "actual_W": 65.0,
+      "W_marcel": 58.1,
+      "W_stan": 59.2,
+      "err_marcel": -6.9,
+      "err_stan": -5.8
+    },
+    {
+      "year": 2023,
+      "team": "阪神",
+      "actual_W": 85.0,
+      "W_marcel": 91.9,
+      "W_stan": 91.3,
+      "err_marcel": 6.9,
+      "err_stan": 6.3
+    },
+    {
+      "year": 2024,
+      "team": "DeNA",
+      "actual_W": 71.0,
+      "W_marcel": 82.9,
+      "W_stan": 82.5,
+      "err_marcel": 11.9,
+      "err_stan": 11.5
+    },
+    {
+      "year": 2024,
+      "team": "オリックス",
+      "actual_W": 63.0,
+      "W_marcel": 66.9,
+      "W_stan": 66.2,
+      "err_marcel": 3.9,
+      "err_stan": 3.2
+    },
+    {
+      "year": 2024,
+      "team": "ソフトバンク",
+      "actual_W": 91.0,
+      "W_marcel": 66.8,
+      "W_stan": 66.8,
+      "err_marcel": -24.2,
+      "err_stan": -24.2
+    },
+    {
+      "year": 2024,
+      "team": "ヤクルト",
+      "actual_W": 62.0,
+      "W_marcel": 53.4,
+      "W_stan": 50.9,
+      "err_marcel": -8.6,
+      "err_stan": -11.1
+    },
+    {
+      "year": 2024,
+      "team": "ロッテ",
+      "actual_W": 71.0,
+      "W_marcel": 57.6,
+      "W_stan": 57.7,
+      "err_marcel": -13.4,
+      "err_stan": -13.3
+    },
+    {
+      "year": 2024,
+      "team": "中日",
+      "actual_W": 60.0,
+      "W_marcel": 50.8,
+      "W_stan": 50.7,
+      "err_marcel": -9.2,
+      "err_stan": -9.3
+    },
+    {
+      "year": 2024,
+      "team": "巨人",
+      "actual_W": 77.0,
+      "W_marcel": 82.1,
+      "W_stan": 81.8,
+      "err_marcel": 5.1,
+      "err_stan": 4.8
+    },
+    {
+      "year": 2024,
+      "team": "広島",
+      "actual_W": 68.0,
+      "W_marcel": 80.9,
+      "W_stan": 78.9,
+      "err_marcel": 12.9,
+      "err_stan": 10.9
+    },
+    {
+      "year": 2024,
+      "team": "日本ハム",
+      "actual_W": 75.0,
+      "W_marcel": 63.8,
+      "W_stan": 62.8,
+      "err_marcel": -11.2,
+      "err_stan": -12.2
+    },
+    {
+      "year": 2024,
+      "team": "楽天",
+      "actual_W": 67.0,
+      "W_marcel": 83.4,
+      "W_stan": 81.8,
+      "err_marcel": 16.4,
+      "err_stan": 14.8
+    },
+    {
+      "year": 2024,
+      "team": "西武",
+      "actual_W": 49.0,
+      "W_marcel": 82.1,
+      "W_stan": 83.1,
+      "err_marcel": 33.1,
+      "err_stan": 34.1
+    },
+    {
+      "year": 2024,
+      "team": "阪神",
+      "actual_W": 74.0,
+      "W_marcel": 85.7,
+      "W_stan": 83.2,
+      "err_marcel": 11.7,
+      "err_stan": 9.2
+    },
+    {
+      "year": 2025,
+      "team": "DeNA",
+      "actual_W": 71.0,
+      "W_marcel": 79.4,
+      "W_stan": 78.5,
+      "err_marcel": 8.4,
+      "err_stan": 7.5
+    },
+    {
+      "year": 2025,
+      "team": "オリックス",
+      "actual_W": 74.0,
+      "W_marcel": 100.8,
+      "W_stan": 100.9,
+      "err_marcel": 26.8,
+      "err_stan": 26.9
+    },
+    {
+      "year": 2025,
+      "team": "ソフトバンク",
+      "actual_W": 87.0,
+      "W_marcel": 88.1,
+      "W_stan": 87.9,
+      "err_marcel": 1.1,
+      "err_stan": 0.9
+    },
+    {
+      "year": 2025,
+      "team": "ヤクルト",
+      "actual_W": 57.0,
+      "W_marcel": 50.2,
+      "W_stan": 48.4,
+      "err_marcel": -6.8,
+      "err_stan": -8.6
+    },
+    {
+      "year": 2025,
+      "team": "ロッテ",
+      "actual_W": 56.0,
+      "W_marcel": 63.8,
+      "W_stan": 65.4,
+      "err_marcel": 7.8,
+      "err_stan": 9.4
+    },
+    {
+      "year": 2025,
+      "team": "中日",
+      "actual_W": 63.0,
+      "W_marcel": 60.0,
+      "W_stan": 59.4,
+      "err_marcel": -3.0,
+      "err_stan": -3.6
+    },
+    {
+      "year": 2025,
+      "team": "巨人",
+      "actual_W": 70.0,
+      "W_marcel": 71.8,
+      "W_stan": 71.5,
+      "err_marcel": 1.8,
+      "err_stan": 1.5
+    },
+    {
+      "year": 2025,
+      "team": "広島",
+      "actual_W": 59.0,
+      "W_marcel": 48.4,
+      "W_stan": 46.5,
+      "err_marcel": -10.6,
+      "err_stan": -12.5
+    },
+    {
+      "year": 2025,
+      "team": "日本ハム",
+      "actual_W": 83.0,
+      "W_marcel": 86.9,
+      "W_stan": 85.1,
+      "err_marcel": 3.9,
+      "err_stan": 2.1
+    },
+    {
+      "year": 2025,
+      "team": "楽天",
+      "actual_W": 67.0,
+      "W_marcel": 57.2,
+      "W_stan": 55.6,
+      "err_marcel": -9.8,
+      "err_stan": -11.4
+    },
+    {
+      "year": 2025,
+      "team": "西武",
+      "actual_W": 63.0,
+      "W_marcel": 62.2,
+      "W_stan": 62.1,
+      "err_marcel": -0.8,
+      "err_stan": -0.9
+    },
+    {
+      "year": 2025,
+      "team": "阪神",
+      "actual_W": 85.0,
+      "W_marcel": 88.7,
+      "W_stan": 86.1,
+      "err_marcel": 3.7,
+      "err_stan": 1.1
+    }
+  ]
+}

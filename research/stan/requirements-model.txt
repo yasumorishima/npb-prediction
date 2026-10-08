@@ -1,0 +1,2 @@
+cmdstanpy>=1.2
+arviz>=0.15
