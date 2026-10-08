@@ -1,0 +1,1002 @@
+{
+  "step": "15_team_aggregation_improvement",
+  "japanese_loocv": {
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "n_hitters": 2208,
+    "n_pitchers": 2164,
+    "features_hitter": [
+      "K_pct",
+      "BB_pct",
+      "BABIP",
+      "age_from_peak",
+      "pa_stability",
+      "prev_woba_dev_sq"
+    ],
+    "features_pitcher": [
+      "K_pct",
+      "BB_pct",
+      "age_from_peak",
+      "ip_stability",
+      "prev_babip_p"
+    ],
+    "player_level_all": {
+      "hitter_woba": {
+        "n": 2208,
+        "mae_marcel": 0.05023,
+        "mae_stan": 0.0498,
+        "delta_mae": 0.00043,
+        "paired_t_stat": 1.8805,
+        "paired_t_p": 0.060175,
+        "wilcoxon_p": 0.554563,
+        "bootstrap_p_stan_better": 0.9712,
+        "cohens_d": 0.04,
+        "stan_win_rate": "1077/2208 (48.8%)"
+      },
+      "pitcher_era": {
+        "n": 2164,
+        "mae_marcel": 1.23008,
+        "mae_stan": 1.22241,
+        "delta_mae": 0.00766,
+        "paired_t_stat": 1.9024,
+        "paired_t_p": 0.057256,
+        "wilcoxon_p": 0.112849,
+        "bootstrap_p_stan_better": 0.9713,
+        "cohens_d": 0.0409,
+        "stan_win_rate": "1114/2164 (51.5%)"
+      }
+    },
+    "team_level_all": {
+      "mae_marcel": 6.725,
+      "mae_stan": 6.923,
+      "delta_mae": 0.198,
+      "paired_t_p": 0.093569,
+      "bootstrap_p_stan_better": 0.0442,
+      "n_team_years": 96,
+      "yearly": {
+        "2018": {
+          "marcel": 6.262,
+          "stan": 6.82,
+          "delta": 0.559,
+          "n": 12,
+          "avg_PA_cov": 97.2,
+          "avg_IP_cov": 97.8
+        },
+        "2019": {
+          "marcel": 4.36,
+          "stan": 4.623,
+          "delta": 0.263,
+          "n": 12,
+          "avg_PA_cov": 98.0,
+          "avg_IP_cov": 97.9
+        },
+        "2020": {
+          "marcel": 6.299,
+          "stan": 6.247,
+          "delta": -0.052,
+          "n": 12,
+          "avg_PA_cov": 98.2,
+          "avg_IP_cov": 98.8
+        },
+        "2021": {
+          "marcel": 10.602,
+          "stan": 11.246,
+          "delta": 0.644,
+          "n": 12,
+          "avg_PA_cov": 96.9,
+          "avg_IP_cov": 98.5
+        },
+        "2022": {
+          "marcel": 5.829,
+          "stan": 5.722,
+          "delta": -0.107,
+          "n": 12,
+          "avg_PA_cov": 98.3,
+          "avg_IP_cov": 99.1
+        },
+        "2023": {
+          "marcel": 6.034,
+          "stan": 5.889,
+          "delta": -0.146,
+          "n": 12,
+          "avg_PA_cov": 97.6,
+          "avg_IP_cov": 97.8
+        },
+        "2024": {
+          "marcel": 7.046,
+          "stan": 6.895,
+          "delta": -0.151,
+          "n": 12,
+          "avg_PA_cov": 97.4,
+          "avg_IP_cov": 98.5
+        },
+        "2025": {
+          "marcel": 7.37,
+          "stan": 7.943,
+          "delta": 0.573,
+          "n": 12,
+          "avg_PA_cov": 97.1,
+          "avg_IP_cov": 97.6
+        }
+      }
+    },
+    "player_level_no2021": {
+      "hitter_woba": {
+        "n": 1932,
+        "mae_marcel": 0.05022,
+        "mae_stan": 0.04989,
+        "delta_mae": 0.00033,
+        "paired_t_stat": 1.3374,
+        "paired_t_p": 0.181258,
+        "wilcoxon_p": 0.265884,
+        "bootstrap_p_stan_better": 0.9137,
+        "cohens_d": 0.0304,
+        "stan_win_rate": "924/1932 (47.8%)"
+      },
+      "pitcher_era": {
+        "n": 1901,
+        "mae_marcel": 1.23762,
+        "mae_stan": 1.23071,
+        "delta_mae": 0.00692,
+        "paired_t_stat": 1.6059,
+        "paired_t_p": 0.108466,
+        "wilcoxon_p": 0.238643,
+        "bootstrap_p_stan_better": 0.9486,
+        "cohens_d": 0.0368,
+        "stan_win_rate": "968/1901 (50.9%)"
+      }
+    },
+    "team_level_no2021": {
+      "mae_marcel": 6.172,
+      "mae_stan": 6.306,
+      "delta_mae": 0.134,
+      "paired_t_p": 0.286902,
+      "bootstrap_p_stan_better": 0.145,
+      "n_team_years": 84,
+      "yearly": {
+        "2018": {
+          "marcel": 6.262,
+          "stan": 6.82,
+          "delta": 0.559,
+          "n": 12,
+          "avg_PA_cov": 97.2,
+          "avg_IP_cov": 97.8
+        },
+        "2019": {
+          "marcel": 4.36,
+          "stan": 4.623,
+          "delta": 0.263,
+          "n": 12,
+          "avg_PA_cov": 98.0,
+          "avg_IP_cov": 97.9
+        },
+        "2020": {
+          "marcel": 6.299,
+          "stan": 6.247,
+          "delta": -0.052,
+          "n": 12,
+          "avg_PA_cov": 98.2,
+          "avg_IP_cov": 98.8
+        },
+        "2022": {
+          "marcel": 5.829,
+          "stan": 5.722,
+          "delta": -0.107,
+          "n": 12,
+          "avg_PA_cov": 98.3,
+          "avg_IP_cov": 99.1
+        },
+        "2023": {
+          "marcel": 6.034,
+          "stan": 5.889,
+          "delta": -0.146,
+          "n": 12,
+          "avg_PA_cov": 97.6,
+          "avg_IP_cov": 97.8
+        },
+        "2024": {
+          "marcel": 7.046,
+          "stan": 6.895,
+          "delta": -0.151,
+          "n": 12,
+          "avg_PA_cov": 97.4,
+          "avg_IP_cov": 98.5
+        },
+        "2025": {
+          "marcel": 7.37,
+          "stan": 7.943,
+          "delta": 0.573,
+          "n": 12,
+          "avg_PA_cov": 97.1,
+          "avg_IP_cov": 97.6
+        }
+      }
+    }
+  },
+  "pitcher_fip": {
+    "n": 2164,
+    "features": [
+      "K_pct",
+      "BB_pct",
+      "age_from_peak",
+      "ip_stability",
+      "prev_babip_p"
+    ],
+    "player_level": {
+      "n": 2164,
+      "mae_marcel": 0.77848,
+      "mae_stan": 0.78062,
+      "delta_mae": -0.00215,
+      "paired_t_stat": -1.4243,
+      "paired_t_p": 0.154511,
+      "wilcoxon_p": 0.636707,
+      "bootstrap_p_stan_better": 0.0813,
+      "cohens_d": -0.0306,
+      "stan_win_rate": "1099/2164 (50.8%)"
+    }
+  },
+  "pitcher_era_k9": {
+    "n": 2164,
+    "features": [
+      "K_pct",
+      "BB_pct",
+      "K_per_9",
+      "BB_per_9",
+      "age_from_peak",
+      "ip_stability",
+      "prev_babip_p"
+    ],
+    "player_level": {
+      "n": 2164,
+      "mae_marcel": 1.23008,
+      "mae_stan": 1.222,
+      "delta_mae": 0.00807,
+      "paired_t_stat": 1.9654,
+      "paired_t_p": 0.049501,
+      "wilcoxon_p": 0.13832,
+      "bootstrap_p_stan_better": 0.9743,
+      "cohens_d": 0.0422,
+      "stan_win_rate": "1107/2164 (51.2%)"
+    }
+  },
+  "pitcher_fip_k9": {
+    "n": 2164,
+    "features": [
+      "K_pct",
+      "BB_pct",
+      "K_per_9",
+      "BB_per_9",
+      "age_from_peak",
+      "ip_stability",
+      "prev_babip_p"
+    ],
+    "player_level": {
+      "n": 2164,
+      "mae_marcel": 0.77848,
+      "mae_stan": 0.77924,
+      "delta_mae": -0.00076,
+      "paired_t_stat": -0.3897,
+      "paired_t_p": 0.696818,
+      "wilcoxon_p": 0.776131,
+      "bootstrap_p_stan_better": 0.3464,
+      "cohens_d": -0.0084,
+      "stan_win_rate": "1097/2164 (50.7%)"
+    }
+  },
+  "foreign_loocv": {
+    "hitter": {
+      "n": 78,
+      "mae_baseline": 0.0387,
+      "mae_stan": 0.0385,
+      "delta_mae": -0.0002,
+      "paired_t_p": 0.914112,
+      "wilcoxon_p": 0.816845,
+      "bootstrap_p_stan_better": 0.5471,
+      "stan_win_rate": "35/78 (44.9%)",
+      "yearly": {
+        "2015": {
+          "baseline": 0.0377,
+          "stan": 0.0445,
+          "delta": 0.0067,
+          "n": 11
+        },
+        "2016": {
+          "baseline": 0.0263,
+          "stan": 0.0331,
+          "delta": 0.0068,
+          "n": 8
+        },
+        "2017": {
+          "baseline": 0.0524,
+          "stan": 0.059,
+          "delta": 0.0066,
+          "n": 10
+        },
+        "2018": {
+          "baseline": 0.0499,
+          "stan": 0.0369,
+          "delta": -0.013,
+          "n": 4
+        },
+        "2019": {
+          "baseline": 0.0519,
+          "stan": 0.0504,
+          "delta": -0.0015,
+          "n": 4
+        },
+        "2020": {
+          "baseline": 0.0332,
+          "stan": 0.0315,
+          "delta": -0.0017,
+          "n": 8
+        },
+        "2021": {
+          "baseline": 0.0399,
+          "stan": 0.0405,
+          "delta": 0.0007,
+          "n": 6
+        },
+        "2022": {
+          "baseline": 0.0392,
+          "stan": 0.0355,
+          "delta": -0.0037,
+          "n": 7
+        },
+        "2023": {
+          "baseline": 0.0221,
+          "stan": 0.0202,
+          "delta": -0.0019,
+          "n": 8
+        },
+        "2024": {
+          "baseline": 0.0475,
+          "stan": 0.033,
+          "delta": -0.0145,
+          "n": 5
+        },
+        "2025": {
+          "baseline": 0.0379,
+          "stan": 0.0341,
+          "delta": -0.0038,
+          "n": 7
+        }
+      }
+    },
+    "pitcher": {
+      "n": 91,
+      "mae_baseline": 0.8457,
+      "mae_stan": 0.8733,
+      "delta_mae": 0.0276,
+      "paired_t_p": 0.288859,
+      "wilcoxon_p": 0.346202,
+      "bootstrap_p_stan_better": 0.1388,
+      "stan_win_rate": "42/91 (46.2%)",
+      "yearly": {
+        "2015": {
+          "baseline": 0.75,
+          "stan": 0.8205,
+          "delta": 0.0705,
+          "n": 11
+        },
+        "2016": {
+          "baseline": 1.1447,
+          "stan": 1.1314,
+          "delta": -0.0133,
+          "n": 10
+        },
+        "2017": {
+          "baseline": 0.8254,
+          "stan": 0.9644,
+          "delta": 0.139,
+          "n": 11
+        },
+        "2018": {
+          "baseline": 0.825,
+          "stan": 0.7682,
+          "delta": -0.0568,
+          "n": 11
+        },
+        "2019": {
+          "baseline": 1.3932,
+          "stan": 1.2594,
+          "delta": -0.1338,
+          "n": 4
+        },
+        "2020": {
+          "baseline": 1.44,
+          "stan": 1.279,
+          "delta": -0.161,
+          "n": 2
+        },
+        "2021": {
+          "baseline": 0.8925,
+          "stan": 1.1745,
+          "delta": 0.282,
+          "n": 4
+        },
+        "2022": {
+          "baseline": 0.4292,
+          "stan": 0.4406,
+          "delta": 0.0114,
+          "n": 10
+        },
+        "2023": {
+          "baseline": 0.8578,
+          "stan": 0.8498,
+          "delta": -0.0081,
+          "n": 8
+        },
+        "2024": {
+          "baseline": 0.558,
+          "stan": 0.528,
+          "delta": -0.03,
+          "n": 10
+        },
+        "2025": {
+          "baseline": 1.035,
+          "stan": 1.1296,
+          "delta": 0.0946,
+          "n": 10
+        }
+      }
+    }
+  },
+  "recency_weighting": {
+    "1.0": {
+      "n_hitters": 2208,
+      "n_pitchers": 2164,
+      "player_level": {
+        "hitter_woba": {
+          "n": 2208,
+          "mae_marcel": 0.05023,
+          "mae_stan": 0.0498,
+          "delta_mae": 0.00043,
+          "paired_t_stat": 1.8805,
+          "paired_t_p": 0.060175,
+          "wilcoxon_p": 0.554563,
+          "bootstrap_p_stan_better": 0.9712,
+          "cohens_d": 0.04,
+          "stan_win_rate": "1077/2208 (48.8%)"
+        },
+        "pitcher_era": {
+          "n": 2164,
+          "mae_marcel": 1.23008,
+          "mae_stan": 1.22241,
+          "delta_mae": 0.00766,
+          "paired_t_stat": 1.9024,
+          "paired_t_p": 0.057256,
+          "wilcoxon_p": 0.112849,
+          "bootstrap_p_stan_better": 0.9713,
+          "cohens_d": 0.0409,
+          "stan_win_rate": "1114/2164 (51.5%)"
+        }
+      }
+    },
+    "0.9": {
+      "n_hitters": 2208,
+      "n_pitchers": 2164,
+      "player_level": {
+        "hitter_woba": {
+          "n": 2208,
+          "mae_marcel": 0.05023,
+          "mae_stan": 0.04976,
+          "delta_mae": 0.00047,
+          "paired_t_stat": 2.0172,
+          "paired_t_p": 0.043792,
+          "wilcoxon_p": 0.772804,
+          "bootstrap_p_stan_better": 0.9787,
+          "cohens_d": 0.0429,
+          "stan_win_rate": "1095/2208 (49.6%)"
+        },
+        "pitcher_era": {
+          "n": 2164,
+          "mae_marcel": 1.23008,
+          "mae_stan": 1.22214,
+          "delta_mae": 0.00793,
+          "paired_t_stat": 1.9656,
+          "paired_t_p": 0.049469,
+          "wilcoxon_p": 0.088008,
+          "bootstrap_p_stan_better": 0.9748,
+          "cohens_d": 0.0423,
+          "stan_win_rate": "1126/2164 (52.0%)"
+        }
+      }
+    },
+    "0.8": {
+      "n_hitters": 2208,
+      "n_pitchers": 2164,
+      "player_level": {
+        "hitter_woba": {
+          "n": 2208,
+          "mae_marcel": 0.05023,
+          "mae_stan": 0.04973,
+          "delta_mae": 0.00051,
+          "paired_t_stat": 2.1428,
+          "paired_t_p": 0.032237,
+          "wilcoxon_p": 0.996804,
+          "bootstrap_p_stan_better": 0.9854,
+          "cohens_d": 0.0456,
+          "stan_win_rate": "1121/2208 (50.8%)"
+        },
+        "pitcher_era": {
+          "n": 2164,
+          "mae_marcel": 1.23008,
+          "mae_stan": 1.22222,
+          "delta_mae": 0.00786,
+          "paired_t_stat": 1.9283,
+          "paired_t_p": 0.053944,
+          "wilcoxon_p": 0.064896,
+          "bootstrap_p_stan_better": 0.9725,
+          "cohens_d": 0.0415,
+          "stan_win_rate": "1129/2164 (52.2%)"
+        }
+      }
+    }
+  },
+  "team_min_pa_sweep": {
+    "mpt_0": {
+      "impute": {
+        "mae_marcel": 6.725,
+        "mae_stan": 6.923,
+        "delta_mae": 0.198,
+        "paired_t_p": 0.093569,
+        "bootstrap_p_stan_better": 0.0442,
+        "n_team_years": 96,
+        "yearly": {
+          "2018": {
+            "marcel": 6.262,
+            "stan": 6.82,
+            "delta": 0.559,
+            "n": 12,
+            "avg_PA_cov": 97.2,
+            "avg_IP_cov": 97.8
+          },
+          "2019": {
+            "marcel": 4.36,
+            "stan": 4.623,
+            "delta": 0.263,
+            "n": 12,
+            "avg_PA_cov": 98.0,
+            "avg_IP_cov": 97.9
+          },
+          "2020": {
+            "marcel": 6.299,
+            "stan": 6.247,
+            "delta": -0.052,
+            "n": 12,
+            "avg_PA_cov": 98.2,
+            "avg_IP_cov": 98.8
+          },
+          "2021": {
+            "marcel": 10.602,
+            "stan": 11.246,
+            "delta": 0.644,
+            "n": 12,
+            "avg_PA_cov": 96.9,
+            "avg_IP_cov": 98.5
+          },
+          "2022": {
+            "marcel": 5.829,
+            "stan": 5.722,
+            "delta": -0.107,
+            "n": 12,
+            "avg_PA_cov": 98.3,
+            "avg_IP_cov": 99.1
+          },
+          "2023": {
+            "marcel": 6.034,
+            "stan": 5.889,
+            "delta": -0.146,
+            "n": 12,
+            "avg_PA_cov": 97.6,
+            "avg_IP_cov": 97.8
+          },
+          "2024": {
+            "marcel": 7.046,
+            "stan": 6.895,
+            "delta": -0.151,
+            "n": 12,
+            "avg_PA_cov": 97.4,
+            "avg_IP_cov": 98.5
+          },
+          "2025": {
+            "marcel": 7.37,
+            "stan": 7.943,
+            "delta": 0.573,
+            "n": 12,
+            "avg_PA_cov": 97.1,
+            "avg_IP_cov": 97.6
+          }
+        }
+      },
+      "no_impute": {
+        "mae_marcel": 7.041,
+        "mae_stan": 7.249,
+        "delta_mae": 0.208,
+        "paired_t_p": 0.085195,
+        "bootstrap_p_stan_better": 0.0389,
+        "n_team_years": 96,
+        "yearly": {
+          "2018": {
+            "marcel": 6.513,
+            "stan": 6.891,
+            "delta": 0.379,
+            "n": 12,
+            "avg_PA_cov": 97.2,
+            "avg_IP_cov": 97.8
+          },
+          "2019": {
+            "marcel": 5.173,
+            "stan": 5.416,
+            "delta": 0.243,
+            "n": 12,
+            "avg_PA_cov": 98.0,
+            "avg_IP_cov": 97.9
+          },
+          "2020": {
+            "marcel": 6.552,
+            "stan": 6.682,
+            "delta": 0.13,
+            "n": 12,
+            "avg_PA_cov": 98.2,
+            "avg_IP_cov": 98.8
+          },
+          "2021": {
+            "marcel": 10.783,
+            "stan": 11.413,
+            "delta": 0.63,
+            "n": 12,
+            "avg_PA_cov": 96.9,
+            "avg_IP_cov": 98.5
+          },
+          "2022": {
+            "marcel": 6.408,
+            "stan": 6.385,
+            "delta": -0.023,
+            "n": 12,
+            "avg_PA_cov": 98.3,
+            "avg_IP_cov": 99.1
+          },
+          "2023": {
+            "marcel": 6.502,
+            "stan": 6.368,
+            "delta": -0.134,
+            "n": 12,
+            "avg_PA_cov": 97.6,
+            "avg_IP_cov": 97.8
+          },
+          "2024": {
+            "marcel": 6.968,
+            "stan": 6.817,
+            "delta": -0.151,
+            "n": 12,
+            "avg_PA_cov": 97.4,
+            "avg_IP_cov": 98.5
+          },
+          "2025": {
+            "marcel": 7.43,
+            "stan": 8.018,
+            "delta": 0.588,
+            "n": 12,
+            "avg_PA_cov": 97.1,
+            "avg_IP_cov": 97.6
+          }
+        }
+      }
+    },
+    "mpt_50": {
+      "impute": {
+        "mae_marcel": 6.682,
+        "mae_stan": 6.903,
+        "delta_mae": 0.221,
+        "paired_t_p": 0.061392,
+        "bootstrap_p_stan_better": 0.0275,
+        "n_team_years": 96,
+        "yearly": {
+          "2018": {
+            "marcel": 6.213,
+            "stan": 6.77,
+            "delta": 0.557,
+            "n": 12,
+            "avg_PA_cov": 94.8,
+            "avg_IP_cov": 97.8
+          },
+          "2019": {
+            "marcel": 4.272,
+            "stan": 4.602,
+            "delta": 0.33,
+            "n": 12,
+            "avg_PA_cov": 95.6,
+            "avg_IP_cov": 97.9
+          },
+          "2020": {
+            "marcel": 6.174,
+            "stan": 6.187,
+            "delta": 0.013,
+            "n": 12,
+            "avg_PA_cov": 95.0,
+            "avg_IP_cov": 98.8
+          },
+          "2021": {
+            "marcel": 10.595,
+            "stan": 11.241,
+            "delta": 0.646,
+            "n": 12,
+            "avg_PA_cov": 94.3,
+            "avg_IP_cov": 98.5
+          },
+          "2022": {
+            "marcel": 5.714,
+            "stan": 5.631,
+            "delta": -0.082,
+            "n": 12,
+            "avg_PA_cov": 94.6,
+            "avg_IP_cov": 99.1
+          },
+          "2023": {
+            "marcel": 6.038,
+            "stan": 5.917,
+            "delta": -0.122,
+            "n": 12,
+            "avg_PA_cov": 94.4,
+            "avg_IP_cov": 97.8
+          },
+          "2024": {
+            "marcel": 7.041,
+            "stan": 6.885,
+            "delta": -0.156,
+            "n": 12,
+            "avg_PA_cov": 94.7,
+            "avg_IP_cov": 98.5
+          },
+          "2025": {
+            "marcel": 7.409,
+            "stan": 7.991,
+            "delta": 0.582,
+            "n": 12,
+            "avg_PA_cov": 94.8,
+            "avg_IP_cov": 97.6
+          }
+        }
+      },
+      "no_impute": {
+        "mae_marcel": 6.893,
+        "mae_stan": 7.141,
+        "delta_mae": 0.248,
+        "paired_t_p": 0.03632,
+        "bootstrap_p_stan_better": 0.0163,
+        "n_team_years": 96,
+        "yearly": {
+          "2018": {
+            "marcel": 6.412,
+            "stan": 6.784,
+            "delta": 0.371,
+            "n": 12,
+            "avg_PA_cov": 94.8,
+            "avg_IP_cov": 97.8
+          },
+          "2019": {
+            "marcel": 4.746,
+            "stan": 5.105,
+            "delta": 0.359,
+            "n": 12,
+            "avg_PA_cov": 95.6,
+            "avg_IP_cov": 97.9
+          },
+          "2020": {
+            "marcel": 6.768,
+            "stan": 6.872,
+            "delta": 0.105,
+            "n": 12,
+            "avg_PA_cov": 95.0,
+            "avg_IP_cov": 98.8
+          },
+          "2021": {
+            "marcel": 10.806,
+            "stan": 11.457,
+            "delta": 0.651,
+            "n": 12,
+            "avg_PA_cov": 94.3,
+            "avg_IP_cov": 98.5
+          },
+          "2022": {
+            "marcel": 6.082,
+            "stan": 6.246,
+            "delta": 0.164,
+            "n": 12,
+            "avg_PA_cov": 94.6,
+            "avg_IP_cov": 99.1
+          },
+          "2023": {
+            "marcel": 6.582,
+            "stan": 6.452,
+            "delta": -0.13,
+            "n": 12,
+            "avg_PA_cov": 94.4,
+            "avg_IP_cov": 97.8
+          },
+          "2024": {
+            "marcel": 6.794,
+            "stan": 6.648,
+            "delta": -0.146,
+            "n": 12,
+            "avg_PA_cov": 94.7,
+            "avg_IP_cov": 98.5
+          },
+          "2025": {
+            "marcel": 6.956,
+            "stan": 7.568,
+            "delta": 0.612,
+            "n": 12,
+            "avg_PA_cov": 94.8,
+            "avg_IP_cov": 97.6
+          }
+        }
+      }
+    },
+    "mpt_100": {
+      "impute": {
+        "mae_marcel": 6.644,
+        "mae_stan": 6.868,
+        "delta_mae": 0.224,
+        "paired_t_p": 0.056514,
+        "bootstrap_p_stan_better": 0.0252,
+        "n_team_years": 96,
+        "yearly": {
+          "2018": {
+            "marcel": 6.298,
+            "stan": 6.84,
+            "delta": 0.543,
+            "n": 12,
+            "avg_PA_cov": 90.0,
+            "avg_IP_cov": 97.8
+          },
+          "2019": {
+            "marcel": 4.262,
+            "stan": 4.622,
+            "delta": 0.36,
+            "n": 12,
+            "avg_PA_cov": 90.4,
+            "avg_IP_cov": 97.9
+          },
+          "2020": {
+            "marcel": 5.776,
+            "stan": 5.862,
+            "delta": 0.085,
+            "n": 12,
+            "avg_PA_cov": 87.2,
+            "avg_IP_cov": 98.8
+          },
+          "2021": {
+            "marcel": 10.556,
+            "stan": 11.239,
+            "delta": 0.684,
+            "n": 12,
+            "avg_PA_cov": 87.3,
+            "avg_IP_cov": 98.5
+          },
+          "2022": {
+            "marcel": 5.746,
+            "stan": 5.662,
+            "delta": -0.084,
+            "n": 12,
+            "avg_PA_cov": 87.5,
+            "avg_IP_cov": 99.1
+          },
+          "2023": {
+            "marcel": 6.007,
+            "stan": 5.857,
+            "delta": -0.15,
+            "n": 12,
+            "avg_PA_cov": 88.5,
+            "avg_IP_cov": 97.8
+          },
+          "2024": {
+            "marcel": 7.05,
+            "stan": 6.846,
+            "delta": -0.204,
+            "n": 12,
+            "avg_PA_cov": 88.1,
+            "avg_IP_cov": 98.5
+          },
+          "2025": {
+            "marcel": 7.459,
+            "stan": 8.019,
+            "delta": 0.56,
+            "n": 12,
+            "avg_PA_cov": 89.0,
+            "avg_IP_cov": 97.6
+          }
+        }
+      },
+      "no_impute": {
+        "mae_marcel": 6.868,
+        "mae_stan": 7.154,
+        "delta_mae": 0.286,
+        "paired_t_p": 0.022238,
+        "bootstrap_p_stan_better": 0.009,
+        "n_team_years": 96,
+        "yearly": {
+          "2018": {
+            "marcel": 6.079,
+            "stan": 6.446,
+            "delta": 0.366,
+            "n": 12,
+            "avg_PA_cov": 90.0,
+            "avg_IP_cov": 97.8
+          },
+          "2019": {
+            "marcel": 4.289,
+            "stan": 4.714,
+            "delta": 0.425,
+            "n": 12,
+            "avg_PA_cov": 90.4,
+            "avg_IP_cov": 97.9
+          },
+          "2020": {
+            "marcel": 7.001,
+            "stan": 7.091,
+            "delta": 0.09,
+            "n": 12,
+            "avg_PA_cov": 87.2,
+            "avg_IP_cov": 98.8
+          },
+          "2021": {
+            "marcel": 11.037,
+            "stan": 11.761,
+            "delta": 0.725,
+            "n": 12,
+            "avg_PA_cov": 87.3,
+            "avg_IP_cov": 98.5
+          },
+          "2022": {
+            "marcel": 6.195,
+            "stan": 6.478,
+            "delta": 0.283,
+            "n": 12,
+            "avg_PA_cov": 87.5,
+            "avg_IP_cov": 99.1
+          },
+          "2023": {
+            "marcel": 6.709,
+            "stan": 6.588,
+            "delta": -0.121,
+            "n": 12,
+            "avg_PA_cov": 88.5,
+            "avg_IP_cov": 97.8
+          },
+          "2024": {
+            "marcel": 6.399,
+            "stan": 6.274,
+            "delta": -0.126,
+            "n": 12,
+            "avg_PA_cov": 88.1,
+            "avg_IP_cov": 98.5
+          },
+          "2025": {
+            "marcel": 7.239,
+            "stan": 7.881,
+            "delta": 0.642,
+            "n": 12,
+            "avg_PA_cov": 89.0,
+            "avg_IP_cov": 97.6
+          }
+        }
+      }
+    }
+  },
+  "ridge_alphas": {
+    "jpn_hitter": 1.124,
+    "jpn_pitcher": 4.84,
+    "fgn_hitter": 6.25,
+    "fgn_pitcher": 4.0
+  }
+}

@@ -1,0 +1,42 @@
+name: "Research: Marcel weights (merged from npb-marcel-weight-study)"
+# Marcel weight grid search: w0/w1/w2 over NPB 2019-2025
+
+on:
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
+defaults:
+  run:
+    working-directory: research/marcel-weights
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pandas numpy
+
+      - name: Run weight optimization
+        run: python optimize_weights.py
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --cached --quiet || git commit -m "add weight optimization results"
+          git pull --rebase
+          git push
+

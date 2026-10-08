@@ -1,0 +1,38 @@
+{
+  "v1_baseline": {
+    "hitter_mae_v1_baseline": 0.04183129607287172,
+    "pitcher_mae_v1_baseline": 1.0457600567109073,
+    "hitter_n": 129,
+    "pitcher_n": 159
+  },
+  "loo_hitter": {
+    "stat": "wOBA",
+    "n": 129,
+    "mae_v5": 0.04291866305732989,
+    "mae_baseline": 0.04183129607287172,
+    "improvement_pct": -2.5994102180432854,
+    "coverage_80": 0.7906976744186046,
+    "bust_detection": {
+      "n_actual": 10,
+      "n_predicted": 0,
+      "n_correct": 0,
+      "precision": 0.0,
+      "recall": 0.0
+    }
+  },
+  "loo_pitcher": {
+    "stat": "ERA",
+    "n": 159,
+    "mae_v5": 1.0362176817536464,
+    "mae_baseline": 1.0457600567109073,
+    "improvement_pct": 0.9124822559462965,
+    "coverage_80": 0.8050314465408805,
+    "bust_detection": {
+      "n_actual": 21,
+      "n_predicted": 2,
+      "n_correct": 0,
+      "precision": 0.0,
+      "recall": 0.0
+    }
+  }
+}

@@ -1,0 +1,294 @@
+name: "Research: Stan models (merged from npb-stan-research)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
+      step:
+        description: 'Which step to run'
+        required: true
+        default: 'fetch_stats'
+        type: choice
+        options:
+          - fetch_stats
+          - build_factors
+          - run_model
+          - run_stan_model
+          - identify
+          - patch_conflicts
+          - team_sim
+          - team_backtest
+          - run_jpn_model
+          - team_compare
+          - statistical_validation
+          - diagnose_big_misses
+          - coverage_gap
+          - generate_2026_stan
+          - analyze_pf
+          - compare_pf_methods
+          - foreign_v2
+          - foreign_v2_loo
+          - foreign_v2_expanding
+          - foreign_v3b
+          - foreign_v3b_loo
+          - foreign_v3b_expanding
+          - foreign_v4a
+          - foreign_v4a_loo
+          - foreign_v4a_expanding
+          - fetch_career_stats
+          - foreign_v5
+          - foreign_v5_loo
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: research/stan
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install base dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install pybaseball (fetch_stats / patch_conflicts)
+        if: inputs.step == 'fetch_stats' || inputs.step == 'patch_conflicts'
+        run: pip install pybaseball
+
+      - name: Install pykakasi (patch_conflicts only)
+        if: inputs.step == 'patch_conflicts'
+        run: pip install pykakasi
+
+      - name: Install PyMC + ArviZ (run_model only)
+        if: inputs.step == 'run_model'
+        run: pip install "pymc>=5.0" "arviz>=0.15"
+
+      - name: Install cmdstanpy + ArviZ (Stan models)
+        if: inputs.step == 'run_stan_model' || inputs.step == 'run_jpn_model' || startsWith(inputs.step, 'foreign_v2') || startsWith(inputs.step, 'foreign_v3b') || startsWith(inputs.step, 'foreign_v4a') || startsWith(inputs.step, 'foreign_v5')
+        run: |
+          pip install -r requirements-model.txt
+          python -c "from cmdstanpy import install_cmdstan; install_cmdstan()"
+
+      - name: Fetch previous-league stats via pybaseball
+        if: inputs.step == 'fetch_stats'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/fetch_prev_stats.py
+
+      - name: Run identify_foreign_players
+        if: inputs.step == 'identify'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/identify_foreign_players.py
+
+      - name: Run build_conversion_factors
+        if: inputs.step == 'build_factors'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/build_conversion_factors.py
+
+      - name: Run Bayesian model (PyMC)
+        if: inputs.step == 'run_model'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/bayesian_model.py --draws 2000 --tune 1000
+
+      - name: Run Stan model
+        if: inputs.step == 'run_stan_model'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/stan_model.py --draws 2000 --warmup 1000
+
+      - name: Patch master conflicts (detect same-katakana different-player)
+        if: inputs.step == 'patch_conflicts'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/patch_master_conflicts.py
+
+      - name: Run team standings simulation (Monte Carlo, N=10000)
+        if: inputs.step == 'team_sim'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/team_sim.py --n_sim 10000
+
+      - name: Run team standings backtest (2018-2025, N=10000)
+        if: inputs.step == 'team_backtest'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/team_sim.py --n_sim 10000 --backtest
+
+      - name: Run Japanese player Stan model (K%/BB% correction, 2022-2025 backtest)
+        if: inputs.step == 'run_jpn_model'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/stan_jpn_model.py --draws 2000 --warmup 1000
+
+      - name: Run team-level Marcel vs Stan comparison
+        if: inputs.step == 'team_compare'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/team_compare.py
+
+      - name: Run statistical validation (LOO-CV + significance tests)
+        # Also saves jpn_hitter_loocv_predictions.csv / jpn_pitcher_loocv_predictions.csv (all years 2018-2025)
+        if: inputs.step == 'statistical_validation'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/statistical_validation.py
+
+      - name: Diagnose big-miss team-years (Step 12)
+        if: inputs.step == 'diagnose_big_misses'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/diagnose_big_misses.py
+
+      - name: Analyze coverage gap by player category
+        if: inputs.step == 'coverage_gap'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/analyze_coverage_gap.py
+
+      - name: Generate 2026 Stan-adjusted projections (Ridge)
+        if: inputs.step == 'generate_2026_stan'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/generate_2026_stan.py
+
+      - name: Analyze PF correction comparison (blog data)
+        if: inputs.step == 'analyze_pf'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/analyze_pf_comparison.py
+
+      - name: Compare No PF vs 単年PF vs PF_5yr (3-way backtest)
+        if: inputs.step == 'compare_pf_methods'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/compare_pf_methods.py
+
+      - name: Foreign v2 — fit full model + posterior params
+        if: inputs.step == 'foreign_v2'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v2_model.py --draws 2000 --warmup 1000 --fit-only
+
+      - name: Foreign v2 — LOO cross-validation (heavy, ~2h)
+        if: inputs.step == 'foreign_v2_loo'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v2_model.py --draws 1000 --warmup 500 --loo-cv
+
+      - name: Foreign v2 — expanding-window CV
+        if: inputs.step == 'foreign_v2_expanding'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v2_model.py --draws 1000 --warmup 500 --expanding-cv
+
+      - name: Foreign v3b — fit full model (league-specific affine)
+        if: inputs.step == 'foreign_v3b'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v3b_model.py --draws 2000 --warmup 1000 --fit-only
+
+      - name: Foreign v3b — LOO cross-validation (heavy, ~2h)
+        if: inputs.step == 'foreign_v3b_loo'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v3b_model.py --draws 1000 --warmup 500 --loo-cv
+
+      - name: Foreign v3b — expanding-window CV
+        if: inputs.step == 'foreign_v3b_expanding'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v3b_model.py --draws 1000 --warmup 500 --expanding-cv
+
+      - name: Foreign v4a — fit full model (Student-t likelihood)
+        if: inputs.step == 'foreign_v4a'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v4a_model.py --draws 2000 --warmup 1000 --fit-only
+
+      - name: Foreign v4a — LOO cross-validation (heavy, ~2h)
+        if: inputs.step == 'foreign_v4a_loo'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v4a_model.py --draws 1000 --warmup 500 --loo-cv
+
+      - name: Foreign v4a — expanding-window CV
+        if: inputs.step == 'foreign_v4a_expanding'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v4a_model.py --draws 1000 --warmup 500 --expanding-cv
+
+      - name: Fetch career stats from MLB Stats API
+        if: inputs.step == 'fetch_career_stats'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          pip install requests
+          python scripts/fetch_career_stats.py
+
+      - name: Foreign v5 — fit full model (Mixture of Experts)
+        if: inputs.step == 'foreign_v5'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v5_model.py --draws 2000 --warmup 1000 --fit-only
+
+      - name: Foreign v5 — LOO cross-validation (heavy, ~3h)
+        if: inputs.step == 'foreign_v5_loo'
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python src/foreign_v5_model.py --draws 1000 --warmup 500 --loo-cv
+
+      - name: Commit results to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "CI: ${{ inputs.step }} — update data"
+            git pull --rebase
+            git push
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-output
+          path: research/stan/data/
+          retention-days: 30
+
+      - name: Discord notification on completion
+        if: always() && (startsWith(inputs.step, 'foreign_v2') || startsWith(inputs.step, 'foreign_v3b') || startsWith(inputs.step, 'foreign_v4a') || startsWith(inputs.step, 'foreign_v5'))
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "No Discord webhook configured, skipping"
+            exit 0
+          fi
+          STATUS="${{ job.status }}"
+          STEP="${{ inputs.step }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "$STATUS" = "success" ]; then
+            EMOJI="✅"
+          else
+            EMOJI="❌"
+          fi
+          curl -s -H "Content-Type: application/json" \
+            -d "{\"content\": \"${EMOJI} **npb-stan-research** \`${STEP}\` ${STATUS}\\n${RUN_URL}\"}" \
+            "$DISCORD_WEBHOOK_URL"
