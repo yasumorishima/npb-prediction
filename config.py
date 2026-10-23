@@ -16,6 +16,24 @@ _default_end_year = _today.year if _today.month >= 11 else _today.year - 1
 DATA_END_YEAR = int(os.environ.get("NPB_DATA_END_YEAR", _default_end_year))
 TARGET_YEAR = DATA_END_YEAR + 1   # 予測対象年
 DATA_START_YEAR = 2015
+
+
+def displayed_years(exists):
+    """(DATA_END_YEAR, TARGET_YEAR) for the app and the API.
+
+    DATA_END_YEAR rolls over on 11/1, but the next season's predictions are
+    published only by the 3/1 annual_update. Until they exist, keep showing the
+    current ones: fall back one year when marcel_hitters_{TARGET_YEAR}.csv is known
+    to be missing and the previous year's file is known to exist. ``exists(name)``
+    returns True / False for a file in data/projections, or None when it could not
+    check (then nothing changes). An explicit NPB_DATA_END_YEAR is always respected.
+    """
+    if "NPB_DATA_END_YEAR" in os.environ:
+        return DATA_END_YEAR, TARGET_YEAR
+    if (exists(f"marcel_hitters_{TARGET_YEAR}.csv") is False
+            and exists(f"marcel_hitters_{TARGET_YEAR - 1}.csv") is True):
+        return DATA_END_YEAR - 1, TARGET_YEAR - 1
+    return DATA_END_YEAR, TARGET_YEAR
 YEARS = list(range(DATA_START_YEAR, DATA_END_YEAR + 1))
 
 # ベイズモデル関連パス
