@@ -21,6 +21,7 @@ Output:
 
 import csv
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,14 @@ from stan_jpn_model import (
     load_birthday_df,
     standardize_features,
 )
+
+
+# Player-level NPB rows (baseball-data.com / npb.jp) are not redistributed, so they
+# are not printed into public Actions logs. NPB_SHOW_PLAYER_ROWS=1 shows them locally.
+def _player_row(*args, **kwargs):
+    if os.environ.get("NPB_SHOW_PLAYER_ROWS") == "1":
+        print(*args, **kwargs)
+
 
 def _log_elapsed(label: str, start: float, budget_min: int = 360):
     elapsed_min = (time.time() - start) / 60
@@ -860,7 +869,7 @@ def diagnose_team_anomalies(h_df, p_df):
             print(f"\n  {yr} {team}: {len(missing)} missing, {total_pa} PA gap")
             for _, m in missing.head(8).iterrows():
                 woba = m["wOBA"] if pd.notna(m["wOBA"]) else 0
-                print(f"    {m['player']}: {int(m['PA'])} PA, wOBA={woba:.3f}")
+                _player_row(f"    {m['player']}: {int(m['PA'])} PA, wOBA={woba:.3f}")
 
     # ── Missing pitchers for worst IP coverage ──
     print("\n  Missing pitchers in worst IP-coverage teams:")
@@ -880,7 +889,7 @@ def diagnose_team_anomalies(h_df, p_df):
             for _, m in missing.head(8).iterrows():
                 era = pd.to_numeric(m["ERA"], errors="coerce")
                 era_s = f"{era:.2f}" if pd.notna(era) else "N/A"
-                print(f"    {m['player']}: {m['IP_dec']:.1f} IP, ERA={era_s}")
+                _player_row(f"    {m['player']}: {m['IP_dec']:.1f} IP, ERA={era_s}")
 
     # ── Coverage vs prediction error correlation ──
     # Merge with team_detail to check if low coverage → bigger errors

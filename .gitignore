@@ -2,3 +2,14 @@ __pycache__/
 *.pyc
 .env
 .venv/
+
+# Restricted NPB tables (baseball-data.com / npb.jp player-level tables and full
+# stat-line copies). Neither site grants a redistribution right, so they are kept
+# in the PRIVATE repo yasumorishima/npb-restricted-inputs and copied into the
+# workspace by the workflows. Team standings stay public.
+/data/raw/*
+!/data/raw/npb_standings_*.csv
+/research/stan/data/raw/*
+/data/projections/npb_sabermetrics_*.csv
+/research/team_2026/games_2026*.csv
+/_restricted/

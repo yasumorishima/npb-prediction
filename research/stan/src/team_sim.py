@@ -115,16 +115,17 @@ def compute_turnover(
 
     Returns dict: team -> turnover_pct (0.0 – 1.0).
     """
+    # Restricted tables (not redistributed): the workflow copies them from the
+    # private repo yasumorishima/npb-restricted-inputs into <repo>/data/raw/.
+    repo_raw = ROOT.parent.parent / "data" / "raw"
     saber_2025 = pd.read_csv(
-        "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main"
-        "/data/raw/npb_hitters_2015_2025.csv",
+        repo_raw / "npb_hitters_2015_2025.csv",
         encoding="utf-8-sig",
     )
     saber_2025 = saber_2025[saber_2025["year"] == 2025]
 
     pitchers_2025 = pd.read_csv(
-        "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main"
-        "/data/raw/npb_pitchers_2015_2025.csv",
+        repo_raw / "npb_pitchers_2015_2025.csv",
         encoding="utf-8-sig",
     )
     pitchers_2025 = pitchers_2025[pitchers_2025["year"] == 2025]

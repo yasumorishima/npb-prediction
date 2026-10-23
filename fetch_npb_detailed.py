@@ -129,9 +129,7 @@ def main():
         print(f"  Rows: {len(df)}")
         print(f"  Years: {sorted(df['year'].unique())}")
         print(f"  Columns: {list(df.columns)}")
-        print(f"\n  Sample (2024, top 3 by PA):")
-        sample = df[df["year"] == 2024].nlargest(3, "PA")
-        print(sample[["player", "team", "PA", "H", "2B", "3B", "HR", "BB", "SF"]].to_string(index=False))
+        # No sample rows: Actions logs are public and this table is not redistributed.
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ import os
 import warnings
 from datetime import date
 from itertools import product
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,9 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 # ---- データURL ----
-BASE = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main/data/raw"
+# Restricted tables (baseball-data.com, not redistributed): kept in the private repo
+# yasumorishima/npb-restricted-inputs; the workflow copies them into <repo>/data/raw/.
+BASE = str(Path(__file__).resolve().parents[2] / "data" / "raw")
 HITTER_URL  = f"{BASE}/npb_hitters_2015_2025.csv"
 PITCHER_URL = f"{BASE}/npb_pitchers_2015_2025.csv"
 BIRTHDAY_URL = f"{BASE}/npb_player_birthdays.csv"

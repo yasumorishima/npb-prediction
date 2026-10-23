@@ -1,0 +1,54 @@
+name: Restricted data check
+
+# Tests the deploy key for the private repo yasumorishima/npb-restricted-inputs
+# without running anything else: check out, md5sum -c, count the files.
+# Read-only; nothing is copied into the workspace and nothing is pushed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check the restricted-data deploy key
+        env:
+          NPB_RESTRICTED_DEPLOY_KEY: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+        run: |
+          if [ -z "$NPB_RESTRICTED_DEPLOY_KEY" ]; then
+            echo "::error::Secret NPB_RESTRICTED_DEPLOY_KEY is empty: add the private key of a deploy key on yasumorishima/npb-restricted-inputs."
+            exit 1
+          fi
+
+      - name: Check out the restricted tables (private repo)
+        uses: actions/checkout@v4
+        with:
+          repository: yasumorishima/npb-restricted-inputs
+          ssh-key: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+          path: _restricted
+          persist-credentials: false
+
+      - name: md5sum -c and file count
+        working-directory: _restricted
+        run: |
+          export LC_ALL=C
+          md5sum -c --quiet --strict MD5SUMS.txt
+          listed=$(wc -l < MD5SUMS.txt)
+          present=$(find . -type f ! -path './.git/*' ! -path ./README.md ! -path ./MD5SUMS.txt | wc -l)
+          echo "commit: $(git rev-parse --short HEAD)"
+          echo "files listed in MD5SUMS.txt: $listed"
+          echo "data files present:          $present"
+          if [ "$listed" -ne "$present" ]; then
+            echo "::error::MD5SUMS.txt lists $listed files but $present are present"
+            exit 1
+          fi
+          echo "All $listed files match MD5SUMS.txt"

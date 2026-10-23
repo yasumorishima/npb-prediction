@@ -1,0 +1,20 @@
+{
+  "source_table": "npb_sabermetrics_2015_2025.csv",
+  "data_end_year": 2025,
+  "year_min": 2015,
+  "year_max": 2025,
+  "woba_fit": {
+    "a_obp": 0.5397656990904939,
+    "b_slg": 0.35818021052688476,
+    "intercept": 0.011813627281304095,
+    "n_rows": 1919,
+    "rule": "lstsq wOBA ~ OBP + SLG + 1 on PA >= 100, non-null wOBA/OBP/SLG"
+  },
+  "lg_woba": {
+    "value": 0.2889829493914614,
+    "n_rows_recent": 1900,
+    "n_rows_used": 948,
+    "rule": "mean wOBA over year >= 2022 and PA >= 50"
+  },
+  "credits": "baseball-data.com (プロ野球データFreak) / npb.jp (日本野球機構)"
+}

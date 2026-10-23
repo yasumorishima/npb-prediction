@@ -196,12 +196,10 @@ def main():
     combined.to_csv(out_path, index=False, encoding="utf-8-sig")
     print(f"\nSaved: {out_path} ({len(combined)} rows)")
 
-    # 直近年の規定打席以上（443PA）のwOBA/wRC+ Top10
-    print(f"\n--- {DATA_END_YEAR} wRC+ Top 10 (PA >= 443) ---")
+    # 直近年の規定打席以上（443PA）の人数だけ表示（Actions のログは公開されるので
+    # 選手ごとの成績行は出さない。この表は再配布しない）
     q = combined[(combined["year"] == DATA_END_YEAR) & (combined["PA"] >= 443)]
-    top = q.nlargest(10, "wRC+")
-    print(top[["player", "team", "PA", "AVG", "OBP", "SLG", "wOBA", "wRC+", "wRAA"]].to_string(
-        index=False, float_format="%.3f"))
+    print(f"\n{DATA_END_YEAR}: {len(q)} hitters with PA >= 443 (rows not printed: restricted table)")
 
     # バリデーション: wOBA vs SLG の相関（NPB公式データにOPS列がないためSLGで代用）
     q_all = combined[combined["PA"] >= 200].copy()

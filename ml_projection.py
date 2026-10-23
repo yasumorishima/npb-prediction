@@ -542,7 +542,8 @@ def main():
             out = feat_h_2026[["player", "team", "PA_1", "pred_OPS"]].sort_values("pred_OPS", ascending=False)
             out = out[out["PA_1"] >= 200].head(20)
             print(f"\n打者 Top 20 by predicted OPS (model: {best_model_name}):")
-            print(out.to_string(index=False))
+            # PA_1 (previous-season PA) is an actual stat from a restricted table: not printed
+            print(out[["player", "team", "pred_OPS"]].to_string(index=False))
 
             out_path = OUT_DIR / f"ml_hitters_{TARGET_YEAR}.csv"
             feat_h_2026[["player", "team", "pred_OPS"]].to_csv(out_path, index=False, encoding="utf-8-sig")
@@ -567,7 +568,8 @@ def main():
             out = feat_p_2026[["player", "team", "IP_1", "pred_ERA"]].sort_values("pred_ERA")
             out = out[out["IP_1"] >= 50].head(20)
             print(f"\n投手 Top 20 by predicted ERA (model: {best_model_name}):")
-            print(out.to_string(index=False))
+            # IP_1 (previous-season IP) is an actual stat from a restricted table: not printed
+            print(out[["player", "team", "pred_ERA"]].to_string(index=False))
 
             out_path = OUT_DIR / f"ml_pitchers_{TARGET_YEAR}.csv"
             feat_p_2026[["player", "team", "pred_ERA"]].to_csv(out_path, index=False, encoding="utf-8-sig")
