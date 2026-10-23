@@ -58,7 +58,7 @@ Tom Tangoが考案した統計的予測手法。直近年ほど重くなる比�
 
 ### データ
 
-モデル出力・集計・チーム順位表の正本は repo の `data/`（git 管理）。baseball-data.com / npb.jp から取得した選手単位の成績表（下表の 🔒）は両サイトに再配布の許可が無いため、非公開リポジトリで保管し再配布しない（このリポジトリにも HF にも置かない）。クラウドミラーとして HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) に `data/` ツリー（🔒 を除く）を自動同期（BQ 時代の `npb/` スナップショットも保持）。
+モデル出力・集計・チーム順位表の正本は repo の `data/`（git 管理）。baseball-data.com / npb.jp から取得した選手単位の成績表（下表の 🔒）は両サイトに再配布の許可が無いため、非公開リポジトリで保管し再配布しない（このリポジトリには置かず、HF への同期からも除外する）。クラウドミラーとして HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) に `data/` ツリー（🔒 を除く）を自動同期（BQ 時代の `npb/` スナップショットも保持）。
 
 | ファイル | 内容 |
 |---|---|

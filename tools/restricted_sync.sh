@@ -122,9 +122,10 @@ cmd_push() {
 
 cmd_guard() {
   local bad=0 f
-  while IFS= read -r f; do
+  # -z: paths unquoted and NUL-separated (with quoting, non-ASCII names would not match)
+  while IFS= read -r -d '' f; do
     if is_restricted "$f"; then echo "::error::restricted file tracked or staged in the public repo: $f" >&2; bad=1; fi
-  done < <(git ls-files; git diff --cached --name-only)
+  done < <(git ls-files -z; git diff --cached --name-only -z --no-renames)
   [ "$bad" -eq 0 ] || die "refusing to commit restricted files to the public repo"
   echo "guard: no restricted file tracked or staged ($(git ls-files | wc -l) tracked, $(git diff --cached --name-only | wc -l) staged)"
 }

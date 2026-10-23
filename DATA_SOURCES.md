@@ -1,6 +1,6 @@
 # NPB予測モデル データソースと取得方法
 
-> 取得した選手単位の成績表（下の「出力」のうち 🔒 のもの）は、baseball-data.com・npb.jp とも再配布の許可が無いため、非公開リポジトリ（`yasumorishima/npb-restricted-inputs`）で保管し再配布しない（kept in a private repository; not redistributed）。このリポジトリにも HF Dataset にも置かない。チーム順位表は公開。
+> 取得した選手単位の成績表（下の「出力」のうち 🔒 のもの）は、baseball-data.com・npb.jp とも再配布の許可が無いため、非公開リポジトリ（`yasumorishima/npb-restricted-inputs`）で保管し再配布しない（kept in a private repository; not redistributed）。このリポジトリには置かず、HF Dataset への同期からも除外する。チーム順位表は公開。
 
 ## データソース一覧
 

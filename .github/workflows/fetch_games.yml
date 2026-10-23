@@ -98,8 +98,14 @@ jobs:
             echo "パークファクターCSVなし。可視化をスキップ。"
           fi
 
-      # Game-by-game scores (data/raw/npb_games_*.csv) are restricted: they go to
-      # the private repo in the last step. Only park factors and figures are public.
+      # Game-by-game scores (data/raw/npb_games_*.csv) are restricted: push them to
+      # the private repo first (park factors on main must come from saved tables).
+      - name: Push the restricted tables back to the private repo
+        run: |
+          bash tools/restricted_sync.sh push \
+            "data: NPB game scores ($(date +'%Y-%m-%d'), npb-prediction@${GITHUB_SHA::7})"
+
+      # Only park factors and figures are public.
       - name: Stage public outputs
         run: git add data/projections/npb_park_factors.csv images/ 2>/dev/null || true
 
@@ -116,8 +122,3 @@ jobs:
             git commit -m "data: パークファクター更新（試合別スコアは private repo へ） ($(date +'%Y-%m-%d'))"
             git push
           fi
-
-      - name: Push the restricted tables back to the private repo
-        run: |
-          bash tools/restricted_sync.sh push \
-            "data: NPB game scores ($(date +'%Y-%m-%d'), npb-prediction@${GITHUB_SHA::7})"
