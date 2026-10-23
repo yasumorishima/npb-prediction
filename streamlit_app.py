@@ -8,6 +8,9 @@ Data sources:
 - 日本野球機構 NPB (https://npb.jp)
 """
 
+import json
+import urllib.request
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -172,6 +175,50 @@ def load_csv(path: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=3600)
+def load_json(path: str) -> dict:
+    url = BASE_URL + path
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            obj = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return {}
+    return obj if isinstance(obj, dict) else {}
+
+
+def load_league_constants() -> dict:
+    """League aggregates (wOBA regression, league wOBA) computed by
+    league_constants.py from the restricted sabermetrics table, which is not
+    published. Empty dict when missing or built for another DATA_END_YEAR
+    (the app used to load npb_sabermetrics_2015_{DATA_END_YEAR}.csv, so a
+    constants file for another year is treated like that table being absent)."""
+    lc = load_json("data/projections/league_constants.json")
+    if not lc or lc.get("data_end_year") != DATA_END_YEAR:
+        return {}
+    return lc
+
+
+def _nan_if_none(x) -> float:
+    return float("nan") if x is None else float(x)
+
+
+def _league_woba_constants(data: dict) -> dict | None:
+    """Return {a_obp, b_slg, intercept, n_fit, lg_woba, n_recent} or None."""
+    lc = data.get("league_constants") or {}
+    try:
+        fit = lc["woba_fit"]
+        lw = lc["lg_woba"]
+        return {
+            "a_obp": _nan_if_none(fit["a_obp"]),
+            "b_slg": _nan_if_none(fit["b_slg"]),
+            "intercept": _nan_if_none(fit["intercept"]),
+            "n_fit": int(fit["n_rows"]),
+            "lg_woba": _nan_if_none(lw["value"]),
+            "n_recent": int(lw["n_rows_recent"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
 
 def load_all():
     from roster_current import get_all_roster_names, get_team_for_player
@@ -179,8 +226,8 @@ def load_all():
     result = {
         "marcel_hitters": load_csv(f"data/projections/marcel_hitters_{TARGET_YEAR}.csv"),
         "marcel_pitchers": load_csv(f"data/projections/marcel_pitchers_{TARGET_YEAR}.csv"),
-        "sabermetrics": load_csv(f"data/projections/npb_sabermetrics_2015_{DATA_END_YEAR}.csv"),
-        "pitcher_history": load_csv(f"data/raw/npb_pitchers_2015_{DATA_END_YEAR}.csv"),
+        # League aggregates only (the per-player tables are not published)
+        "league_constants": load_league_constants(),
         "pythagorean": load_csv(f"data/projections/pythagorean_2015_{DATA_END_YEAR}.csv"),
         "marcel_team_historical": load_csv("data/projections/marcel_team_historical.csv"),
         # Bayesian projections
@@ -217,18 +264,15 @@ def _enrich_projections(data: dict) -> None:
     """打者にwOBA/wRC+/wRAA、投手にFIP/K%/BB%/K-BB%を追加"""
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
-    saber = data.get("sabermetrics", pd.DataFrame())
+    lc = _league_woba_constants(data)
 
     # --- 打者: wOBA, wRC+, wRAA ---
-    if not mh.empty and not saber.empty:
-        df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
-        if len(df_fit) >= 10:
-            X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
-            coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
-            a_obp, b_slg, intercept_w = coeffs
+    # 係数とリーグ wOBA は league_constants.json（league_constants.py が算出）
+    if not mh.empty and lc is not None:
+        if lc["n_fit"] >= 10:
+            a_obp, b_slg, intercept_w = lc["a_obp"], lc["b_slg"], lc["intercept"]
 
-            recent_s = saber[saber["year"] >= 2022]
-            lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+            lg_woba = lc["lg_woba"]
             woba_scale = 1.15
 
             mh["wOBA"] = (a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w).round(3)
@@ -892,8 +936,6 @@ def page_hitter_prediction(data: dict):
         st.warning(t("no_player_found").format(name=name))
         return
 
-    saber = data.get("sabermetrics", pd.DataFrame())
-
     for _, row in marcel.iterrows():
         glow = NPB_TEAM_GLOW.get(row["team"], "#00e5ff")
         dy = int(row.get("data_years", 3))
@@ -965,43 +1007,6 @@ def page_hitter_prediction(data: dict):
             # 計算式の説明
             with st.expander(t("formula_hitter")):
                 st.markdown(t("formula_hitter_content"))
-
-        # wRC+推移グラフ（sabermetrics履歴データから）
-        if not saber.empty:
-            player_saber = _search(saber, row["player"])
-            if len(player_saber) > 1:
-                player_name = player_saber.iloc[0]["player"]
-                all_trend = player_saber[player_saber["player"] == player_name].sort_values("year")
-                MIN_PA = 30
-                excluded = all_trend[all_trend["PA"] < MIN_PA]
-                trend = all_trend[all_trend["PA"] >= MIN_PA]
-                if len(trend) > 1:
-                    st.markdown(f"**{t('wrc_trend_title').format(player=player_name)}**")
-                    if not excluded.empty:
-                        yrs = ", ".join(str(y) for y in sorted(excluded["year"].tolist()))
-                        is_ja = st.session_state.get("lang", "日本語") != "English"
-                        caption = f"※ PA < {MIN_PA} のシーズンは非表示（{yrs}年）" if is_ja else f"* Seasons with PA < {MIN_PA} hidden ({yrs})"
-                        st.caption(caption)
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=trend["year"], y=trend["wRC+"],
-                        name=player_name,
-                        mode="lines+markers", line=dict(color=glow, width=2),
-                        marker=dict(size=8, color=glow),
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=trend["year"], y=[100] * len(trend),
-                        name=t("league_average"),
-                        mode="lines", line=dict(color="#aaaaaa", width=1, dash="dash"),
-                    ))
-                    fig.update_layout(
-                        height=300, xaxis_title=t("year_axis"), yaxis_title="wRC+",
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e0e0e0"),
-                        xaxis=dict(gridcolor="#222"), yaxis=dict(gridcolor="#222"),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    )
-                    st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
 
         st.markdown("---")
 
@@ -1128,54 +1133,6 @@ def page_pitcher_prediction(data: dict):
         with st.expander(t("formula_pitcher")):
             st.markdown(t("formula_pitcher_content"))
 
-        # ERA / FIP推移グラフ（投手生データから）
-        ph = data.get("pitcher_history", pd.DataFrame())
-        if not ph.empty:
-            ph_fip = _add_fip_to_pitcher_history(ph)
-            player_hist = _search(ph_fip, row["player"])
-            if not player_hist.empty:
-                player_name = player_hist.iloc[0]["player"]
-                all_hist = player_hist[player_hist["player"] == player_name].sort_values("year")
-                MIN_IP = 10
-                excluded = all_hist[all_hist["IP"] < MIN_IP]
-                trend = all_hist[all_hist["IP"] >= MIN_IP]
-                if len(trend) > 1:
-                    is_ja = st.session_state.get("lang", "日本語") != "English"
-                    title_str = f"ERA / FIP推移（{player_name}）" if is_ja else f"ERA / FIP Trend ({player_name})"
-                    st.markdown(f"**{title_str}**")
-                    if not excluded.empty:
-                        yrs = ", ".join(str(y) for y in sorted(excluded["year"].tolist()))
-                        st.caption(
-                            f"※ IP < {MIN_IP} のシーズンは非表示（{yrs}年）" if is_ja
-                            else f"* Seasons with IP < {MIN_IP} hidden ({yrs})"
-                        )
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=trend["year"], y=trend["ERA"],
-                        name="ERA", mode="lines+markers",
-                        line=dict(color=glow, width=2), marker=dict(size=8, color=glow),
-                    ))
-                    if "FIP" in trend.columns:
-                        fig.add_trace(go.Scatter(
-                            x=trend["year"], y=trend["FIP"],
-                            name="FIP", mode="lines+markers",
-                            line=dict(color="#ff88cc", width=2, dash="dot"), marker=dict(size=6, color="#ff88cc"),
-                        ))
-                    fig.add_trace(go.Scatter(
-                        x=trend["year"], y=trend["lg_ERA"] if "lg_ERA" in trend.columns else [3.80] * len(trend),
-                        name=t("league_average"),
-                        mode="lines", line=dict(color="#aaaaaa", width=1, dash="dash"),
-                    ))
-                    fig.update_layout(
-                        height=300, xaxis_title=t("year_axis"), yaxis_title="ERA / FIP",
-                        yaxis=dict(autorange="reversed", gridcolor="#222"),
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e0e0e0"),
-                        xaxis=dict(gridcolor="#222"),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    )
-                    st.plotly_chart(fig, use_container_width=True, config={"staticPlot": True})
-
         st.markdown("---")
 
 
@@ -1268,45 +1225,19 @@ def _ensure_hitter_saber(mh: pd.DataFrame, data: dict) -> pd.DataFrame:
     """wOBA/wRC+/wRAA列がなければ計算して追加"""
     if "wOBA" in mh.columns:
         return mh
-    saber = data.get("sabermetrics", pd.DataFrame())
-    if saber.empty:
+    lc = _league_woba_constants(data)
+    if lc is None:
         return mh
-    df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
-    if len(df_fit) < 10:
+    if lc["n_fit"] < 10:
         return mh
-    X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
-    coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
-    a, b, c = coeffs
-    recent_s = saber[saber["year"] >= 2022]
-    lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+    a, b, c = lc["a_obp"], lc["b_slg"], lc["intercept"]
+    lg_woba = lc["lg_woba"]
     ws = 1.15
     mh["wOBA"] = (a * mh["OBP"] + b * mh["SLG"] + c).round(3)
     mh["wRAA"] = ((mh["wOBA"] - lg_woba) / ws * mh["PA"]).round(1)
     lg_r = lg_woba / ws
     mh["wRC+"] = (((mh["wOBA"] - lg_woba) / ws + lg_r) / lg_r * 100).round(0).astype(int)
     return mh
-
-
-def _add_fip_to_pitcher_history(df: pd.DataFrame) -> pd.DataFrame:
-    """投手生データに年別FIP定数を使ってFIPを追加"""
-    if df.empty or not all(c in df.columns for c in ["HRA", "BB", "HBP", "SO", "IP", "ER", "year"]):
-        return df
-    results = []
-    for year, grp in df.groupby("year"):
-        grp = grp.copy()
-        lg = grp[grp["IP"] >= 10]
-        lg_ip = lg["IP"].sum()
-        if lg_ip > 0:
-            fip_c = lg["ER"].sum() / lg_ip * 9 - (
-                13 * lg["HRA"].sum() + 3 * (lg["BB"].sum() + lg["HBP"].sum()) - 2 * lg["SO"].sum()
-            ) / lg_ip
-        else:
-            fip_c = 3.10
-        valid_ip = grp["IP"].replace(0, float("nan"))
-        grp["FIP"] = ((13 * grp["HRA"] + 3 * (grp["BB"] + grp["HBP"]) - 2 * grp["SO"]) / valid_ip + fip_c).round(2)
-        grp["lg_ERA"] = round(lg["ER"].sum() / lg_ip * 9, 2) if lg_ip > 0 else 3.80
-        results.append(grp)
-    return pd.concat(results, ignore_index=True)
 
 
 def _ensure_pitcher_saber(mp: pd.DataFrame) -> pd.DataFrame:
@@ -1444,9 +1375,9 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     """
     mh = data["marcel_hitters"]
     mp = data["marcel_pitchers"]
-    saber = data["sabermetrics"]
+    lc = _league_woba_constants(data)
     pyth = data["pythagorean"]
-    if mh.empty or mp.empty or saber.empty or pyth.empty:
+    if mh.empty or mp.empty or lc is None or pyth.empty:
         return pd.DataFrame()
 
     # 歴史的リーグ平均得点・失点（1チームあたり）
@@ -1458,9 +1389,8 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
     lg_era = (mp["ERA"] * mp["IP"]).sum() / mp["IP"].sum() if mp["IP"].sum() > 0 else 3.5
 
     # --- lg_woba ---
-    recent_s = saber[saber["year"] >= 2022]
-    if not recent_s.empty and "wOBA" in saber.columns:
-        lg_woba = recent_s[recent_s["PA"] >= 50]["wOBA"].mean()
+    if lc["n_recent"] > 0:
+        lg_woba = lc["lg_woba"]
     else:
         lg_woba = 0.310
 
@@ -1470,11 +1400,8 @@ def _build_2026_standings(data: dict, missing_all: dict | None = None) -> pd.Dat
         mh["wOBA_est"] = mh["wOBA"]
         mh["wRAA_est"] = mh["wRAA"]
     else:
-        # フォールバック: 回帰係数を計算
-        df_fit = saber[saber["PA"] >= 100].dropna(subset=["wOBA", "OBP", "SLG"])
-        X = np.column_stack([df_fit["OBP"].values, df_fit["SLG"].values, np.ones(len(df_fit))])
-        coeffs, _, _, _ = np.linalg.lstsq(X, df_fit["wOBA"].values, rcond=None)
-        a_obp, b_slg, intercept_w = coeffs
+        # フォールバック: league_constants.json の回帰係数
+        a_obp, b_slg, intercept_w = lc["a_obp"], lc["b_slg"], lc["intercept"]
         woba_scale = 1.15
         mh["wOBA_est"] = a_obp * mh["OBP"] + b_slg * mh["SLG"] + intercept_w
         mh["wRAA_est"] = (mh["wOBA_est"] - lg_woba) / woba_scale * mh["PA"]
