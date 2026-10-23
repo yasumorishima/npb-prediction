@@ -1,0 +1,215 @@
+name: HF restricted cleanup (one-off)
+
+# One-off, approved by the owner on 2026-10-23: remove the NPB player-level tables
+# scraped from baseball-data.com / npb.jp from the public HF dataset
+# yasumorishima/npb-stats (neither site grants a redistribution right).
+# 1. Download exactly the 35 files listed below at the current HF revision and check
+#    each against HF's own hash (LFS sha256, or the git blob id for non-LFS files).
+# 2. Push them to the private repo npb-restricted-inputs, branch hf-snapshot-20261023
+#    (a backup; main of that repo is what the other workflows overlay).
+# 3. Delete exactly those files from HF in one commit, then squash HF history so
+#    older revisions no longer serve them.
+# 4. Verify: none of them remain, every other file is still there with the same hash,
+#    and history has 1 commit.
+# Fails closed at every step; deletes nothing unless the backup is on the private repo.
+# Safe to rerun: if the files are already gone it only checks the backup branch and
+# finishes the squash; if the squash is done too it only verifies.
+
+on:
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
+      confirm:
+        description: 'Type delete-35 to delete the 35 listed files from HF'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hf-restricted-cleanup
+  cancel-in-progress: false
+
+env:
+  BACKUP_BRANCH: hf-snapshot-20261023
+
+jobs:
+  cleanup:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check confirmation and secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          DEPLOY_KEY: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = "delete-35" ] || { echo "::error::confirm must be delete-35"; exit 1; }
+          [ -n "$HF_TOKEN" ] || { echo "::error::HF_TOKEN missing"; exit 1; }
+          [ -n "$DEPLOY_KEY" ] || { echo "::error::NPB_RESTRICTED_DEPLOY_KEY missing"; exit 1; }
+
+      - name: Checkout the private repo
+        uses: actions/checkout@v4
+        with:
+          repository: yasumorishima/npb-restricted-inputs
+          ssh-key: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+          path: _restricted
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install --quiet "huggingface_hub>=1.0,<2"
+
+      - name: Download the listed files from HF and check them against HF's hashes
+        id: dl
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, shutil
+          from huggingface_hub import HfApi, hf_hub_download
+          REPO = "yasumorishima/npb-stats"
+          DELETE = [
+              "data/projections/npb_sabermetrics_2015_2025.csv",
+              "data/raw/npb_batting_detailed_2015_2025.csv",
+              *[f"data/raw/npb_games_{y}.csv" for y in range(2016, 2026)],
+              "data/raw/npb_hitters_2015_2025.csv",
+              "data/raw/npb_pitchers_2015_2025.csv",
+              "data/raw/npb_player_birthdays.csv",
+              "data/raw/npb_players_profile_2024.csv",
+              "data/raw/npb_rosters_2018_2025.csv",
+              "npb/raw_batting_detailed.parquet",
+              *[f"npb/raw_games_{y}.parquet" for y in range(2016, 2026)],
+              "npb/raw_hitters.parquet",
+              "npb/raw_pitchers.parquet",
+              "npb/raw_player_birthdays.parquet",
+              "npb/raw_player_profiles.parquet",
+              "npb/raw_rosters.parquet",
+              "npb/sabermetrics.parquet",
+              "npb_bayes/npb_sabermetrics.parquet",
+          ]
+          assert len(DELETE) == 35 and len(set(DELETE)) == 35, len(DELETE)
+
+          def hf_hash(s):
+              # LFS files: sha256 of the content; others: git blob id (sha1 of "blob <n>\0" + content)
+              return ("sha256", s.lfs.sha256) if s.lfs is not None else ("git", s.blob_id)
+
+          def local_hash(path, kind):
+              data = open(path, "rb").read()
+              if kind == "sha256":
+                  return hashlib.sha256(data).hexdigest()
+              return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+          api = HfApi()
+          info = api.dataset_info(REPO, files_metadata=True)
+          sib = {s.rfilename: s for s in info.siblings}
+          present = [p for p in DELETE if p in sib]
+          commits = api.list_repo_commits(REPO, repo_type="dataset", revision=info.sha)
+          kept = {p: list(hf_hash(s)) for p, s in sib.items() if p not in DELETE}
+          if len(present) == 0:
+              mode = "squash_only" if len(commits) > 1 else "done"
+          elif len(present) == len(DELETE):
+              mode = "full"
+          else:
+              raise SystemExit(f"::error::only {len(present)} of 35 files are on HF; stopping")
+
+          if mode == "full":
+              out = "_restricted/hf_snapshot"
+              os.makedirs(out, exist_ok=True)
+              rows = []
+              for p in DELETE:
+                  kind, want = hf_hash(sib[p])
+                  local = hf_hub_download(REPO, p, repo_type="dataset", revision=info.sha)
+                  got = local_hash(local, kind)
+                  assert got == want, f"{p}: {kind} {got} != HF {want}"
+                  dst = os.path.join(out, p)
+                  os.makedirs(os.path.dirname(dst), exist_ok=True)
+                  shutil.copyfile(local, dst)
+                  assert local_hash(dst, kind) == want, p
+                  rows.append(f"{hashlib.md5(open(dst, 'rb').read()).hexdigest()}  {p}")
+              open(os.path.join(out, "MD5SUMS.txt"), "w").write("\n".join(rows) + "\n")
+              print(f"downloaded {len(rows)} files, each equal to HF's hash")
+
+          json.dump({"mode": mode, "hf_revision": info.sha, "deleted": DELETE, "kept": kept},
+                    open("plan.json", "w"), indent=1)
+          print("mode", mode, "HF revision", info.sha, "files", len(sib),
+                "to delete", len(present), "kept", len(kept), "commits", len(commits))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"mode={mode}\n")
+          PY
+
+      - name: Push the backup to the private repo
+        if: steps.dl.outputs.mode == 'full'
+        working-directory: _restricted
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          (cd hf_snapshot && md5sum -c --quiet --strict MD5SUMS.txt)
+          [ "$(wc -l < hf_snapshot/MD5SUMS.txt)" -eq 35 ]
+          git checkout -b "$BACKUP_BRANCH"
+          git add hf_snapshot
+          if git ls-remote --exit-code origin "refs/heads/$BACKUP_BRANCH" >/dev/null; then
+            # an earlier run already pushed the backup: it must hold exactly these files
+            git fetch --no-tags origin "$BACKUP_BRANCH"
+            git diff --cached --quiet FETCH_HEAD -- hf_snapshot \
+              || { echo "::error::backup branch exists with different content"; exit 1; }
+            echo "backup branch already holds the same 35 files"
+          else
+            git commit -q -m "Backup of the 35 NPB files removed from HF yasumorishima/npb-stats ($(jq -r .hf_revision ../plan.json))"
+            git push origin "HEAD:refs/heads/$BACKUP_BRANCH"
+            git ls-remote origin "refs/heads/$BACKUP_BRANCH" | grep -q "^$(git rev-parse HEAD)"
+            echo "pushed backup $(git rev-parse --short HEAD)"
+          fi
+
+      - name: Check the backup branch (rerun after the delete)
+        if: steps.dl.outputs.mode != 'full'
+        working-directory: _restricted
+        run: |
+          git ls-remote --exit-code origin "refs/heads/$BACKUP_BRANCH" >/dev/null \
+            || { echo "::error::files are gone from HF but the backup branch is missing"; exit 1; }
+          git fetch --no-tags origin "$BACKUP_BRANCH"
+          [ "$(git show FETCH_HEAD:hf_snapshot/MD5SUMS.txt | wc -l)" -eq 35 ]
+          echo "backup branch present with 35 files"
+
+      - name: Delete from HF, squash history, verify
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          from huggingface_hub import HfApi, CommitOperationDelete
+          REPO = "yasumorishima/npb-stats"
+          plan = json.load(open("plan.json"))
+          api = HfApi()
+          assert api.dataset_info(REPO).sha == plan["hf_revision"], "HF changed since the plan"
+          if plan["mode"] == "full":
+              api.create_commit(REPO, repo_type="dataset",
+                                operations=[CommitOperationDelete(path_in_repo=p) for p in plan["deleted"]],
+                                commit_message="Remove NPB player-level tables scraped from baseball-data.com / npb.jp (no redistribution right)",
+                                parent_commit=plan["hf_revision"])
+              print("deleted", len(plan["deleted"]), "files")
+          if plan["mode"] in ("full", "squash_only"):
+              api.super_squash_history(REPO, repo_type="dataset",
+                                       commit_message="Squash history after removing NPB tables without a redistribution right")
+              print("squashed history")
+          info = api.dataset_info(REPO, files_metadata=True)
+          sib = {s.rfilename: s for s in info.siblings}
+          def hf_hash(s):
+              return ["sha256", s.lfs.sha256] if s.lfs is not None else ["git", s.blob_id]
+          left = [p for p in plan["deleted"] if p in sib]
+          lost = [p for p in plan["kept"] if p not in sib]
+          changed = [p for p, h in plan["kept"].items() if p in sib and hf_hash(sib[p]) != h]
+          extra = [p for p in sib if p not in plan["kept"]]
+          commits = api.list_repo_commits(REPO, repo_type="dataset")
+          print("files", len(sib), "left", left, "lost", lost, "changed", changed,
+                "extra", extra, "commits", len(commits), "revision", info.sha)
+          assert not left and not lost and not changed and not extra and len(commits) == 1
+          print("OK: 35 removed, every other file unchanged, history squashed to 1 commit")
+          PY
