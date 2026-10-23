@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query
-from config import DATA_END_YEAR, TARGET_YEAR
+from config import displayed_years
 
 app = FastAPI(
     title="NPB 成績予測 API",
@@ -51,6 +51,8 @@ class TeamName(str, Enum):
     西武 = "西武"
 
 PROJ_DIR = Path(__file__).parent / "data" / "projections"
+# Next season's predictions appear only after the 3/1 annual_update (config.displayed_years).
+DATA_END_YEAR, TARGET_YEAR = displayed_years(lambda name: (PROJ_DIR / name).exists())
 METRICS_DIR = Path(__file__).parent / "data" / "metrics"
 
 

@@ -9,6 +9,7 @@ Data sources:
 """
 
 import json
+import urllib.error
 import urllib.request
 
 import numpy as np
@@ -17,7 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
-from config import DATA_END_YEAR, TARGET_YEAR
+from config import displayed_years
 from translations import TEAM_NAME_EN, TEXTS
 
 
@@ -36,6 +37,47 @@ def team_disp(team_ja: str) -> str:
 
 
 BASE_URL = "https://raw.githubusercontent.com/yasumorishima/npb-prediction/main/"
+
+
+def _published(name: str):
+    """True / False when data/projections/<name> is / is not published at BASE_URL,
+    None when it could not be checked (network error)."""
+    url = BASE_URL + "data/projections/" + name
+    try:
+        urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=10).close()
+        return True
+    except urllib.error.HTTPError as e:
+        return False if e.code == 404 else None
+    except urllib.error.URLError:
+        return False if url.startswith("file:") else None
+    except Exception:
+        return None
+
+
+class _UnknownPublished(Exception):
+    pass
+
+
+@st.cache_data(ttl=3600)
+def _published_cached(name: str) -> bool:
+    # A failed check raises, and st.cache_data does not store a call that raised,
+    # so a network error is retried on the next rerun instead of being kept for an hour.
+    result = _published(name)
+    if result is None:
+        raise _UnknownPublished(name)
+    return result
+
+
+def _published_or_unknown(name: str):
+    try:
+        return _published_cached(name)
+    except _UnknownPublished:
+        return None
+
+
+# Season shown by the app: next season's predictions appear only after the 3/1
+# annual_update, so the app keeps the current ones until then (config.displayed_years).
+DATA_END_YEAR, TARGET_YEAR = displayed_years(_published_or_unknown)
 
 NPB_TEAM_COLORS = {
     "DeNA": "#0055A5",
