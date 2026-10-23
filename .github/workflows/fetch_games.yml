@@ -24,6 +24,29 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Restricted NPB tables (baseball-data.com / npb.jp, no redistribution right)
+      # live in the PRIVATE repo yasumorishima/npb-restricted-inputs. Check it out
+      # with the deploy key and copy the tables into the workspace (md5 verified).
+      # .gitignore keeps them out of every public commit; see tools/restricted_sync.sh.
+      - name: Check the restricted-data deploy key
+        env:
+          NPB_RESTRICTED_DEPLOY_KEY: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+        run: |
+          if [ -z "$NPB_RESTRICTED_DEPLOY_KEY" ]; then
+            echo "::error::Secret NPB_RESTRICTED_DEPLOY_KEY is empty: add the private key of a deploy key on yasumorishima/npb-restricted-inputs."
+            exit 1
+          fi
+
+      - name: Check out the restricted tables (private repo)
+        uses: actions/checkout@v4
+        with:
+          repository: yasumorishima/npb-restricted-inputs
+          ssh-key: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+          path: _restricted
+
+      - name: Restore the restricted tables into the workspace
+        run: bash "$GITHUB_WORKSPACE/tools/restricted_sync.sh" pull
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -35,10 +58,10 @@ jobs:
       - name: Set target year(s) in config
         run: |
           if [ -n "${{ github.event.inputs.year }}" ]; then
-            echo "NPB_DATA_END_YEAR=${{ github.event.inputs.year }}" >> $GITHUB_ENV
+            echo "NPB_DATA_END_YEAR=${{ github.event.inputs.year }}" >> "$GITHUB_ENV"
           else
             # 空白なら前年を対象
-            echo "NPB_DATA_END_YEAR=$(($(date +'%Y') - 1))" >> $GITHUB_ENV
+            echo "NPB_DATA_END_YEAR=$(($(date +'%Y') - 1))" >> "$GITHUB_ENV"
           fi
 
       - name: Fetch game scores
@@ -51,11 +74,9 @@ jobs:
           echo "=== 取得ファイル ==="
           ls -lh data/raw/npb_games_*.csv 2>/dev/null || echo "ファイルなし（取得失敗）"
           echo ""
-          echo "=== 先頭5行（最新年） ==="
-          latest=$(ls data/raw/npb_games_*.csv 2>/dev/null | sort | tail -1)
+          echo "=== 行数（最新年・内容はログに出さない：再配布しない表） ==="
+          latest=$(find data/raw -maxdepth 1 -name 'npb_games_*.csv' 2>/dev/null | sort | tail -1)
           if [ -n "$latest" ]; then
-            head -6 "$latest"
-            echo "..."
             wc -l "$latest"
           fi
 
@@ -77,14 +98,26 @@ jobs:
             echo "パークファクターCSVなし。可視化をスキップ。"
           fi
 
+      # Game-by-game scores (data/raw/npb_games_*.csv) are restricted: they go to
+      # the private repo in the last step. Only park factors and figures are public.
+      - name: Stage public outputs
+        run: git add data/projections/npb_park_factors.csv images/ 2>/dev/null || true
+
+      - name: Guard - no restricted file in the public commit
+        run: bash "$GITHUB_WORKSPACE/tools/restricted_sync.sh" guard
+
       - name: Commit and push
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data/raw/npb_games_*.csv data/projections/npb_park_factors.csv images/ 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "変更なし"
           else
-            git commit -m "data: NPB試合別スコア + パークファクター更新 ($(date +'%Y-%m-%d'))"
+            git commit -m "data: パークファクター更新（試合別スコアは private repo へ） ($(date +'%Y-%m-%d'))"
             git push
           fi
+
+      - name: Push the restricted tables back to the private repo
+        run: |
+          bash tools/restricted_sync.sh push \
+            "data: NPB game scores ($(date +'%Y-%m-%d'), npb-prediction@${GITHUB_SHA::7})"
