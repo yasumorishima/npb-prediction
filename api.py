@@ -80,7 +80,10 @@ bayes_hitters = _load_csv(f"bayes_hitters_{TARGET_YEAR}.csv")
 bayes_pitchers = _load_csv(f"bayes_pitchers_{TARGET_YEAR}.csv")
 foreign_hitters = _load_csv(f"foreign_hitters_{TARGET_YEAR}.csv")
 foreign_pitchers = _load_csv(f"foreign_pitchers_{TARGET_YEAR}.csv")
-sabermetrics = _load_csv(f"npb_sabermetrics_2015_{DATA_END_YEAR}.csv")
+# The per-player sabermetrics table (baseball-data.com / npb.jp) is not redistributed,
+# so the API never serves it, even on a host that has a copy: /sabermetrics and
+# /simulate/team answer 503, as they do on a checkout of this repo.
+sabermetrics = pd.DataFrame()
 pythagorean = _load_csv(f"pythagorean_2015_{DATA_END_YEAR}.csv")
 
 # チームシミュレーション結果

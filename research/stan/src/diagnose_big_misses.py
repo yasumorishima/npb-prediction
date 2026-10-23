@@ -12,6 +12,7 @@ Output:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -33,6 +34,13 @@ FOREIGN_DIR = DATA_DIR / "foreign"
 OUT_DIR = DATA_DIR / "projections"
 
 ERR_THRESHOLD = 10.0  # wins
+
+
+# Player-level NPB rows (baseball-data.com / npb.jp) are not redistributed, so they
+# are not printed into public Actions logs. NPB_SHOW_PLAYER_ROWS=1 shows them locally.
+def _player_row(*args, **kwargs):
+    if os.environ.get("NPB_SHOW_PLAYER_ROWS") == "1":
+        print(*args, **kwargs)
 
 
 def load_foreign_names():
@@ -245,7 +253,7 @@ def main():
             print(f"\n  [Hitter PA drops (>100 PA decrease)]")
             for _, r in pa_drops.head(5).iterrows():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"PA: {int(r['prev_PA']):>3d}→{int(r['PA']):>3d} (Δ{int(r['delta_PA']):+d})  "
                       f"wOBA: {r['prev_wOBA']:.3f}→{r['wOBA']:.3f}  "
                       f"RS impact: {r['rs_impact_pa']:+.1f}")
@@ -256,7 +264,7 @@ def main():
             print(f"\n  [Hitter wOBA surprises (|Δ|>.040)]")
             for _, r in perf_h.iterrows():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"PA={int(r['PA']):>3d}  "
                       f"wOBA: {r['prev_wOBA']:.3f}→{r['wOBA']:.3f} (Δ{r['delta_wOBA']:+.3f})  "
                       f"RS impact: {r['rs_impact_perf']:+.1f}")
@@ -268,7 +276,7 @@ def main():
             for _, r in dep_h_sorted.head(5).iterrows():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
                 dest = f"→{r['new_team']}" if pd.notna(r.get("new_team")) else "→retired/2軍"
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"prev PA={int(r['PA']):>3d}  wOBA={r['wOBA']:.3f}  "
                       f"lost RS={r['lost_rs']:.1f}  {dest}")
 
@@ -279,7 +287,7 @@ def main():
             for _, r in arr_h_sorted.head(5).iterrows():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
                 src = f"←{r['prev_team']}" if pd.notna(r.get("prev_team")) else "←rookie/2軍"
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"PA={int(r['PA']):>3d}  wOBA={r['wOBA']:.3f}  "
                       f"gained RS={r['gained_rs']:.1f}  {src}")
 
@@ -294,7 +302,7 @@ def main():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
                 era_prev = r["prev_ERA"] if pd.notna(r["prev_ERA"]) else 0
                 era_cur = r["ERA_num"] if pd.notna(r["ERA_num"]) else 0
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"IP: {r['prev_IP']:>5.1f}→{r['IP_dec']:>5.1f} (Δ{r['delta_IP']:+.1f})  "
                       f"ERA: {era_prev:.2f}→{era_cur:.2f}  "
                       f"RA impact: {r['ra_impact_ip']:+.1f}")
@@ -307,7 +315,7 @@ def main():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
                 era_prev = r["prev_ERA"] if pd.notna(r["prev_ERA"]) else 0
                 era_cur = r["ERA_num"] if pd.notna(r["ERA_num"]) else 0
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"IP={r['IP_dec']:>5.1f}  "
                       f"ERA: {era_prev:.2f}→{era_cur:.2f} (Δ{r['delta_ERA']:+.2f})  "
                       f"RA impact: {r['ra_impact_perf']:+.1f}")
@@ -320,7 +328,7 @@ def main():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
                 era = r["ERA_num"] if pd.notna(r["ERA_num"]) else 0
                 dest = f"→{r['new_team']}" if pd.notna(r.get("new_team")) else "→retired/2軍"
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"prev IP={r['IP_dec']:>5.1f}  ERA={era:.2f}  "
                       f"lost RA={r['lost_ra']:.1f}  {dest}")
 
@@ -332,7 +340,7 @@ def main():
                 fg = " [FGN]" if r["player"] in foreign_names else ""
                 era = r["ERA_num"] if pd.notna(r["ERA_num"]) else 0
                 src = f"←{r['prev_team']}" if pd.notna(r.get("prev_team")) else "←rookie/2軍"
-                print(f"    {r['player']:10s}{fg:6s}  "
+                _player_row(f"    {r['player']:10s}{fg:6s}  "
                       f"IP={r['IP_dec']:>5.1f}  ERA={era:.2f}  "
                       f"gained RA={r['gained_ra']:.1f}  {src}")
 
