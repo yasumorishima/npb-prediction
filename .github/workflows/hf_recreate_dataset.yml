@@ -1,0 +1,223 @@
+name: HF recreate npb-stats (one-off)
+
+# One-off, approved by the owner on 2026-10-24. After hf_restricted_cleanup.yml removed
+# the 35 player-level NPB files from main and squashed the history, HF still served them
+# when a request named the old commit sha (measured: resolve/96c7dba3.../data/raw/... = 200).
+# Only deleting the repository removes those commits, so this workflow:
+# 1. Downloads the 77 files on main and checks each against the plan saved with the
+#    backup (private repo npb-restricted-inputs, branch hf-snapshot-20261023, plan.json).
+# 2. Backs them up to the private repo, branch hf-kept-20261024.
+# 3. Deletes the dataset yasumorishima/npb-stats, creates it again (public, same name)
+#    and uploads the 77 files in one commit.
+# 4. Verifies: the same 77 paths with the same content, HF's "initial commit" plus ours,
+#    and the old commits (96c7dba3..., 63de502a...) no longer serve any file.
+# Safe to rerun: if the dataset is missing it restores from the private backup; if it
+# exists with only .gitattributes it uploads again; if it was recreated it only verifies.
+
+on:
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
+      confirm:
+        description: 'Type recreate-npb-stats to delete and recreate the HF dataset'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npb-restricted-write
+  cancel-in-progress: false
+
+env:
+  REPO: yasumorishima/npb-stats
+  PLAN_BRANCH: hf-snapshot-20261023
+  KEPT_BRANCH: hf-kept-20261024
+  OLD_REVS: 96c7dba3f0b9d8e7b3abe41c4bcfe02a9d39659a 63de502a1aca0d14048141165ffc325ecb49e831
+
+jobs:
+  recreate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check confirmation and secrets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          DEPLOY_KEY: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = "recreate-npb-stats" ] || { echo "::error::confirm must be recreate-npb-stats"; exit 1; }
+          [ -n "$HF_TOKEN" ] || { echo "::error::HF_TOKEN missing"; exit 1; }
+          [ -n "$DEPLOY_KEY" ] || { echo "::error::NPB_RESTRICTED_DEPLOY_KEY missing"; exit 1; }
+
+      - name: Checkout the private repo
+        uses: actions/checkout@v4
+        with:
+          repository: yasumorishima/npb-restricted-inputs
+          ssh-key: ${{ secrets.NPB_RESTRICTED_DEPLOY_KEY }}
+          path: _restricted
+          fetch-depth: 0
+
+      - name: Read the plan saved before the delete
+        working-directory: _restricted
+        run: |
+          git fetch --no-tags origin "$PLAN_BRANCH"
+          git show "FETCH_HEAD:hf_snapshot/plan.json" > ../plan.json
+          jq -e '(.kept | length) == 77 and (.deleted | length) == 35' ../plan.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install --quiet "huggingface_hub==1.33.0"
+
+      - name: Download the kept files (or restore them from the private backup)
+        id: dl
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, shutil, subprocess
+          from huggingface_hub import HfApi, hf_hub_download
+          from huggingface_hub.errors import RepositoryNotFoundError
+          REPO = os.environ["REPO"]
+          plan = json.load(open("plan.json"))
+          kept = plan["kept"]                      # path -> [kind, hash] before the delete
+          probe = plan["deleted"][0]
+
+          def local_hash(path, kind):
+              data = open(path, "rb").read()
+              if kind == "sha256":
+                  return hashlib.sha256(data).hexdigest()
+              return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+          api = HfApi()
+          try:
+              info = api.dataset_info(REPO, files_metadata=True)
+          except RepositoryNotFoundError:
+              info = None
+          if info is None:
+              mode = "restore"                     # deleted by an earlier run, not yet recreated
+          elif {s.rfilename for s in info.siblings} == {".gitattributes"}:
+              mode = "reupload"                    # recreated by an earlier run, upload failed
+          elif any(api.file_exists(REPO, probe, repo_type="dataset", revision=r)
+                   for r in os.environ["OLD_REVS"].split()[:1]):
+              mode = "full"                        # old commits still reachable
+          else:
+              mode = "verify"                      # already recreated
+          print("mode", mode)
+
+          out = "kept"
+          if mode == "full":
+              sib = {s.rfilename: s for s in info.siblings}
+              assert set(sib) == set(kept), (sorted(set(sib) ^ set(kept)))
+              os.makedirs(out, exist_ok=True)
+              for p, (kind, want) in kept.items():
+                  local = hf_hub_download(REPO, p, repo_type="dataset", revision=info.sha)
+                  dst = os.path.join(out, p)
+                  os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+                  shutil.copyfile(local, dst)
+                  got = local_hash(dst, kind)
+                  assert got == want, f"{p}: {kind} {got} != plan {want}"
+              print(f"downloaded {len(kept)} files, each equal to the plan's hash; HF revision {info.sha}")
+              json.dump({"hf_revision": info.sha}, open("snapshot.json", "w"))
+          elif mode in ("restore", "reupload"):
+              subprocess.run(["git", "-C", "_restricted", "fetch", "--no-tags", "origin",
+                              os.environ["KEPT_BRANCH"]], check=True)
+              tar = subprocess.run(["git", "-C", "_restricted", "show", "FETCH_HEAD:hf_kept.tar"],
+                                   check=True, capture_output=True).stdout
+              os.makedirs(out)
+              subprocess.run(["tar", "-x", "-C", out], input=tar, check=True)
+              files = [os.path.relpath(os.path.join(d, f), out) for d, _, fs in os.walk(out) for f in fs]
+              assert sorted(files) == sorted(kept), sorted(set(files) ^ set(kept))
+              for p, (kind, want) in kept.items():
+                  assert local_hash(os.path.join(out, p), kind) == want, p
+              print(f"restored {len(kept)} files from the private backup, each equal to the plan's hash")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"mode={mode}\n")
+          PY
+
+      - name: Back up the kept files to the private repo
+        if: steps.dl.outputs.mode == 'full'
+        working-directory: _restricted
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -q -b "$KEPT_BRANCH" origin/main
+          # one deterministic tar: the kept files include a .gitattributes (LFS rules) that
+          # must not act as git attributes in this repo
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf hf_kept.tar -C ../kept .
+          [ "$(tar -tf hf_kept.tar | grep -cv '/$')" -eq 77 ] || { echo "::error::tar does not hold 77 files"; exit 1; }
+          git add -f hf_kept.tar
+          if git ls-remote --exit-code origin "refs/heads/$KEPT_BRANCH" >/dev/null; then
+            git fetch --no-tags origin "$KEPT_BRANCH"
+            git diff --cached --quiet FETCH_HEAD -- hf_kept.tar \
+              || { echo "::error::backup branch exists with different content"; exit 1; }
+            echo "backup branch already holds the same 77 files"
+          else
+            git commit -q -m "Backup of the 77 files kept on HF $REPO before recreating it ($(jq -r .hf_revision ../snapshot.json))"
+            [ "$(git ls-tree -r --name-only HEAD | grep -c '^hf_kept.tar$')" -eq 1 ]
+            git push origin "HEAD:refs/heads/$KEPT_BRANCH"
+            git ls-remote origin "refs/heads/$KEPT_BRANCH" | grep -q "^$(git rev-parse HEAD)"
+            echo "pushed backup $(git rev-parse --short HEAD)"
+          fi
+
+      - name: Delete and recreate the dataset, upload, verify
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          MODE: ${{ steps.dl.outputs.mode }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from huggingface_hub import HfApi
+          REPO, MODE = os.environ["REPO"], os.environ["MODE"]
+          plan = json.load(open("plan.json"))
+          kept = plan["kept"]
+          api = HfApi()
+          if MODE == "full":
+              snap = json.load(open("snapshot.json"))
+              assert api.dataset_info(REPO).sha == snap["hf_revision"], "HF changed since the download"
+              api.delete_repo(REPO, repo_type="dataset")
+              print("deleted", REPO)
+          if MODE in ("full", "restore"):
+              api.create_repo(REPO, repo_type="dataset", private=False)
+          if MODE in ("full", "restore", "reupload"):
+              api.upload_folder(repo_id=REPO, repo_type="dataset", folder_path="kept",
+                                commit_message="Recreate npb-stats: model outputs, aggregates and team standings "
+                                               "(player-level NPB tables removed, no redistribution right)")
+              print("recreated and uploaded", len(kept), "files")
+
+          info = api.dataset_info(REPO, files_metadata=True)
+          sib = {s.rfilename: s for s in info.siblings}
+          def same_content(p, s):
+              kind, want = kept[p]
+              if kind == "sha256":            # LFS before: compare content sha256
+                  return s.lfs is not None and s.lfs.sha256 == want
+              if s.lfs is None:               # git blob before and now
+                  return s.blob_id == want
+              # git blob before, LFS now: compare the local copy (checked against the plan) with HF
+              return hashlib.sha256(open(os.path.join("kept", p), "rb").read()).hexdigest() == s.lfs.sha256
+          missing = sorted(set(kept) - set(sib))
+          extra = sorted(set(sib) - set(kept))
+          changed = [p for p in kept if p in sib and p != ".gitattributes" and not same_content(p, sib[p])]
+          commits = api.list_repo_commits(REPO, repo_type="dataset")
+          old = {r[:8]: [api.file_exists(REPO, f, repo_type="dataset", revision=r)
+                         for f in (plan["deleted"][0], "data/raw/npb_standings_2015_2025.csv")]
+                 for r in os.environ["OLD_REVS"].split()}
+          print("files", len(sib), "missing", missing, "extra", extra, "changed", changed,
+                "commits", len(commits), "private", info.private, "old revisions serve files", old,
+                "revision", info.sha)
+          assert not missing and not extra and not changed, "content check failed"
+          # create_repo writes its own "initial commit" (.gitattributes) before our upload
+          ids = [c.commit_id for c in commits]
+          assert len(commits) in (1, 2) and info.private is False, ([c.title for c in commits], info.private)
+          assert len(commits) == 1 or commits[-1].title == "initial commit", [c.title for c in commits]
+          assert not set(ids) & set(os.environ["OLD_REVS"].split()), "an old commit is still in the history"
+          assert not any(any(v) for v in old.values()), "an old revision still serves a file"
+          print("OK: 77 files with the same content, 1 commit, public, old commits gone")
+          PY
