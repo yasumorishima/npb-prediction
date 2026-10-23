@@ -58,21 +58,21 @@ Tom Tangoが考案した統計的予測手法。直近年ほど重くなる比�
 
 ### データ
 
-正本は repo の `data/`（git 管理）。クラウドミラーとして HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) に `data/` ツリーを自動同期（BQ 時代の `npb/` スナップショットも保持）。
+モデル出力・集計・チーム順位表の正本は repo の `data/`（git 管理）。baseball-data.com / npb.jp から取得した選手単位の成績表（下表の 🔒）は両サイトに再配布の許可が無いため、非公開リポジトリで保管し再配布しない（このリポジトリにも HF にも置かない）。クラウドミラーとして HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) に `data/` ツリー（🔒 を除く）を自動同期（BQ 時代の `npb/` スナップショットも保持）。
 
 | ファイル | 内容 |
 |---|---|
-| `data/raw/npb_hitters_2015_2025.csv` | 打者成績（2015-2025、11シーズン分、3,780行） |
-| `data/raw/npb_pitchers_2015_2025.csv` | 投手成績（2015-2025、11シーズン分、3,773行） |
+| `data/raw/npb_hitters_2015_2025.csv` | 打者成績（2015-2025、11シーズン分、3,780行）。🔒 非公開リポジトリで保管（再配布しない） |
+| `data/raw/npb_pitchers_2015_2025.csv` | 投手成績（2015-2025、11シーズン分、3,773行）。🔒 非公開リポジトリで保管（再配布しない） |
 | `data/raw/npb_standings_2015_2025.csv` | 順位表（12球団×11年=132行） |
-| `data/raw/npb_player_birthdays.csv` | 選手生年月日（年齢調整に使用、2,479人） |
-| `data/raw/npb_batting_detailed_2015_2025.csv` | 詳細打撃成績（2塁打/3塁打/犠飛を含むwOBA算出用、4,538行） |
-| `data/raw/npb_rosters_2018_2025.csv` | 支配下登録名鑑（MLB移籍・退団選手の除外判定に使用、7,866行） |
+| `data/raw/npb_player_birthdays.csv` | 選手生年月日（年齢調整に使用、2,479人）。🔒 非公開リポジトリで保管（再配布しない） |
+| `data/raw/npb_batting_detailed_2015_2025.csv` | 詳細打撃成績（2塁打/3塁打/犠飛を含むwOBA算出用、4,538行）。🔒 非公開リポジトリで保管（再配布しない） |
+| `data/raw/npb_rosters_2018_2025.csv` | 支配下登録名鑑（MLB移籍・退団選手の除外判定に使用、7,866行）。🔒 非公開リポジトリで保管（再配布しない） |
 | `data/bayes/posteriors.json` | Stan事後分布パラメータ（beta/sigma/標準化統計/BMA重み） |
 | `data/foreign/foreign_players_master.csv` | 外国人選手マスター（24人、英語名・出身リーグ・Web検証済み） |
 | `data/foreign/foreign_prev_stats.csv` | 外国人前リーグ成績（全選手Web検証済み） |
 | `data/foreign/conversion_factors.csv` | リーグ別MLB→NPB換算係数 |
-| `data/projections/npb_sabermetrics_2015_2025.csv` | wOBA/wRC+/wRAA算出結果 |
+| `data/projections/npb_sabermetrics_2015_2025.csv` | wOBA/wRC+/wRAA算出結果（選手ごとの成績行を含む）。🔒 非公開リポジトリで保管（再配布しない）。アプリは集計値だけの `data/projections/league_constants.json` を読む |
 | `data/projections/bayes_hitters_2026.csv` | 日本人打者ベイズ予測（463人、CI付き） |
 | `data/projections/bayes_pitchers_2026.csv` | 日本人投手ベイズ予測（513人、CI付き） |
 | `data/projections/foreign_hitters_2026.csv` | 外国人打者予測（8人、全員Stan v2） |
@@ -118,7 +118,7 @@ Tom Tangoが考案した統計的予測手法。直近年ほど重くなる比�
 **実成果物を測った被覆率**（`predict_*` を回し直して 2026 シーズンと突き合わせ。名目 0.80 / 0.95）。**採点したのは「区間を持つ行」かつ「実績 PA≥100 / IP≥30」の行だけ**＝この母集団の外にも区間は出しているが、そこは測っていない:
 
 ⚠️ **2026 は暫定**＝2026-09-21 時点で 143 試合中 129〜136 消化（95%）でシーズンが終わっていない。最終値ではない。
-⚠️ **2026 の行はこのリポジトリの中身だけでは再計算できない**＝採点に使った 2026 の実績はシーズン途中なので commit していない（`data/raw/` は 2025 年までで、`tools/fit_sigma_model.py` は `--current-*` を渡さないと `HELD-OUT 2026: skipped` と出る）。2025 の行は `python tools/fit_sigma_model.py` で再現できる。2026 はシーズン終了後に実績を取り込んで測り直す。
+⚠️ **2026 の行はこのリポジトリの中身だけでは再計算できない**＝採点に使った 2026 の実績はシーズン途中なので commit していない（`data/raw/` の選手成績表は 2025 年までで、非公開リポジトリで保管し再配布しない＝このリポジトリには無い。`tools/fit_sigma_model.py` は `--current-*` を渡さないと `HELD-OUT 2026: skipped` と出る）。2025 の行はその成績表を `data/raw/` に置けば `python tools/fit_sigma_model.py` で再現できる。2026 はシーズン終了後に実績を取り込んで測り直す。
 
 | | 旧（平の σ） | 新 |
 |---|---|---|
@@ -250,8 +250,8 @@ Step 6: marcel_projection.py    → Marcel法予測
 Step 7: ml_projection.py        → ML予測 + モデル保存 + メトリクスJSON出力
 Step 8: bayes_projection.py     → ベイズ予測（日本人BMA + 外国人Stan v2 + CI）
 Step 9: team_simulation.py      → モンテカルロ10,000回チームシミュレーション
-git commit & push               → data/ を自動コミット
-HF 同期                          → data/ を HF Dataset (npb-stats) へ upload
+git commit & push               → data/ を自動コミット（選手単位の成績表は除く＝非公開リポジトリへ push）
+HF 同期                          → data/（選手単位の成績表を除く）を HF Dataset (npb-stats) へ upload
 ```
 
 スケジュール: 毎年3月1日 9:00 UTC（FA・移籍確定後、開幕前）+ `workflow_dispatch`（手動実行）

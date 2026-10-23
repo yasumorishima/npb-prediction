@@ -1,5 +1,7 @@
 # NPB予測モデル データソースと取得方法
 
+> 取得した選手単位の成績表（下の「出力」のうち 🔒 のもの）は、baseball-data.com・npb.jp とも再配布の許可が無いため、非公開リポジトリ（`yasumorishima/npb-restricted-inputs`）で保管し再配布しない（kept in a private repository; not redistributed）。このリポジトリにも HF Dataset にも置かない。チーム順位表は公開。
+
 ## データソース一覧
 
 ### 1. baseball-data.com（プロ野球データFreak）
@@ -14,8 +16,8 @@
   - 投手: `https://baseball-data.com/{yy}/stats/pitcher-all/era-1.html`
   - `{yy}` = 年度の下2桁（例: 2024→"24"）。当年は `{yy}/` なしで直接アクセス
 - **出力**:
-  - `data/raw/npb_hitters_2015_2025.csv`（3,780行）
-  - `data/raw/npb_pitchers_2015_2025.csv`（3,773行）
+  - `data/raw/npb_hitters_2015_2025.csv`（3,780行）🔒
+  - `data/raw/npb_pitchers_2015_2025.csv`（3,773行）🔒
 - **カラム（打者）**: player, team, AVG, G, PA, AB, H, HR, RBI, SB, BB, HBP, SO, SH, GDP, OBP, SLG, OPS, RC27, XR27, year
 - **カラム（投手）**: player, team, ERA, G, W, L, SV, HLD, WPCT, BF, IP, HA, HRA, BB, HBP, SO, R, ER, WHIP, DIPS, year
 - **注意**: **二塁打(2B)・三塁打(3B)・犠飛(SF)はこのページにない** → NPB公式で取得
@@ -29,7 +31,7 @@
 - **スクリプト**: `fetch_npb_data.py` 内の `fetch_player_profiles()` 関数（またはmarcel_projection.pyの生年月日取得部分）
 - **URL**: `https://baseball-data.com/{yy}/player/{team_code}/`
   - チームコード: t(阪神), yb(DeNA), g(巨人), d(中日), c(広島), s(ヤクルト), h(ソフトバンク), f(日本ハム), bs(オリックス), e(楽天), l(西武), m(ロッテ)
-- **出力**: `data/raw/npb_player_birthdays.csv`（2,479人）
+- **出力**: `data/raw/npb_player_birthdays.csv`（2,479人）🔒
 
 ### 2. npb.jp（NPB公式サイト）
 
@@ -48,7 +50,7 @@
 - **カラム（24列）**: flag, player, G, PA, AB, R, H, 2B, 3B, HR, TB, RBI, SB, CS, SH, SF, BB, IBB, HBP, SO, GDP, AVG, SLG, OBP
   - flag列: 左打マーク（*）等 → 取得後に削除
   - **2025年のみ23列**（flag列なし） → スクリプトで両方に対応済み
-- **出力**: `data/raw/npb_batting_detailed_2015_2025.csv`（4,538行、2015-2024）
+- **出力**: `data/raw/npb_batting_detailed_2015_2025.csv`（4,538行、2015-2024）🔒
 - **レート制限**: npb.jpは連続アクセスでConnectionReset（レート制限）が発生する
   - `time.sleep(0.5)` を各リクエスト間に挟む
   - 全12チーム×11年度 = 132リクエスト → 約2.5分で完了
@@ -58,7 +60,7 @@
 
 - **スクリプト**: `sabermetrics.py`
 - **入力**: `data/raw/npb_batting_detailed_2015_2025.csv`（NPB公式データ）
-- **出力**: `data/projections/npb_sabermetrics_2015_2025.csv`
+- **出力**: `data/projections/npb_sabermetrics_2015_2025.csv` 🔒（選手ごとの成績行を含む）。アプリ用の集計値は `league_constants.py` が `data/projections/league_constants.json` に書く（公開）
 - **算出方法**:
   1. MLB標準の得点価値係数（BB=0.69, HBP=0.72, 1B=0.88, 2B=1.27, 3B=1.62, HR=2.10）を基準に
   2. NPBリーグ環境に合わせてスケーリング（リーグOBP / 生wOBAでwOBAスケールを算出）
