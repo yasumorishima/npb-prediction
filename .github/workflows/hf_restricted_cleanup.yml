@@ -30,8 +30,9 @@ on:
 permissions:
   contents: read
 
+# Same group as annual_update / fetch_games, so no HF upload lands during the cleanup.
 concurrency:
-  group: hf-restricted-cleanup
+  group: npb-restricted-write
   cancel-in-progress: false
 
 env:
@@ -65,7 +66,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - run: pip install --quiet "huggingface_hub>=1.0,<2"
+      - run: pip install --quiet "huggingface_hub==1.33.0"
 
       - name: Download the listed files from HF and check them against HF's hashes
         id: dl
@@ -108,6 +109,12 @@ jobs:
               return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
 
           api = HfApi()
+          # The squash rewrites main only: any other ref (community PR, tag, convert
+          # branch) would keep the old commits that still hold the files.
+          refs = api.list_repo_refs(REPO, repo_type="dataset", include_pull_requests=True)
+          others = ([b.ref for b in refs.branches if b.name != "main"] + [t.ref for t in refs.tags]
+                    + [c.ref for c in refs.converts] + [p.ref for p in (refs.pull_requests or [])])
+          assert not others, f"refs other than main exist on HF: {others}"
           info = api.dataset_info(REPO, files_metadata=True)
           sib = {s.rfilename: s for s in info.siblings}
           present = [p for p in DELETE if p in sib]
@@ -139,6 +146,9 @@ jobs:
 
           json.dump({"mode": mode, "hf_revision": info.sha, "deleted": DELETE, "kept": kept},
                     open("plan.json", "w"), indent=1)
+          if mode == "full":
+              # saved with the backup, so a rerun compares against the state before the delete
+              shutil.copyfile("plan.json", "_restricted/hf_snapshot/plan.json")
           print("mode", mode, "HF revision", info.sha, "files", len(sib),
                 "to delete", len(present), "kept", len(kept), "commits", len(commits))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
@@ -162,7 +172,11 @@ jobs:
               || { echo "::error::backup branch exists with different content"; exit 1; }
             echo "backup branch already holds the same 35 files"
           else
+            # the commit itself must hold the 35 files + MD5SUMS.txt + plan.json
+            [ "$(git ls-files hf_snapshot | wc -l)" -eq 37 ] \
+              || { echo "::error::staged backup does not hold 37 files"; exit 1; }
             git commit -q -m "Backup of the 35 NPB files removed from HF yasumorishima/npb-stats ($(jq -r .hf_revision ../plan.json))"
+            [ "$(git ls-tree -r --name-only HEAD hf_snapshot | wc -l)" -eq 37 ]
             git push origin "HEAD:refs/heads/$BACKUP_BRANCH"
             git ls-remote origin "refs/heads/$BACKUP_BRANCH" | grep -q "^$(git rev-parse HEAD)"
             echo "pushed backup $(git rev-parse --short HEAD)"
@@ -175,8 +189,12 @@ jobs:
           git ls-remote --exit-code origin "refs/heads/$BACKUP_BRANCH" >/dev/null \
             || { echo "::error::files are gone from HF but the backup branch is missing"; exit 1; }
           git fetch --no-tags origin "$BACKUP_BRANCH"
-          [ "$(git show FETCH_HEAD:hf_snapshot/MD5SUMS.txt | wc -l)" -eq 35 ]
-          echo "backup branch present with 35 files"
+          rm -rf ../_backup && mkdir ../_backup
+          git archive FETCH_HEAD hf_snapshot | tar -x -C ../_backup
+          [ "$(wc -l < ../_backup/hf_snapshot/MD5SUMS.txt)" -eq 35 ]
+          (cd ../_backup/hf_snapshot && md5sum -c --quiet --strict MD5SUMS.txt)
+          cp ../_backup/hf_snapshot/plan.json ../saved_plan.json
+          echo "backup branch holds the 35 files (md5 checked) and the plan saved before the delete"
 
       - name: Delete from HF, squash history, verify
         env:
@@ -199,17 +217,27 @@ jobs:
               api.super_squash_history(REPO, repo_type="dataset",
                                        commit_message="Squash history after removing NPB tables without a redistribution right")
               print("squashed history")
+          # on a rerun, compare against the plan saved with the backup (state before the delete)
+          base = plan if plan["mode"] == "full" else json.load(open("saved_plan.json"))
           info = api.dataset_info(REPO, files_metadata=True)
           sib = {s.rfilename: s for s in info.siblings}
           def hf_hash(s):
               return ["sha256", s.lfs.sha256] if s.lfs is not None else ["git", s.blob_id]
-          left = [p for p in plan["deleted"] if p in sib]
-          lost = [p for p in plan["kept"] if p not in sib]
-          changed = [p for p, h in plan["kept"].items() if p in sib and hf_hash(sib[p]) != h]
-          extra = [p for p in sib if p not in plan["kept"]]
+          left = [p for p in base["deleted"] if p in sib]
+          lost = [p for p in base["kept"] if p not in sib]
+          changed = [p for p, h in base["kept"].items() if p in sib and hf_hash(sib[p]) != h]
+          extra = [p for p in sib if p not in base["kept"]]
           commits = api.list_repo_commits(REPO, repo_type="dataset")
-          print("files", len(sib), "left", left, "lost", lost, "changed", changed,
-                "extra", extra, "commits", len(commits), "revision", info.sha)
+          refs = api.list_repo_refs(REPO, repo_type="dataset", include_pull_requests=True)
+          others = ([b.ref for b in refs.branches if b.name != "main"] + [t.ref for t in refs.tags]
+                    + [c.ref for c in refs.converts] + [p.ref for p in (refs.pull_requests or [])])
+          old_served = api.file_exists(REPO, base["deleted"][0], repo_type="dataset",
+                                       revision=base["hf_revision"])
+          print("files", len(sib), "left", left, "lost", lost, "changed", changed, "extra", extra,
+                "commits", len(commits), "other refs", others,
+                "old revision still serves a deleted file", old_served, "revision", info.sha)
           assert not left and not lost and not changed and not extra and len(commits) == 1
+          assert not others, "other refs appeared on HF"
+          assert not old_served, "HF still serves the deleted files at the old revision"
           print("OK: 35 removed, every other file unchanged, history squashed to 1 commit")
           PY
