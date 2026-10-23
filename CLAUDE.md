@@ -1,0 +1,77 @@
+# CLAUDE.md — npb-prediction
+
+Working rules for Claude Code (cloud or local). This file is the source of truth for the **evaluation work** in this repository; the owner's local notes are not visible to cloud sessions. Everything a session needs is in the repo (code, frozen predictions, standings, scoring scripts).
+
+## Session protocol (cloud)
+This project is worked on in Claude Code cloud. The owner starts a session with just 「続き」/「つづきから」.
+1. Read this file first, then run the **First check** below. If it does not print the expected numbers, stop and report — do not score anything on a repo that does not reproduce its own record.
+2. Then take the first unfinished item of **Next tasks**.
+3. Before ending, record what you did and what comes next **in this file** (update "Next tasks" and add a dated line to "Progress log"). This file is the only memory that survives between cloud sessions.
+4. Cloud can push only its session branch: open a PR to `main` and merge it yourself (own repo) so the next session sees the update. Report the merged commit.
+5. Write replies to the owner in Japanese (です/ます). Do not claim anything you did not run in this session; mark anything unverified as such.
+
+## First check (run from the repo root, ~1 min)
+```bash
+pip install pandas numpy scipy requests beautifulsoup4 lxml html5lib
+mkdir -p ../scratch
+python research/team_2026/score_team.py 2026 data/projections/team_sim_2026.csv \
+  research/team_2026/standings_2026.csv data/raw/npb_standings_2015_2025.csv ../scratch/score2026.json
+md5sum ../scratch/score2026.json research/team_2026/score2026.json   # must be identical
+python research/team_2026/audit/repro_team_sim.py 2025   # TARGET 2026 ... max abs diff vs frozen CSV 0.0
+python research/team_2026/audit/repro_team_sim.py 2020   # TARGET 2021 ... max abs diff vs frozen CSV 0.0
+```
+Expected (reproduced 2026-10-23 on a fresh clone of `f048d8b`, Python 3.11 / pandas 3.1.0 / numpy 2.4.6, **not yet run in cloud**):
+`T1_mae_median_wins 5.833333333333333`, `F1_constant 8.833333333333334`, `F2_previous 5.916666666666667`, `F3_pythagorean 5.818258165504555`, `T3_brier_pennant 0.089154`, `T4_brier_last 0.19058748`, `T5_k_inside_80 6`, `T5_k_inside_95 9`; md5 of both json files `16854d155ec744dbdf6c3fbb1e4c111a`; both `repro_team_sim.py` runs print `max abs diff vs frozen CSV 0.0`.
+2021 reference (same scorer; the 2021 final table is the `year == 2021` slice of the standings file):
+```bash
+python -c "import pandas as pd; s=pd.read_csv('data/raw/npb_standings_2015_2025.csv',encoding='utf-8-sig'); s[s.year==2021].to_csv('../scratch/final2021.csv',index=False,encoding='utf-8-sig')"
+python research/team_2026/score_team.py 2021 data/projections/team_sim_2021.csv ../scratch/final2021.csv data/raw/npb_standings_2015_2025.csv ../scratch/score2021.json
+```
+→ `T1 10.9` / `F3 10.511796560100194` / `T5_k_inside_80 2` / `T5_k_inside_95 3` (md5 `5dbc89c7bc8f1fd294851e21ad70ee99`).
+## Progress log
+- 2026-03-23 21:56 UTC: 2026 predictions frozen (commit `f32c36a8`, before opening day).
+- 2026-09-21: interim player-level held-out scoring at ~95% of the season (numbers in README, labelled 暫定). Team pre-registration `data/backtest/2026_team_prereg.md` committed before the season ended; addendum 1 (2026-09-22, before any result) relaxed R4 only.
+- 2026-09-22: PR #2 merged (`b4402cf`): interval σ made a function of playing time (`posteriors.json` `sigma_model`); tests in `tests/`.
+- 2026-10-10: team verdict per the pre-registration, PR #4 (`1fa8ce2`) + note PR #5 (`f048d8b`): T1 5.833 beats F1/F2 but loses to F3 Pythagorean 5.818 (R2 not met); pennant Brier 0.089 beats uniform, last-place 0.191 does not; 80% k=6, 95% k=9 → intervals too narrow at both levels. Cause found after the verdict: `team_simulation.py` uses expected wins (wpct × 143) with no game-to-game luck and no team-level noise.
+- 2026-10-23: moved to cloud. The scoring/audit scripts that existed only on the owner's machines were added under `research/team_2026/audit/`. The interim player-level scoring scripts (`score26.py`, freeze file) were **lost** (deleted from scratch on 2026-10-05); their rules are restated in Next task 1.
+
+## What this is
+NPB (Japanese pro baseball) player and team forecasts: Marcel + Bayesian (Stan/Ridge) correction + ML (XGB/LGB), blended (`bayes_*`), with intervals; team Monte Carlo (`team_simulation.py`, 10,000 draws) gives win distributions and pennant / last-place probabilities. The current work is **evaluating** the frozen 2026 forecasts against the finished season (ended 2026-10-08, all 12 teams 143 games) and finding why the team intervals were too narrow. See `README.md`, `data/backtest/2026_team_prereg.md`, `data/backtest/2026_team_result.md`.
+
+## Non-negotiable discipline
+1. **Frozen files — never regenerate or edit:** `data/projections/*_2026.csv` and `team_sim_2026.*` (commit `f32c36a8`), `team_sim_2021.*`, `data/backtest/2026_team_prereg.md`, the verdict section of `data/backtest/2026_team_result.md` (later facts go in a dated 追記, the verdict does not change).
+   - **Never call `main()` of `bayes_projection.py`, `marcel_projection.py`, `ml_projection.py`, `team_simulation.py`, `fetch_npb_data.py`, or any `predict_*`** in the real tree: they write into `data/projections/` or `data/raw/` and overwrite the frozen record. Import the functions and call loaders / `simulate()` / `compute_probabilities()` directly (pattern: `research/team_2026/audit/repro_team_sim.py`), or redirect `OUT_DIR` to a temp dir **and assert the redirect before calling** (pattern: `tests/test_output_gating.py`). Check `git status` is clean afterwards.
+   - **Do not dispatch `annual_update.yml` by hand** except with `hf_only=true`; a normal run regenerates `data/` and overwrites the frozen CSVs. Next year's forecast comes from the 3/1 schedule.
+2. **Pre-register, then run once.** Write the statistic, population, floors and the reading of each outcome into a file under `data/backtest/` and commit it **before** reading the outcome. Do not change statistics, floors, population or primary/secondary roles after seeing results. A gap found before a run goes into a dated addendum *before* the run, and says whether it tightens or relaxes.
+3. **Never choose a coefficient by looking at 2026.** Coefficients (σ, team-level noise, Pythagorean residual term) are fitted / selected on the backtest years only; 2026 is scored once afterwards.
+4. Reading rules carried over from the 2026 team pre-registration: Spearman is never sole evidence of success — always report predicted and actual ranges next to it (R5); coverage is reported as an integer k of 12 with the binomial acceptance region (80%: k 7–12, 95%: k 10–12); "too wide" cannot be decided with 12 teams; never write 「較正できている」「合格」; conclusions are about this sample only (A1); compare 2021 with **10.90**, never with the old 10.7.
+5. Player-level scoring rules: coverage is counted **only on rows that have an interval** (`marcel_only` rows have none — dropping NaN to False once reversed the conclusion) and actual **PA ≥ 100 / IP ≥ 30**. Actual IP is NPB notation ("10.2" = 10⅔) and must be converted; **predicted IP is a plain decimal and must not be converted**. Do not compare wOBA MAE (backtest 0.04980) with OPS MAE (they are different scales).
+6. Do not add 143-game binomial noise on top of the simulation's run noise (double counting). The missing piece is the Pythagorean residual (sd 3.9 wins, `research/team_2026/audit/pyth_residual.py`).
+7. Tests: run both the standalone runners and pytest on the same tree (`python tests/test_sigma_model.py`, `python tests/test_output_gating.py`, `python -m pytest -q tests`); judge by return code, not by the absence of "FAIL" lines.
+8. Code that produces a verdict gets an independent review (subagent) before it runs; review claims are checked against the code/data before being accepted. Check numbers on three surfaces (json / README / report) when anything changes.
+9. Report nulls as facts and name the next measurement. Never write 「予測は不可能」「モデルは通用しない」 or similar stop conclusions.
+
+## Next tasks (in order)
+1. **Final 2026 player-level rescoring (README promises it twice: lines on 信頼区間 and on the 2026-10-08 追記).** The interim numbers (at ~95% of the season) were already read, so this is a *final rescoring with the same rules*, not a new held-out test — say so.
+   - First commit `data/backtest/2026_player_final_prereg.md` restating the rules (the original freeze file is lost; these are recovered from the README and records and re-checked on repo data):
+     predictions `data/projections/bayes_hitters_2026.csv` (`bayes_OPS`, `marcel_OPS`, `bayes_OPS_lo80/hi80/lo95/hi95`, `method`) and `bayes_pitchers_2026.csv` (`bayes_ERA`, `marcel_ERA`, `bayes_ERA_*`); population actual PA ≥ 100 / IP ≥ 30 (interim n = 147 hitters / 133 pitchers); MAE of `bayes_*` and `marcel_*`; floors F-const = 2025 unweighted mean among PA ≥ 100 → **0.6619 OPS** / IP ≥ 30 → **2.7317 ERA** (both recomputed from `data/raw/` on 2026-10-23 and equal to the interim values), F-prev = the player's own 2025 actual; paired bayes − marcel mean ± s.e., t and sign test; coverage on rows with intervals (interim: hitters 0.954/0.992, pitchers 0.950/0.992 for the frozen σ). **Unrecoverable details that must be declared in the prereg before fetching:** name normalisation (spaces / full-width space / variant characters — `roster_current._VARIANT_MAP` exists), duplicate names, traded players (two rows), whether foreign players are included.
+   - Fetch final 2026 actuals from baseball-data.com **after** the prereg is merged. While 2026 is the current season the pages are `https://baseball-data.com/stats/hitter-all/tpa-1.html` and `https://baseball-data.com/stats/pitcher-all/era-1.html` (200 on 2026-10-23); `fetch_npb_data.build_url(2026, stat_type)` gives `/26/...`, which is **404** now. Past seasons stay online under a year prefix (`/25/stats/hitter-all/tpa-1.html` is 200 on 2026-10-23), so after the switch to 2027 the 2026 tables are expected under `/26/` — check, do not assume. Download each page's bytes once with `urllib.request` (default User-Agent), take their sha256, and parse those same bytes with `pd.read_html(io.BytesIO(raw), encoding="utf-8")` like `fetch_npb_data.fetch_stats`; reuse `clean_columns` and the column maps, not `main()`. ⚠️ baseball-data.com answers **403 to the python-requests default User-Agent** and 200 to urllib's default and to the `HEADERS` in `research/team_2026/games26.py` (measured 2026-10-23); use those, never a made-up browser User-Agent. Gate: 12 teams present and max G ≤ 143.
+   - **Do not commit the fetched tables** (no new player tables from baseball-data.com in this public repo — the site's about page has a disclaimer, a link policy and a copyright line, and no permission to redistribute). Commit only aggregate outputs (MAE, differences, intervals, coverage, n, unmatched counts) plus, for traceability, the source URLs, fetch time (UTC) and the sha256 of each fetched HTML page. Keep the fetched tables in a scratch dir outside the repo.
+   - σ (PR #2): run `python tools/fit_sigma_model.py --current-hitters <csv> --current-pitchers <csv>` (Marcel-residual proxy, prints `HELD-OUT 2026`). The README row「実成果物を測った被覆率」 for the *new* σ came from re-running `predict_*` in a copy; that harness is lost. Recompute only with the `OUT_DIR` redirect + assert; otherwise label those rows interim.
+   - Update README (keep the interim table, labelled interim) and add the result file. Commit outputs (json / md), not raw data.
+2. **Team-simulation coverage backtest 2016–2025 (the next step named in `2026_team_result.md`).** Same `team_simulation.simulate()` (seed 42, N_SIM 10,000, unchanged), count k80 / k95 per year, to see whether the narrow intervals are every year or only 2026. Pre-register first (`data/backtest/team_coverage_backtest_prereg.md`). Problems to settle in the prereg, all verified in code:
+   - Inputs `bayes_hitters/pitchers_<year>.csv` and `foreign_*_<year>.csv` exist **only for 2021 and 2026**; other years must be rebuilt **causally** (only data up to year−1). `marcel_hitter/pitcher(df, target_year)` read only year−1..−3 (causal). `simulate()` falls back to `marcel_OPS`/`marcel_ERA` where `bayes_*` is NaN. `posteriors.json` was fitted on 2018–2025 and the ML models only for 2026 → a bayes centre for past years is not causal unless refitted. `foreign_players_master_2021.csv` exists for 2021 only. `bayes_projection._filter_roster` uses the *current* roster.
+   - `load_park_factors()` uses the latest year in `npb_park_factors.csv` (2025) for every target year — the frozen 2021 CSV was made that way. Declare whether past years use year−1 PF.
+   - `generate_historical_projections.py` / `marcel_team_historical.csv` assign players to their **target-year actual team** (leak) — do not reuse as a causal input without declaring it.
+   - `NPB_GAMES = 143` is fixed: 2020 had 120 games; 2021 had 102 drawn games (`audit/interval_width.py` prints draws per year). Declare exclusions before running.
+   - Then the fix (if narrow every year): add the Pythagorean residual (or a team-level noise term) and select it **by backtest k only**, then score 2026 once.
+3. Only after 1 and 2: visualise (GIFs for anything that moves over time; titles state the result).
+
+## Data access (cloud network)
+- Needed: `baseball-data.com` (player stats, standings), `npb.jp` (game results, `research/team_2026/games26.py`), PyPI. Both sites are in the current allowlist. `huggingface.co` is only for `annual_update.yml` (HF mirror), not for evaluation.
+- No secrets are needed for the evaluation. `HF_TOKEN` is a repo secret used only by `annual_update.yml`.
+- Be gentle with npb.jp (it resets connections under rapid requests; sleep ≥ 0.5 s). baseball-data.com's standings page lags npb.jp by about a day.
+- baseball-data.com tables: credit is required in every output. **Never commit new tables fetched from it** (no 2026 actuals, no new full-season dumps); commit aggregates only, with URL, fetch time and page sha256 (see Next task 1). The existing 2015–2025 files in `data/raw/` are the owner's decision; do not add to them. baseball-data.com returns 403 to the python-requests default User-Agent (2026-10-23); see Next task 1 for what works.
+
+## Credits (keep in README and in every output file)
+baseball-data.com（プロ野球データFreak）and npb.jp（日本野球機構）.
