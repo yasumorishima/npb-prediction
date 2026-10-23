@@ -15,6 +15,12 @@ on:
 permissions:
   contents: write
 
+# Both this workflow and the other one that writes the private repo
+# (annual_update / fetch_games) share this group, so their pushes never race.
+concurrency:
+  group: npb-restricted-write
+  cancel-in-progress: false
+
 jobs:
   fetch:
     runs-on: ubuntu-latest

@@ -58,7 +58,7 @@ Tom Tangoが考案した統計的予測手法。直近年ほど重くなる比�
 
 ### データ
 
-モデル出力・集計・チーム順位表の正本は repo の `data/`（git 管理）。baseball-data.com / npb.jp から取得した選手単位の成績表（下表の 🔒）は両サイトに再配布の許可が無いため、非公開リポジトリで保管し再配布しない（このリポジトリには置かず、HF への同期からも除外する）。クラウドミラーとして HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) に `data/` ツリー（🔒 を除く）を自動同期（BQ 時代の `npb/` スナップショットも保持）。
+モデル出力・集計・チーム順位表の正本は repo の `data/`（git 管理）。baseball-data.com / npb.jp から取得した選手単位の成績表（下表の 🔒）は両サイトに再配布の許可が無いため、非公開リポジトリで保管し再配布しない（このリポジトリには置かず、HF への同期からも除外する）。クラウドミラーとして HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) に `data/` ツリー（🔒 を除く）を自動同期（BQ 時代の `npb/` スナップショットも保持。ただし選手単位の成績表＝`npb/raw_*`〈チーム順位表を除く〉・`npb/sabermetrics.parquet`・`npb_bayes/npb_sabermetrics.parquet` は HF から削除済み）。
 
 | ファイル | 内容 |
 |---|---|
@@ -503,7 +503,7 @@ Layer 4: BMA統合（Marcel 35% + Stan 40% + ML 25%）→ 80%/95% CI付き
 
 ### ~~GCP 分析基盤（BigQuery + BigQuery ML）~~（2026-04-19 退役）
 
-> BigQuery `npb` データセットと BQML モデル（`bqml_batter_ops` / `bqml_pitcher_era` 等）は Grafana 公開廃止に伴い削除。予測ロジックは Python (`scripts/`) に一本化済み、BQ 時代のデータスナップショットは HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) の `npb/` ディレクトリに保持。Streamlit / FastAPI は CSV (`data/projections/`) を直接読むため BQ 非依存で継続稼働。
+> BigQuery `npb` データセットと BQML モデル（`bqml_batter_ops` / `bqml_pitcher_era` 等）は Grafana 公開廃止に伴い削除。予測ロジックは Python (`scripts/`) に一本化済み、BQ 時代のデータスナップショットは HF Dataset [npb-stats](https://huggingface.co/datasets/yasumorishima/npb-stats) の `npb/` ディレクトリに保持（選手単位の成績表は再配布の許可が無いため削除済み）。Streamlit / FastAPI は CSV (`data/projections/`) を直接読むため BQ 非依存で継続稼働。
 
 ## License
 
