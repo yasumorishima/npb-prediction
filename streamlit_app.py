@@ -18,7 +18,15 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
-from config import displayed_years
+import importlib
+
+import config as _config
+
+# Streamlit Cloud keeps imported modules across redeploys, so a new function in
+# config.py raised ImportError until a manual reboot (2026-10-24). Reload it on
+# every run so the app always uses the config.py of the deployed commit.
+_config = importlib.reload(_config)
+displayed_years = _config.displayed_years
 from translations import TEAM_NAME_EN, TEXTS
 
 
