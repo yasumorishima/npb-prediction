@@ -35,6 +35,7 @@ python research/team_2026/score_team.py 2021 data/projections/team_sim_2021.csv 
 - 2026-10-10: team verdict per the pre-registration, PR #4 (`1fa8ce2`) + note PR #5 (`f048d8b`): T1 5.833 beats F1/F2 but loses to F3 Pythagorean 5.818 (R2 not met); pennant Brier 0.089 beats uniform, last-place 0.191 does not; 80% k=6, 95% k=9 → intervals too narrow at both levels. Cause found after the verdict: `team_simulation.py` uses expected wins (wpct × 143) with no game-to-game luck and no team-level noise.
 - 2026-10-23: moved to cloud. The scoring/audit scripts that existed only on the owner's machines were added under `research/team_2026/audit/`. The interim player-level scoring scripts (`score26.py`, freeze file) were **lost** (deleted from scratch on 2026-10-05); their rules are restated in Next task 1.
 - 2026-10-24: player-level tables moved to the private repo `npb-restricted-inputs` (PR #7); HF `npb-stats` recreated without them (PR #8, old commit shas return 404). App/API keep showing the current predictions until the next season's are published (`config.displayed_years`; before this the app was empty from 11/1 until the 3/1 annual_update).
+- 2026-11-23 (cloud): added "Evaluation practice (評価の作法, 2026-11 addition)" from Anthropic "Building strong safety evaluations" (owner: 「今後の評価の糧にしたい」); no other section changed. Same addition made in mlb-win-probability, npb-foreign-statcast, baseball-bayes, npb-prediction, mlb-data-pipeline, jev-baseball (mlb-pitch-forecast is not attached to this session).
 
 ## What this is
 NPB (Japanese pro baseball) player and team forecasts: Marcel + Bayesian (Stan/Ridge) correction + ML (XGB/LGB), blended (`bayes_*`), with intervals; team Monte Carlo (`team_simulation.py`, 10,000 draws) gives win distributions and pennant / last-place probabilities. The current work is **evaluating** the frozen 2026 forecasts against the finished season (ended 2026-10-08, all 12 teams 143 games) and finding why the team intervals were too narrow. See `README.md`, `data/backtest/2026_team_prereg.md`, `data/backtest/2026_team_result.md`.
@@ -51,6 +52,14 @@ NPB (Japanese pro baseball) player and team forecasts: Marcel + Bayesian (Stan/R
 7. Tests: run both the standalone runners and pytest on the same tree (`python tests/test_sigma_model.py`, `python tests/test_output_gating.py`, `python -m pytest -q tests`); judge by return code, not by the absence of "FAIL" lines.
 8. Code that produces a verdict gets an independent review (subagent) before it runs; review claims are checked against the code/data before being accepted. Check numbers on three surfaces (json / README / report) when anything changes.
 9. Report nulls as facts and name the next measurement. Never write 「予測は不可能」「モデルは通用しない」 or similar stop conclusions.
+
+## Evaluation practice (評価の作法, 2026-11 addition)
+Lessons taken from Anthropic, "Building strong safety evaluations" (2026-11-13), kept only where they change what the next evaluation here does; rules above that already cover a point are not repeated.
+- **State the resolution before registering.** With 12 teams (and ~140 players per role), write in the PREREG the interval half-width expected from the backtest years and the smallest MAE difference that could be read; a null is reported with that number.
+- **Paired per team / per player.** Comparisons with Marcel and the floors use the per-item difference (same team, same player) with an interval, not two separate MAEs.
+- **Report every slice, changed or not:** hitters / pitchers, playing-time band (e.g. PA 100–299 / 300+, IP 30–99 / 100+), Japanese / foreign, both interval levels — in one table.
+- **Several readings = several comparisons.** When more than one statistic or floor is read as a decision in one PREREG, declare the correction (e.g. Holm) or name which one is primary.
+- **A surprising number is a harness suspect first** (name matching, IP notation, traded players): re-check the join counts before any reading.
 
 ## Next tasks (in order)
 1. **Final 2026 player-level rescoring (README promises it twice: lines on 信頼区間 and on the 2026-10-08 追記).** The interim numbers (at ~95% of the season) were already read, so this is a *final rescoring with the same rules*, not a new held-out test — say so.
