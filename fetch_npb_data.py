@@ -9,6 +9,8 @@ pandas.read_html() でテーブルを直接取得
 """
 
 import pandas as pd
+
+from web_fetch import read_html_tables
 import time
 from pathlib import Path
 from config import DATA_END_YEAR, YEARS
@@ -81,7 +83,7 @@ def fetch_stats(year: int, stat_type: str) -> pd.DataFrame | None:
     print(f"  Fetching: {url}")
 
     try:
-        tables = pd.read_html(url, encoding="utf-8")
+        tables = read_html_tables(url, encoding="utf-8")   # honest UA: urllib default is 403 there
     except Exception as e:
         print(f"  ERROR: {e}")
         return None

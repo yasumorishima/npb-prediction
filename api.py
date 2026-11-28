@@ -320,6 +320,13 @@ def get_sabermetrics(
     return {"検索": name, "件数": len(results), "成績": results}
 
 
+# Allowed sort keys. `Query(enum=...)` is rejected by fastapi >= 0.160 (and never
+# validated anything): the list goes to the OpenAPI schema via json_schema_extra
+# and is checked in the handler (an unknown key used to raise KeyError -> 500).
+HITTER_SORT_KEYS = ("OPS", "AVG", "HR", "RBI")
+PITCHER_SORT_KEYS = ("ERA", "WHIP", "SO", "W")
+
+
 @app.get(
     "/rankings/hitters",
     summary="打者ランキング（Marcel法 2026予測）",
@@ -327,9 +334,11 @@ def get_sabermetrics(
 )
 def rankings_hitters(
     top: int = Query(default=20, ge=1, le=100, description="表示人数（1〜100）", examples=[10, 20, 50]),
-    sort_by: str = Query(default="OPS", enum=["OPS", "AVG", "HR", "RBI"], description="ソート項目"),
+    sort_by: str = Query(default="OPS", json_schema_extra={"enum": list(HITTER_SORT_KEYS)}, description="ソート項目"),
 ):
     """打者ランキング（Marcel法 2026予測）"""
+    if sort_by not in HITTER_SORT_KEYS:
+        raise HTTPException(422, f"sort_by は {', '.join(HITTER_SORT_KEYS)} のどれか: {sort_by}")
     if marcel_hitters.empty:
         raise HTTPException(503, "Marcel打者データが読み込まれていません")
 
@@ -357,9 +366,11 @@ def rankings_hitters(
 )
 def rankings_pitchers(
     top: int = Query(default=20, ge=1, le=100, description="表示人数（1〜100）", examples=[10, 20, 50]),
-    sort_by: str = Query(default="ERA", enum=["ERA", "WHIP", "SO", "W"], description="ソート項目（ERA/WHIPは昇順）"),
+    sort_by: str = Query(default="ERA", json_schema_extra={"enum": list(PITCHER_SORT_KEYS)}, description="ソート項目（ERA/WHIPは昇順）"),
 ):
     """投手ランキング（Marcel法 2026予測）"""
+    if sort_by not in PITCHER_SORT_KEYS:
+        raise HTTPException(422, f"sort_by は {', '.join(PITCHER_SORT_KEYS)} のどれか: {sort_by}")
     if marcel_pitchers.empty:
         raise HTTPException(503, "Marcel投手データが読み込まれていません")
 
@@ -605,7 +616,7 @@ def predict_foreign(
     ),
 )
 def standings_simulation(
-    league: str | None = Query(default=None, enum=["CL", "PL"], description="リーグ（省略で両リーグ）"),
+    league: str | None = Query(default=None, json_schema_extra={"enum": ["CL", "PL"]}, description="リーグ（省略で両リーグ）"),
 ):
     """モンテカルロ順位シミュレーション"""
     if not team_sim:
