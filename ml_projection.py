@@ -105,6 +105,15 @@ def _parse_ip(ip_val) -> float:
         return 0.0
 
 
+def _first_rows(frame: pd.DataFrame, keys: list[str]) -> dict:
+    """{key values: the first row (in frame order) with those values} — the row that
+    frame[(frame[k1] == a) & (frame[k2] == b)].iloc[0] returns, looked up in O(1)
+    instead of a full-table mask per player-year (21.8 s -> see CLAUDE.md 2026-11-28).
+    Rows with a missing key never matched the mask (NaN != NaN) and are left out
+    here too (groupby dropna)."""
+    return {k: g.iloc[0] for k, g in frame.groupby(keys, sort=False)}
+
+
 # ==============================
 # 特徴量エンジニアリング（打者）
 # ==============================
@@ -118,6 +127,8 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
     saber = load_sabermetrics()
     has_saber = len(saber) > 0
     years = sorted(df["year"].unique())
+    first = _first_rows(df, ["player", "year"])
+    sfirst = _first_rows(saber, ["player_norm", "year"]) if has_saber else {}
     rows = []
 
     for target_year in years:
@@ -143,8 +154,8 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
             count_cols = ["HR", "RBI", "SB", "BB", "SO", "H"]
 
             for offset, yr in enumerate([y1, y2, y3], start=1):
-                pdata = df[(df["player"] == player) & (df["year"] == yr)]
-                if len(pdata) == 0:
+                row = first.get((player, yr))
+                if row is None:
                     # 不在年は0/NaN
                     feat[f"PA_{offset}"] = 0
                     feat[f"G_{offset}"] = 0
@@ -155,7 +166,6 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
                     feat[f"present_{offset}"] = 0
                 else:
                     has_any = True
-                    row = pdata.iloc[0]
                     pa = row["PA"]
                     feat[f"PA_{offset}"] = pa
                     feat[f"G_{offset}"] = row["G"]
@@ -172,10 +182,10 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
             if has_saber:
                 player_norm = _norm_name(player)
                 for offset, yr in enumerate([y1, y2, y3], start=1):
-                    sdata = saber[(saber["player_norm"] == player_norm) & (saber["year"] == yr)]
-                    if len(sdata) > 0:
-                        feat[f"wOBA_{offset}"] = sdata.iloc[0]["wOBA"]
-                        feat[f"wRC+_{offset}"] = sdata.iloc[0]["wRC+"]
+                    srow = sfirst.get((player_norm, yr))
+                    if srow is not None:
+                        feat[f"wOBA_{offset}"] = srow["wOBA"]
+                        feat[f"wRC+_{offset}"] = srow["wRC+"]
                     else:
                         feat[f"wOBA_{offset}"] = np.nan
                         feat[f"wRC+_{offset}"] = np.nan
@@ -217,6 +227,7 @@ def build_hitter_features(df: pd.DataFrame) -> pd.DataFrame:
 def build_pitcher_features(df: pd.DataFrame) -> pd.DataFrame:
     birthdays = load_birthdays()
     years = sorted(df["year"].unique())
+    first = _first_rows(df, ["player", "year"])
     rows = []
 
     for target_year in years:
@@ -236,8 +247,8 @@ def build_pitcher_features(df: pd.DataFrame) -> pd.DataFrame:
             rate_cols = ["ERA", "WHIP"]
 
             for offset, yr in enumerate([y1, y2, y3], start=1):
-                pdata = df[(df["player"] == player) & (df["year"] == yr)]
-                if len(pdata) == 0:
+                row = first.get((player, yr))
+                if row is None:
                     feat[f"IP_{offset}"] = 0
                     feat[f"G_{offset}"] = 0
                     for col in rate_cols:
@@ -248,7 +259,6 @@ def build_pitcher_features(df: pd.DataFrame) -> pd.DataFrame:
                     feat[f"present_{offset}"] = 0
                 else:
                     has_any = True
-                    row = pdata.iloc[0]
                     ip = row["IP_num"]
                     feat[f"IP_{offset}"] = ip
                     feat[f"G_{offset}"] = row["G"]
@@ -626,6 +636,8 @@ def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> 
     # 過去3年にいた全選手
     past = df[df["year"].isin([y1, y2, y3])]
     players = past["player"].unique()
+    first = _first_rows(df, ["player", "year"])
+    sfirst = _first_rows(saber, ["player_norm", "year"]) if has_saber else {}
     rows = []
 
     for player in players:
@@ -633,8 +645,8 @@ def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> 
         has_any = False
 
         for offset, yr in enumerate([y1, y2, y3], start=1):
-            pdata = df[(df["player"] == player) & (df["year"] == yr)]
-            if len(pdata) == 0:
+            row = first.get((player, yr))
+            if row is None:
                 feat[f"PA_{offset}"] = 0
                 feat[f"G_{offset}"] = 0
                 for col in rate_cols:
@@ -644,7 +656,6 @@ def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> 
                 feat[f"present_{offset}"] = 0
             else:
                 has_any = True
-                row = pdata.iloc[0]
                 pa = row["PA"]
                 feat[f"PA_{offset}"] = pa
                 feat[f"G_{offset}"] = row["G"]
@@ -662,10 +673,10 @@ def build_hitter_features_for_prediction(df: pd.DataFrame, target_year: int) -> 
         if has_saber:
             player_norm = _norm_name(player)
             for offset, yr in enumerate([y1, y2, y3], start=1):
-                sdata = saber[(saber["player_norm"] == player_norm) & (saber["year"] == yr)]
-                if len(sdata) > 0:
-                    feat[f"wOBA_{offset}"] = sdata.iloc[0]["wOBA"]
-                    feat[f"wRC+_{offset}"] = sdata.iloc[0]["wRC+"]
+                srow = sfirst.get((player_norm, yr))
+                if srow is not None:
+                    feat[f"wOBA_{offset}"] = srow["wOBA"]
+                    feat[f"wRC+_{offset}"] = srow["wRC+"]
                 else:
                     feat[f"wOBA_{offset}"] = np.nan
                     feat[f"wRC+_{offset}"] = np.nan
@@ -696,6 +707,7 @@ def build_pitcher_features_for_prediction(df: pd.DataFrame, target_year: int) ->
 
     past = df[df["year"].isin([y1, y2, y3])]
     players = past["player"].unique()
+    first = _first_rows(df, ["player", "year"])
     rows = []
 
     for player in players:
@@ -703,8 +715,8 @@ def build_pitcher_features_for_prediction(df: pd.DataFrame, target_year: int) ->
         has_any = False
 
         for offset, yr in enumerate([y1, y2, y3], start=1):
-            pdata = df[(df["player"] == player) & (df["year"] == yr)]
-            if len(pdata) == 0:
+            row = first.get((player, yr))
+            if row is None:
                 feat[f"IP_{offset}"] = 0
                 feat[f"G_{offset}"] = 0
                 for col in rate_cols:
@@ -715,7 +727,6 @@ def build_pitcher_features_for_prediction(df: pd.DataFrame, target_year: int) ->
                 feat[f"present_{offset}"] = 0
             else:
                 has_any = True
-                row = pdata.iloc[0]
                 ip = row["IP_num"]
                 feat[f"IP_{offset}"] = ip
                 feat[f"G_{offset}"] = row["G"]

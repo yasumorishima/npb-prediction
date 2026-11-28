@@ -273,11 +273,26 @@ def get_all_roster_names() -> set[str]:
     return names
 
 
+def _fuzzy(name: str) -> str:
+    return name.replace("\u3000", "").replace(" ", "").strip().translate(_VARIANT_MAP)
+
+
+_TEAM_INDEX: tuple = (None, {})        # (the ROSTER_CURRENT it was built from, fuzzy name -> team)
+
+
 def get_team_for_player(player_name: str) -> str | None:
-    """選手名からチーム名を返す（fuzzyマッチ＋異体字統一）"""
-    fuzzy = player_name.replace("\u3000", "").replace(" ", "").strip().translate(_VARIANT_MAP)
-    for team, players in ROSTER_CURRENT.items():
-        for p in players:
-            if p.replace("\u3000", "").replace(" ", "").strip().translate(_VARIANT_MAP) == fuzzy:
-                return team
-    return None
+    """選手名からチーム名を返す（fuzzyマッチ＋異体字統一）
+
+    同じ規則（ROSTER_CURRENT の順で最初に一致したチーム）を、名簿を一度だけ
+    辞書にして引く。以前は呼び出しごとに名簿全体をなぞっていた（アプリの
+    1 回の表示で 976 人 × 782 人 = 0.25〜0.36 秒、辞書で 1.2 ms、2026-11-28 cloud）。
+    tests/test_roster_lookup.py が以前の線形探索と同じ答えになることを確かめる。"""
+    global _TEAM_INDEX
+    src, index = _TEAM_INDEX
+    if src is not ROSTER_CURRENT:
+        index = {}
+        for team, players in ROSTER_CURRENT.items():
+            for p in players:
+                index.setdefault(_fuzzy(p), team)
+        _TEAM_INDEX = (ROSTER_CURRENT, index)
+    return index.get(_fuzzy(player_name))

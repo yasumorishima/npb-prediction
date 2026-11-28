@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        run: pip install pandas numpy requests beautifulsoup4 lxml pytest
+        run: pip install pandas numpy requests beautifulsoup4 lxml pytest fastapi httpx
       - name: Standalone runners
         run: |
           python tests/test_sigma_model.py

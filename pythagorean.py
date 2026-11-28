@@ -9,6 +9,8 @@
 """
 
 import pandas as pd
+
+from web_fetch import read_html_tables
 import numpy as np
 from pathlib import Path
 import time
@@ -62,7 +64,7 @@ def fetch_standings(year: int) -> pd.DataFrame | None:
     print(f"  Fetching: {url}")
 
     try:
-        tables = pd.read_html(url, encoding="utf-8")
+        tables = read_html_tables(url, encoding="utf-8")   # honest UA: urllib default is 403 there
     except Exception as e:
         print(f"  ERROR: {e}")
         return None
